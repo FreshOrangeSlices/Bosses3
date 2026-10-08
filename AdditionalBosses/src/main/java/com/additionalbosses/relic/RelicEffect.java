@@ -2,10 +2,15 @@ package com.additionalbosses.relic;
 
 import com.additionalbosses.combat.DamageContext;
 import com.destroystokyo.paper.event.player.PlayerJumpEvent;
+import org.bukkit.attribute.Attribute;
+import org.bukkit.attribute.AttributeModifier;
 import org.bukkit.configuration.ConfigurationSection;
+import org.bukkit.entity.Player;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.event.entity.EntityDeathEvent;
+
+import java.util.List;
 
 /**
  * A Relic effect (good) or Curse (bad). Relics are bound permanently to a piece of equipment and are active
@@ -63,6 +68,19 @@ public interface RelicEffect {
 
     default boolean preventsSleep() {
         return false;
+    }
+
+    /** A stat change applied to the player while this relic is active (removed automatically when it isn't). */
+    record AttributeBonus(Attribute attribute, double amount, AttributeModifier.Operation operation) {
+    }
+
+    /** Attribute changes held while equipped (e.g. Heavy Crown's armor, Reduction's smaller size). */
+    default List<AttributeBonus> attributeBonuses() {
+        return List.of();
+    }
+
+    /** Called when this relic stops being active for a player (unequipped, logged out, plugin disabled). */
+    default void onDeactivate(Player player) {
     }
 
     /** Multiplies the killer's boss reward chances. */

@@ -34,6 +34,8 @@ public final class Curses {
     public static final class Dread extends BaseRelic {
         private double chance = 20;
         private double seconds = 3;
+        private double lightningChance = 1;
+        private double lightningCooldown = 60;
 
         public Dread() {
             super("dread", "Dread", true);
@@ -43,11 +45,33 @@ public final class Curses {
         public void load(ConfigurationSection s) {
             chance = s.getDouble("chance", 20);
             seconds = s.getDouble("duration-seconds", 3);
+            lightningChance = s.getDouble("lightning-chance-per-second", 1);
+            lightningCooldown = s.getDouble("lightning-cooldown-seconds", 60);
         }
 
         @Override
         public String description() {
-            return "When hurt, " + Text.num(chance) + "% chance to be swallowed by Darkness.";
+            return "When hurt, " + Text.num(chance) + "% chance of Darkness. Harmless lightning strikes near you.";
+        }
+
+        @Override
+        public boolean passive() {
+            return true;
+        }
+
+        /** Ominous, harmless lightning (no damage, no fire) a short distance away. */
+        @Override
+        public void onPassive(RelicContext ctx) {
+            Player p = ctx.player();
+            if (p.getWorld().getEnvironment() != org.bukkit.World.Environment.NORMAL || !Rng.chance(lightningChance)
+                || !ctx.manager().ready(p, id() + "-lightning", (int) Math.round(lightningCooldown * 20))) {
+                return;
+            }
+            org.bukkit.util.Vector offset = new org.bukkit.util.Vector(Rng.between(8.0, 16.0), 0, 0)
+                .rotateAroundY(Math.toRadians(Rng.between(0.0, 360.0)));
+            org.bukkit.Location at = p.getLocation().add(offset);
+            at.setY(p.getWorld().getHighestBlockYAt(at) + 1);
+            p.getWorld().strikeLightningEffect(at);
         }
 
         @Override

@@ -22,7 +22,7 @@ A Paper plugin for **Minecraft 26.3** that makes normal survival occasionally pr
 | **Rewards** | Extra XP plus *independent* rolls for Boss Gear, Empowerment Runes, Relics and Relic Catalysts. Drops glow, show their name and can't burn or despawn. |
 | **Boss Gear** | One rank-branded equipment piece (e.g. `★★★★ Nightmare Diamond Sword`) with enchantments. High ranks can go above vanilla enchantment limits. |
 | **Empowerment** | Runes that add a permanent stat (Attack Damage, Max Health, Armor, Speed...) to any item you choose. |
-| **Relics** | 15 unique abilities you bind permanently to equipment (Blood Pact, Second Dawn, Windstep, Stormcaller...). 10% are corrupted and also carry one of 9 curses (Butterfingers, Fowl Omen, Insomnia...). |
+| **Relics** | 27 unique abilities you bind permanently to equipment: combat relics (Blood Pact, Second Dawn, Windstep, Stormcaller...), auras (Iron Will, Skybound, Nightstalker, Sunblessed...) and risky "Burdened" relics (Greed, Heavy Crown). 10% are corrupted and also carry one of 14 curses (Terror, Echoes, Reduction, Mother Hen, Matador, Butterfingers...). |
 | **Relic Catalyst** | Extremely rare Nightmare/Legendary drop that gives an item a second Relic slot. |
 | **Guide book** | `/bosses guide` gives the *Boss Hunter's Compendium*: a clickable in-game book, generated from your config, explaining everything plus your personal boss record. New players get it automatically. |
 
