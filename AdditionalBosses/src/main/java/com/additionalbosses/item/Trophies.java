@@ -12,6 +12,7 @@ import io.papermc.paper.datacomponent.DataComponentTypes;
 import net.kyori.adventure.key.Key;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
+import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.Particle;
@@ -334,9 +335,28 @@ public final class Trophies {
         if (!placed.isValid()) {
             return false; // something (e.g. a protection plugin) stopped it
         }
+        // Apply the size once more after the mob is fully in the world, in case anything reset it on spawn.
+        Bukkit.getScheduler().runTask(plugin, () -> resize(placed));
         Fx.particle(at.clone().add(0, 1, 0), Particle.CLOUD, 15, 0.4, 0.02);
         Fx.play(at, "block.stone.place", 1.0f, 0.8f);
         return true;
+    }
+
+    /** Placed trophies always use the current trophy size, including ones placed before it changed. */
+    public void resize(Entity e) {
+        if (!(e instanceof LivingEntity living) || !e.isValid()) {
+            return;
+        }
+        ItemStack original = storedItem(e);
+        if (original == null || !ItemService.Kind.TROPHY.name().equals(
+            original.getPersistentDataContainer().get(Keys.ITEM_KIND, PersistentDataType.STRING))) {
+            return;
+        }
+        AttributeInstance scale = living.getAttribute(Attribute.SCALE);
+        double wanted = plugin.settings().features.trophyScale;
+        if (scale != null && Math.abs(scale.getBaseValue() - wanted) > 1.0E-4) {
+            scale.setBaseValue(wanted);
+        }
     }
 
     /** Mini trophies are too small to click reliably, so they can also be picked up via the block below them. */

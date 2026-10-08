@@ -399,6 +399,27 @@ public final class FeatureListener implements Listener {
         return true;
     }
 
+    /** Trophies placed before the size changed shrink to the current size when their chunk loads. */
+    @EventHandler
+    public void onEntitiesLoad(org.bukkit.event.world.EntitiesLoadEvent event) {
+        for (Entity e : event.getEntities()) {
+            if (Trophies.isStatue(e)) {
+                plugin.trophies().resize(e);
+            }
+        }
+    }
+
+    /** On startup / reload: resize trophies that are already loaded. */
+    public void resizeLoadedTrophies() {
+        for (org.bukkit.World world : Bukkit.getWorlds()) {
+            for (org.bukkit.entity.LivingEntity e : world.getLivingEntities()) {
+                if (Trophies.isStatue(e)) {
+                    plugin.trophies().resize(e);
+                }
+            }
+        }
+    }
+
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onStatueDamage(EntityDamageEvent event) {
         if (!Trophies.isStatue(event.getEntity())) {

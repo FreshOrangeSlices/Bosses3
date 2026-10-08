@@ -136,6 +136,7 @@ public final class AdditionalBosses extends JavaPlugin {
         relics.load(getConfig().getConfigurationSection("relics"), getLogger());
         if (features != null) {
             features.registerRecipes();
+            features.resizeLoadedTrophies();
         }
     }
 

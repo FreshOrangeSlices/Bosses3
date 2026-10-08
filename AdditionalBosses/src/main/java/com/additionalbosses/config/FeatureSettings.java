@@ -170,7 +170,7 @@ public final class FeatureSettings {
         ascendantShockwaveRadius = c.getDouble("ascendant.phases.shockwave-radius", 7);
         ascendantShockwaveDamage = c.getDouble("ascendant.phases.shockwave-damage", 6);
         trophyPlacing = c.getBoolean("trophies.placeable", true);
-        trophyScale = Math.max(0.0625, Math.min(1.0, c.getDouble("trophies.scale", 0.1)));
+        trophyScale = Math.max(0.0625, Math.min(1.0, c.getDouble("trophies.scale", 0.0625)));
 
         waystonesEnabled = c.getBoolean("waystones.enabled", true);
         waystoneAscendantDrops = Math.max(0, c.getInt("waystones.ascendant-drops", 2));
