@@ -46,6 +46,14 @@ public final class BossBarManager {
         }
     }
 
+    /** Re-renders the bar title after the boss was renamed (Nemesis titles, Last Stand...). */
+    public void retitle(Boss boss) {
+        BossBar bar = boss.bar();
+        if (bar != null) {
+            bar.name(title(boss, boss.health()));
+        }
+    }
+
     /** Called by the BossManager ticker: shows the bar to engaged nearby players and hides it from everyone else. */
     public void refreshViewers(Boss boss) {
         BossBar bar = boss.bar();

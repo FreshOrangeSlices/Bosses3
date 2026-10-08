@@ -177,6 +177,27 @@ public final class TraitManager {
         return picked;
     }
 
+    /** One extra trait that the mob supports and that doesn't clash with what it already has (or null). */
+    public @Nullable BossTrait rollExtra(LivingEntity entity, List<BossTrait> existing) {
+        List<BossTrait> pool = new ArrayList<>();
+        for (BossTrait trait : enabledTraits()) {
+            if (!trait.supports(entity) || weights.getOrDefault(trait.id(), 0.0) <= 0) {
+                continue;
+            }
+            boolean ok = true;
+            for (BossTrait have : existing) {
+                if (!compatible(have, trait)) {
+                    ok = false;
+                    break;
+                }
+            }
+            if (ok) {
+                pool.add(trait);
+            }
+        }
+        return Rng.weighted(pool, t -> weights.getOrDefault(t.id(), 0.0));
+    }
+
     private static String pairKey(String a, String b) {
         a = a.trim().toLowerCase(Locale.ROOT);
         b = b.trim().toLowerCase(Locale.ROOT);

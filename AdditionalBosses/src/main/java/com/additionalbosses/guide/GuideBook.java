@@ -3,12 +3,15 @@ package com.additionalbosses.guide;
 import com.additionalbosses.AdditionalBosses;
 import com.additionalbosses.boss.BossRank;
 import com.additionalbosses.config.EmpowermentStat;
+import com.additionalbosses.config.FeatureSettings;
 import com.additionalbosses.config.MobCategory;
 import com.additionalbosses.config.PluginSettings;
 import com.additionalbosses.config.RankSettings;
 import com.additionalbosses.item.ItemService;
+import com.additionalbosses.nemesis.NemesisRecord;
 import com.additionalbosses.relic.RelicEffect;
 import com.additionalbosses.trait.BossTrait;
+import com.additionalbosses.trait.Synergies;
 import com.additionalbosses.trait.TraitCategory;
 import com.additionalbosses.util.Keys;
 import com.additionalbosses.util.PlayerData;
@@ -78,8 +81,8 @@ public final class GuideBook {
         w.text("You'll know one when you see it:", INK);
         w.add(Component.text("★★★★★ Legendary Undying Zombie", BossRank.GOLD.bookColor()).decorate(TextDecoration.BOLD), true);
         w.blank();
-        w.text("Bosses are bigger, wear armor dyed in their rank colour and shimmer faintly. "
-            + "Fight one and its health bar appears at the top of your screen.", INK);
+        w.text("Bosses are bigger" + (s.displayGear ? ", wear armor dyed in their rank colour" : "")
+            + " and shimmer faintly. Fight one and its health bar appears at the top of your screen.", INK);
         w.blank();
         w.text("At most " + s.maxActive + " bosses can be loaded at once.", SOFT);
         w.newPage();
@@ -167,6 +170,52 @@ public final class GuideBook {
         }
         w.newPage();
 
+        // ---------------- Synergies + tells ----------------
+        sections.put("Synergies & Tells", w.currentPage());
+        w.heading("Synergies", TITLE);
+        w.text("Some trait pairs fuse. The boss is named after the synergy and its traits hit "
+            + Math.round((Synergies.POWER_BONUS - 1) * 100) + "% harder.", INK);
+        w.blank();
+        for (Synergies.Synergy syn : Synergies.ALL) {
+            BossTrait a = plugin.traits().get(syn.first());
+            BossTrait b = plugin.traits().get(syn.second());
+            if (a == null || b == null || !plugin.traits().isEnabled(a) || !plugin.traits().isEnabled(b)) {
+                continue;
+            }
+            w.reserve(2);
+            w.add(Component.text(syn.title(), TITLE).decorate(TextDecoration.BOLD), true);
+            w.text(a.displayName() + " + " + b.displayName(), SOFT);
+        }
+        w.newPage();
+        w.heading("Boss Tells", TITLE);
+        w.text("Big attacks are telegraphed. Watch for them and move:", INK);
+        w.blank();
+        w.entry("Quaking", TITLE, "it rears up and a red ring shows where the slam lands.", INK);
+        w.entry("Gravitic", TITLE, "a violet ring and a low hum before the pull.", INK);
+        w.entry("Leaping", TITLE, "it crouches and scrapes the ground before it jumps.", INK);
+        w.entry("Charging", TITLE, "it roars before it rushes you.", INK);
+        w.newPage();
+
+        // ---------------- Last Stand + anti-trap ----------------
+        FeatureSettings f = s.features;
+        sections.put("Last Stand", w.currentPage());
+        w.heading("Last Stand", TITLE);
+        StringJoiner lsRanks = new StringJoiner(" and ");
+        for (BossRank rank : f.lastStandRanks) {
+            lsRanks.add(s.rank(rank).name());
+        }
+        w.text((lsRanks.length() == 0 ? "Nemesis" : lsRanks + " bosses and every Nemesis") + " make a Last Stand once, at "
+            + Text.num(f.lastStandHealthPercent) + "% health:", INK);
+        w.text("- traits " + Text.num(f.lastStandPowerBonus) + "% stronger", INK);
+        w.text("- " + Text.num(f.lastStandSpeedBonus) + "% faster", INK);
+        if (f.lastStandDormantTrait) {
+            w.text("- a dormant trait awakens", INK);
+        }
+        w.blank();
+        w.text("No cheese: bosses can't be put in boats, minecarts or on leads, and a boss that can't reach you"
+            + " for a few seconds tears itself free.", SOFT);
+        w.newPage();
+
         // ---------------- Rewards ----------------
         sections.put("Rewards", w.currentPage());
         w.heading("Rewards", TITLE);
@@ -207,7 +256,20 @@ public final class GuideBook {
             w.text(overMax + " gear can even roll enchantments above the normal maximum.", INK);
         }
         w.blank();
-        w.text("The armor a boss wears is just for show and never drops.", SOFT);
+        w.text("Material and quality are rolled separately. Quality: Crude, Standard, Fine or Masterwork"
+            + " (more and stronger enchantments).", INK);
+        w.newPage();
+        w.heading("Gear by Rank", TITLE);
+        for (BossRank rank : BossRank.values()) {
+            RankSettings.Gear g = s.rank(rank).gear();
+            w.reserve(3);
+            w.add(Component.text(s.rank(rank).name(), rank.bookColor()).decorate(TextDecoration.BOLD), true);
+            w.text(weights(g.materials()), INK);
+            w.blank();
+        }
+        if (s.displayGear) {
+            w.text("The armor a boss wears is just for show and never drops.", SOFT);
+        }
         w.newPage();
 
         // ---------------- Empowerment ----------------
@@ -288,6 +350,79 @@ public final class GuideBook {
             w.newPage();
         }
 
+        // ---------------- The Hunt: compass, totem, escalation, trophies ----------------
+        sections.put("The Hunt", w.currentPage());
+        w.heading("The Hunt", TITLE);
+        if (f.compassEnabled) {
+            w.add(Component.text("Hunter's Compass", TITLE).decorate(TextDecoration.BOLD), true);
+            w.text("Hold it to track the nearest boss: distance and which way to turn.", INK);
+            if (f.compassRecipe) {
+                w.text("Craft: Compass + Eye of Ender + Bone.", SOFT);
+            }
+            w.text("Upgrade it by clicking an Empowerment Rune onto it.", SOFT);
+            w.blank();
+            for (int i = 1; i <= f.compassTiers.size(); i++) {
+                FeatureSettings.CompassTier t = f.compassTier(i);
+                w.text("Tier " + Text.roman(i) + ": " + Math.round(t.range()) + " blocks, rank seen within "
+                    + Math.round(t.revealDistance()), INK);
+            }
+            w.blank();
+            w.text("It pulses like a heartbeat near Purple, Gold and Nemesis bosses.", SOFT);
+            w.newPage();
+        }
+        if (f.totemEnabled) {
+            w.add(Component.text("Boss Totem", TITLE).decorate(TextDecoration.BOLD), true);
+            w.text("A rare drop (" + Text.num(f.totemDropChance.getOrDefault(BossRank.GRAY, 0.0)) + "-"
+                + Text.num(f.totemDropChance.getOrDefault(BossRank.GOLD, 0.0)) + "% per boss). Right-click it and,"
+                + " after a short ritual, a boss arrives to fight you.", INK);
+            w.blank();
+        }
+        if (f.escalationEnabled) {
+            w.reserve(5);
+            w.add(Component.text("Escalation", TITLE).decorate(TextDecoration.BOLD), true);
+            w.text("Kill " + f.escalationKills + " bosses within " + Text.num(f.escalationWindowDays)
+                + " Minecraft day" + (f.escalationWindowDays == 1 ? "" : "s") + " and " + f.escalationBosses
+                + " powerful bosses come for you.", INK);
+            w.blank();
+        }
+        if (f.trophiesEnabled) {
+            w.reserve(5);
+            w.add(Component.text("Trophies", TITLE).decorate(TextDecoration.BOLD), true);
+            w.text("Bosses sometimes leave a trophy: a Blaze Core, a Ravager Horn, a Withered Skull... Gold"
+                + " bosses always do.", INK);
+        }
+        w.newPage();
+
+        // ---------------- Nemesis ----------------
+        if (f.nemesisEnabled) {
+            sections.put("Nemesis", w.currentPage());
+            w.heading("Nemesis", CURSE);
+            w.text("A boss that kills you becomes your Nemesis. Flee from a " + s.rank(f.nemesisEscapeMinRank).name()
+                + "+ boss after a real fight and it may too.", INK);
+            w.blank();
+            w.text("It withdraws, grows stronger and returns for you after " + Text.num(f.nemesisReturnDays)
+                + " Minecraft days. It ignores the boss cap and never despawns.", INK);
+            w.newPage();
+            w.heading("It Remembers", CURSE);
+            w.text("- every death to it: +" + f.nemesisLevelsOnKill + " levels", INK);
+            w.text("- every escape: +" + f.nemesisLevelsOnEscape + " level", INK);
+            w.text("- a rank every " + f.nemesisLevelsPerRank + " levels, a new trait every "
+                + f.nemesisLevelsPerTrait + " (up to level " + f.nemesisMaxLevel + ")", INK);
+            w.text("- it adapts: archers face wards, brawlers face thorns, runners face speed", INK);
+            w.blank();
+            w.text("Its white name carries its titles: Returned, Twice-Fled, Relentless, Unbroken...", SOFT);
+            w.newPage();
+            w.heading("Revenge", CURSE);
+            w.text("Slay it for guaranteed Masterwork gear, a rune, better relic odds and a Nemesis Statue"
+                + " of it to place in your base.", INK);
+            w.blank();
+            w.text("Killing a boss that killed you is Revenge: x" + Text.num(f.nemesisRevengeXpMultiplier)
+                + " XP and an extra reward roll.", INK);
+            w.blank();
+            w.text("Statue: right-click a block to place, sneak + right-click to pick up.", SOFT);
+            w.newPage();
+        }
+
         // ---------------- Commands ----------------
         sections.put("Commands", w.currentPage());
         w.heading("Commands", TITLE);
@@ -295,11 +430,14 @@ public final class GuideBook {
         command(w, "/bosses apply", "Use the rune or relic in your off hand on your main-hand item.");
         command(w, "/bosses inspect", "See every layer of your held item.");
         command(w, "/bosses stats", "Your boss-hunting record.");
+        command(w, "/bosses nemesis", "Your Nemeses and when they return.");
         if (reader.hasPermission("additionalbosses.admin")) {
             w.newPage();
             w.heading("Admin", TITLE);
             command(w, "/bosses spawn <mob> [rank] [traits]", "Spawn a boss.");
-            command(w, "/bosses give <player> <gear|rune|relic|catalyst|guide>", "Create items.");
+            command(w, "/bosses give <player> <gear|rune|relic|catalyst|compass|totem|guide>", "Create items.");
+            command(w, "/bosses nemesis list|summon|clear <player>", "Manage Nemeses.");
+            command(w, "/bosses escalate <player>", "Trigger an Escalation.");
             command(w, "/bosses list", "Active bosses.");
             command(w, "/bosses killall", "Remove all bosses.");
             command(w, "/bosses reload", "Reload config.yml.");
@@ -318,6 +456,19 @@ public final class GuideBook {
         w.blank();
         w.text("Total: " + PlayerData.totalKills(reader), INK);
         w.text("Relics bound: " + PlayerData.relicsBound(reader), INK);
+        if (f.escalationEnabled) {
+            w.text("Escalation: " + plugin.escalation().progress(reader) + "/" + f.escalationKills + " today", INK);
+        }
+        if (f.nemesisEnabled) {
+            List<NemesisRecord> mine = plugin.nemesis().forOwner(reader.getUniqueId());
+            w.blank();
+            w.add(Component.text("Nemeses: " + mine.size(), CURSE).decorate(TextDecoration.BOLD), true);
+            for (NemesisRecord r : mine) {
+                w.reserve(2);
+                w.text(plugin.nemesis().plainName(r) + " (Lv " + r.level + ")", INK);
+                w.text(plugin.nemesis().describeReturn(r), SOFT);
+            }
+        }
 
         List<Component> body = w.finish();
 
@@ -379,6 +530,20 @@ public final class GuideBook {
         w.add(Component.text(command, NamedTextColor.DARK_BLUE), false);
         w.text(description, SOFT);
         w.blank();
+    }
+
+    private static <T extends Enum<T>> String weights(Map<T, Integer> weights) {
+        int total = 0;
+        for (int v : weights.values()) {
+            total += Math.max(0, v);
+        }
+        StringJoiner out = new StringJoiner(", ");
+        for (Map.Entry<T, Integer> e : weights.entrySet()) {
+            if (e.getValue() > 0 && total > 0) {
+                out.add(Text.pretty(e.getKey().name()) + " " + Math.round(e.getValue() * 100.0 / total) + "%");
+            }
+        }
+        return out.toString();
     }
 
     private static String rangeLine(EmpowermentStat stat) {

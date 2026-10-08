@@ -20,11 +20,18 @@ public final class Keys {
     public static NamespacedKey BOSS_UNDYING;    // byte, Undying trait already used
     public static NamespacedKey MINION;          // string, UUID of the boss that summoned it
     public static NamespacedKey WORLDGEN_CHECKED; // byte, a structure/world-gen mob already had its boss roll
+    public static NamespacedKey BOSS_LAST_STAND; // byte, Last Stand already triggered
+    public static NamespacedKey NEMESIS;         // string, nemesis record id
+    public static NamespacedKey STATUE;          // string, statue data (on statue entities and statue items)
+    public static NamespacedKey STATUE_LORE;     // list<string>, MiniMessage lore lines kept on a placed statue
+    public static NamespacedKey COMPASS_TIER;    // int
+    public static NamespacedKey TOTEM_RANK;      // string, rank a Boss Totem summons ("" = random)
 
     // --- Items ---
-    public static NamespacedKey ITEM_KIND;       // string: GEAR, RUNE, RELIC, CATALYST, GUIDE
+    public static NamespacedKey ITEM_KIND;       // string: ItemService.Kind name
     public static NamespacedKey ITEM_RANK;       // string (BossRank name)
     public static NamespacedKey GEAR_SOURCE;     // string, plain name of the boss that dropped it
+    public static NamespacedKey GEAR_QUALITY;    // string, GearQuality name
     public static NamespacedKey RUNE_STAT;       // string, empowerment stat id
     public static NamespacedKey RUNE_AMOUNT;     // double
     public static NamespacedKey RELIC_ID;        // string, relic effect id (on a relic item)
@@ -50,6 +57,10 @@ public final class Keys {
     public static NamespacedKey MOD_SIZE;
     public static NamespacedKey MOD_TRAIT_SWIFT;
     public static NamespacedKey MOD_TRAIT_BERSERK;
+    public static NamespacedKey MOD_LAST_STAND;
+    public static NamespacedKey MOD_NEMESIS_HEALTH;
+    public static NamespacedKey MOD_NEMESIS_SIZE;
+    public static NamespacedKey MOD_FOLLOW;
 
     private Keys() {
     }
@@ -62,10 +73,21 @@ public final class Keys {
         BOSS_UNDYING = new NamespacedKey(plugin, "boss_undying_used");
         MINION = new NamespacedKey(plugin, "minion_of");
         WORLDGEN_CHECKED = new NamespacedKey(plugin, "worldgen_checked");
+        BOSS_LAST_STAND = new NamespacedKey(plugin, "boss_last_stand");
+        NEMESIS = new NamespacedKey(plugin, "nemesis");
+        STATUE = new NamespacedKey(plugin, "statue");
+        STATUE_LORE = new NamespacedKey(plugin, "statue_lore");
+        COMPASS_TIER = new NamespacedKey(plugin, "compass_tier");
+        TOTEM_RANK = new NamespacedKey(plugin, "totem_rank");
+        MOD_LAST_STAND = new NamespacedKey(plugin, "last_stand_speed");
+        MOD_NEMESIS_HEALTH = new NamespacedKey(plugin, "nemesis_health");
+        MOD_NEMESIS_SIZE = new NamespacedKey(plugin, "nemesis_size");
+        MOD_FOLLOW = new NamespacedKey(plugin, "boss_follow_range");
 
         ITEM_KIND = new NamespacedKey(plugin, "item_kind");
         ITEM_RANK = new NamespacedKey(plugin, "item_rank");
         GEAR_SOURCE = new NamespacedKey(plugin, "gear_source");
+        GEAR_QUALITY = new NamespacedKey(plugin, "gear_quality");
         RUNE_STAT = new NamespacedKey(plugin, "rune_stat");
         RUNE_AMOUNT = new NamespacedKey(plugin, "rune_amount");
         RELIC_ID = new NamespacedKey(plugin, "relic_id");

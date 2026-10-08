@@ -81,32 +81,7 @@ public final class BlinkingTrait extends BaseTrait {
         boss.cooldown("blink", now, (int) Math.round(cooldown * 20));
     }
 
-    /** A safe spot about two blocks behind the target, trying a few angles if the first is blocked. */
     private @Nullable Location findSpot(Player target) {
-        Location origin = target.getLocation();
-        World world = origin.getWorld();
-        Vector back = origin.getDirection().setY(0);
-        if (back.lengthSquared() < 0.01) {
-            back = new Vector(1, 0, 0);
-        }
-        back.normalize().multiply(-2.2);
-        double[] angles = {0, 45, -45, 90, -90, 135, -135, 180};
-        for (double deg : angles) {
-            Vector offset = back.clone().rotateAroundY(Math.toRadians(deg));
-            Location candidate = origin.clone().add(offset);
-            for (int dy = 1; dy >= -2; dy--) {
-                Block feet = world.getBlockAt(candidate.getBlockX(), candidate.getBlockY() + dy, candidate.getBlockZ());
-                Block head = feet.getRelative(BlockFace.UP);
-                Block ground = feet.getRelative(BlockFace.DOWN);
-                if (feet.isPassable() && !feet.isLiquid() && head.isPassable() && !head.isLiquid()
-                    && ground.getType().isSolid()) {
-                    Location spot = feet.getLocation().add(0.5, 0, 0.5);
-                    Vector look = origin.toVector().subtract(spot.toVector());
-                    spot.setDirection(look.lengthSquared() < 0.01 ? new Vector(0, 0, 1) : look);
-                    return spot;
-                }
-            }
-        }
-        return null;
+        return com.additionalbosses.util.SafeSpots.behind(target, 2.2);
     }
 }

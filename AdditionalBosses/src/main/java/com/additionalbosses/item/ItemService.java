@@ -6,6 +6,7 @@ import com.additionalbosses.config.EmpowermentStat;
 import com.additionalbosses.config.Messages;
 import com.additionalbosses.config.PluginSettings;
 import com.additionalbosses.relic.RelicEffect;
+import com.additionalbosses.reward.GearQuality;
 import com.additionalbosses.util.Fx;
 import com.additionalbosses.util.Keys;
 import com.additionalbosses.util.PlayerData;
@@ -21,6 +22,8 @@ import net.kyori.adventure.text.format.TextColor;
 import net.kyori.adventure.text.format.TextDecoration;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import org.bukkit.Bukkit;
+import net.kyori.adventure.key.Key;
+import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
 import org.bukkit.attribute.AttributeModifier;
 import org.bukkit.entity.Player;
@@ -44,7 +47,7 @@ import java.util.UUID;
  */
 public final class ItemService {
 
-    public enum Kind { GEAR, RUNE, RELIC, CATALYST, GUIDE }
+    public enum Kind { GEAR, RUNE, RELIC, CATALYST, GUIDE, COMPASS, TOTEM, TROPHY, STATUE }
 
     private record Pending(String token, int expiresAt) {
     }
@@ -120,7 +123,7 @@ public final class ItemService {
     // =====================================================================
 
     /** Gives an item its Boss Gear identity: rank-coloured name with stars, label and source. */
-    public void markGear(ItemStack item, BossRank rank, String sourceName) {
+    public void markGear(ItemStack item, BossRank rank, String sourceName, GearQuality quality) {
         String rankName = settings().rank(rank).name();
         Component name = Component.text(rank.starText() + " " + rankName + " " + Text.pretty(item.getType().name()),
             rank.color());
@@ -132,6 +135,7 @@ public final class ItemService {
             pdc.set(Keys.ITEM_KIND, PersistentDataType.STRING, Kind.GEAR.name());
             pdc.set(Keys.ITEM_RANK, PersistentDataType.STRING, rank.name());
             pdc.set(Keys.GEAR_SOURCE, PersistentDataType.STRING, sourceName);
+            pdc.set(Keys.GEAR_QUALITY, PersistentDataType.STRING, quality.name());
         });
         refreshLore(item);
     }
@@ -224,6 +228,87 @@ public final class ItemService {
         return item;
     }
 
+    /** A Boss Totem: use it to call a boss of the given rank (null = random rank). */
+    public ItemStack createTotem(@Nullable BossRank rank) {
+        ItemStack item = ItemStack.of(Material.PAPER);
+        item.setData(DataComponentTypes.ITEM_MODEL, Key.key("totem_of_undying"));
+        Component name = rank == null
+            ? Component.text("Boss Totem", NamedTextColor.DARK_PURPLE)
+            : Component.text(rank.starText() + " " + settings().rank(rank).name() + " Boss Totem", rank.color());
+        item.setData(DataComponentTypes.ITEM_NAME, name.decorate(TextDecoration.BOLD));
+        item.setData(DataComponentTypes.ENCHANTMENT_GLINT_OVERRIDE, true);
+        item.setData(DataComponentTypes.MAX_STACK_SIZE, 16);
+        List<Component> lore = new ArrayList<>();
+        lore.add(Text.line(rank == null ? "Calls a boss of a random rank." : "Calls a " + settings().rank(rank).name()
+            + " boss.", NamedTextColor.GRAY));
+        lore.add(Text.line("Right-click to begin the ritual.", NamedTextColor.GRAY));
+        lore.add(Component.empty());
+        lore.add(Text.line("The boss arrives a few blocks away", NamedTextColor.DARK_GRAY));
+        lore.add(Text.line("after 3 seconds. Be ready.", NamedTextColor.DARK_GRAY));
+        item.lore(lore);
+        item.editPersistentDataContainer(pdc -> {
+            pdc.set(Keys.ITEM_KIND, PersistentDataType.STRING, Kind.TOTEM.name());
+            pdc.set(Keys.TOTEM_RANK, PersistentDataType.STRING, rank == null ? "" : rank.name());
+        });
+        return item;
+    }
+
+    public static final String[] COMPASS_TIER_NAMES = {"Worn", "Keen", "Masterwork", "Mythic", "Legendary"};
+
+    /** The Hunter's Compass. Higher tiers track further and read a boss's rank from further away. */
+    public ItemStack createCompass(int tier) {
+        var tiers = settings().features.compassTiers;
+        int t = Math.max(1, Math.min(tiers.size(), tier));
+        var info = settings().features.compassTier(t);
+        ItemStack item = ItemStack.of(Material.COMPASS);
+        String label = COMPASS_TIER_NAMES[Math.min(COMPASS_TIER_NAMES.length - 1, t - 1)];
+        item.setData(DataComponentTypes.ITEM_NAME, Component.text(label + " Hunter's Compass", NamedTextColor.GOLD));
+        item.setData(DataComponentTypes.MAX_STACK_SIZE, 1);
+        if (t > 1) {
+            item.setData(DataComponentTypes.ENCHANTMENT_GLINT_OVERRIDE, true);
+        }
+        List<Component> lore = new ArrayList<>();
+        lore.add(Text.line("Tier " + Text.roman(t) + " / " + Text.roman(tiers.size()), NamedTextColor.YELLOW));
+        lore.add(Text.line("Hold it to track the nearest boss", NamedTextColor.GRAY));
+        lore.add(Text.line("within " + Math.round(info.range()) + " blocks.", NamedTextColor.GRAY));
+        lore.add(Text.line("Reveals its rank within " + Math.round(info.revealDistance()) + " blocks.", NamedTextColor.GRAY));
+        lore.add(Component.empty());
+        if (t < tiers.size()) {
+            lore.add(Text.line("Click an Empowerment Rune onto it", NamedTextColor.DARK_GRAY));
+            lore.add(Text.line("to upgrade it" + (t + 1 == tiers.size() ? " (Red rune or better)." : "."), NamedTextColor.DARK_GRAY));
+        } else {
+            lore.add(Text.line("Fully upgraded.", NamedTextColor.DARK_GRAY));
+        }
+        item.lore(lore);
+        item.editPersistentDataContainer(pdc -> {
+            pdc.set(Keys.ITEM_KIND, PersistentDataType.STRING, Kind.COMPASS.name());
+            pdc.set(Keys.COMPASS_TIER, PersistentDataType.INTEGER, t);
+        });
+        return item;
+    }
+
+    public int compassTier(ItemStack compass) {
+        return compass.getPersistentDataContainer().getOrDefault(Keys.COMPASS_TIER, PersistentDataType.INTEGER, 1);
+    }
+
+    /** Runes upgrade a Hunter's Compass one tier; the final tier needs a Red rune or better. */
+    private @Nullable Component validateCompass(ItemStack rune, ItemStack compass) {
+        int tier = compassTier(compass);
+        int max = settings().features.compassTiers.size();
+        if (tier >= max) {
+            return Text.mm("<red>This compass is already fully upgraded.</red>");
+        }
+        BossRank rank = BossRank.parse(rune.getPersistentDataContainer().get(Keys.ITEM_RANK, PersistentDataType.STRING));
+        if (tier + 1 == max && (rank == null || !rank.atLeast(BossRank.RED))) {
+            return Text.mm("<red>The last upgrade needs a Red, Purple or Gold rune.</red>");
+        }
+        return compass.getAmount() == 1 ? null : settings().messages.prefixed("apply-not-equipment");
+    }
+
+    public boolean isCompassUpgrade(@Nullable ItemStack consumable, @Nullable ItemStack target) {
+        return kind(consumable) == Kind.RUNE && kind(target) == Kind.COMPASS;
+    }
+
     // =====================================================================
     // Applying runes / relics / catalysts
     // =====================================================================
@@ -231,7 +316,15 @@ public final class ItemService {
     /** Returns an error message, or null if the consumable can be applied to the target. */
     public @Nullable Component validate(ItemStack consumable, ItemStack target) {
         Messages m = settings().messages;
+        if (isCompassUpgrade(consumable, target)) {
+            return validateCompass(consumable, target);
+        }
         EquipmentType type = EquipmentType.of(target.getType());
+        Kind targetKind = kind(target);
+        if (targetKind == Kind.COMPASS || targetKind == Kind.TOTEM || targetKind == Kind.TROPHY
+            || targetKind == Kind.STATUE || targetKind == Kind.GUIDE) {
+            return m.prefixed("apply-not-equipment");
+        }
         if (target.isEmpty() || !type.isEquipment() || kind(target) == Kind.RUNE || kind(target) == Kind.RELIC
             || kind(target) == Kind.CATALYST || target.getAmount() != 1) {
             return m.prefixed("apply-not-equipment");
@@ -306,6 +399,16 @@ public final class ItemService {
         PersistentDataContainerView c = consumable.getPersistentDataContainer();
         Kind k = kind(consumable);
         Component itemName = target.effectiveName();
+
+        if (isCompassUpgrade(consumable, target)) {
+            ItemStack upgraded = createCompass(compassTier(target) + 1);
+            target.copyDataFrom(upgraded, component -> true);
+            target.editPersistentDataContainer(pdc ->
+                pdc.set(Keys.COMPASS_TIER, PersistentDataType.INTEGER, compassTier(upgraded)));
+            Fx.play(player.getLocation(), "block.lodestone.place", 1.0f, 1.2f);
+            Fx.play(player.getLocation(), "block.enchantment_table.use", 1.0f, 1.4f);
+            return m.prefixed("compass-upgraded", Placeholder.unparsed("count", Text.roman(compassTier(upgraded))));
+        }
 
         if (k == Kind.RUNE) {
             EmpowermentStat stat = settings().stat(c.getOrDefault(Keys.RUNE_STAT, PersistentDataType.STRING, ""));
@@ -419,6 +522,11 @@ public final class ItemService {
             BossRank rank = BossRank.parse(view.get(Keys.ITEM_RANK, PersistentDataType.STRING));
             if (rank != null) {
                 lines.add(Text.line("◆ Boss-Touched Gear", rank.color()));
+                GearQuality quality = GearQuality.parse(view.getOrDefault(Keys.GEAR_QUALITY, PersistentDataType.STRING, ""));
+                if (quality != null && quality != GearQuality.STANDARD) {
+                    lines.add(Text.line("Quality: " + quality.displayName(), quality == GearQuality.CRUDE
+                        ? NamedTextColor.GRAY : quality == GearQuality.FINE ? NamedTextColor.AQUA : NamedTextColor.GOLD));
+                }
                 String source = view.get(Keys.GEAR_SOURCE, PersistentDataType.STRING);
                 if (source != null) {
                     lines.add(Text.line("Dropped by: " + source, NamedTextColor.DARK_GRAY));

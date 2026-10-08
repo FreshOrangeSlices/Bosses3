@@ -37,7 +37,9 @@ public final class RewardManager {
 
         if (Rng.chance(chances.bossGear() * luck)) {
             // "Nightmare Ravenous Zombie" (the boss name without its stars)
-            String source = boss.plainName().substring(Math.min(boss.plainName().length(), boss.rank().stars() + 1));
+            String prefix = boss.rank().starText() + " ";
+            String source = boss.plainName().startsWith(prefix) ? boss.plainName().substring(prefix.length())
+                : boss.plainName();
             out.add(gear.create(boss.rank(), boss.entity().getType(), source, null));
         }
         if (Rng.chance(chances.empowerment() * luck)) {

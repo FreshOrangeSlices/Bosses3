@@ -43,7 +43,7 @@ public final class ItemListener implements Listener {
         if (cursor.isEmpty() || target == null || target.isEmpty() || !items.isConsumable(cursor)) {
             return;
         }
-        if (!EquipmentType.of(target.getType()).isEquipment()) {
+        if (!EquipmentType.of(target.getType()).isEquipment() && !items.isCompassUpgrade(cursor, target)) {
             return; // normal inventory behaviour (e.g. putting the rune into an empty slot or a chest)
         }
         event.setCancelled(true);

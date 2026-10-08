@@ -94,10 +94,12 @@ public final class CombatListener implements Listener {
         if (victimBoss != null) {
             if (attacker instanceof Player player) {
                 plugin.bosses().engage(victimBoss, player);
+                victimBoss.recordPlayerHit(player.getUniqueId(), finalDamage, ctx.projectile());
             }
             for (BossTrait trait : victimBoss.traits()) {
                 trait.afterDamaged(victimBoss, event, finalDamage, ctx);
             }
+            plugin.bosses().checkLastStand(victimBoss, victim.getHealth() - finalDamage);
             plugin.bossBars().updateHealth(victimBoss, victim.getHealth() - finalDamage);
         }
         if (attacker instanceof Player player && attacker != victim && !ctx.secondary()) {
