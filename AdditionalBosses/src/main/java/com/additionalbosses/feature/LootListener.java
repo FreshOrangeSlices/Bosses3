@@ -6,12 +6,16 @@ import com.additionalbosses.util.Keys;
 import com.additionalbosses.util.Rng;
 import org.bukkit.Material;
 import org.bukkit.entity.Item;
+import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.BlockDropItemEvent;
 import org.bukkit.event.entity.EntityDeathEvent;
+import org.bukkit.inventory.EntityEquipment;
+import org.bukkit.inventory.EquipmentSlot;
+import org.bukkit.inventory.InventoryHolder;
 import org.bukkit.inventory.ItemStack;
 
 import java.util.ArrayList;
@@ -22,8 +26,9 @@ import java.util.ListIterator;
  * Loot and Fortune Runes: multipliers on normal mob drops (when the rune's weapon gets the kill) and on ore drops
  * (when the rune's tool breaks the ore). Fractions roll: x1.5 on 3 diamonds gives 4, plus a 50% chance of a 5th.
  *
- * <p>To stay exploit-proof they never touch boss rewards, the plugin's own items, gear a mob was wearing, player
- * deaths, or anything that drops as a placeable block (so a silk-touched ore can't be farmed over and over).</p>
+ * <p>To stay exploit-proof they never touch boss rewards, the plugin's own items, anything a mob was wearing or
+ * holding, mobs with an inventory, player deaths, or ore drops that are placeable blocks (so a silk-touched ore
+ * can't be farmed over and over).</p>
  */
 public final class LootListener implements Listener {
 
@@ -35,8 +40,11 @@ public final class LootListener implements Listener {
 
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onMobDrops(EntityDeathEvent event) {
-        Player killer = event.getEntity().getKiller();
-        if (killer == null || event.getEntity() instanceof Player || event.getDrops().isEmpty()) {
+        LivingEntity dead = event.getEntity();
+        Player killer = dead.getKiller();
+        // Mobs that carry an inventory (chested horses, llamas, allays, piglins, villagers...) would let players
+        // multiply items they put in themselves, so they are skipped entirely.
+        if (killer == null || dead instanceof Player || dead instanceof InventoryHolder || event.getDrops().isEmpty()) {
             return;
         }
         double bonus = plugin.items().effectBonus(killer.getInventory().getItemInMainHand(), EmpowermentStat.LOOT);
@@ -45,10 +53,11 @@ public final class LootListener implements Listener {
         }
         double multiplier = Math.min(plugin.settings().features.maxLootMultiplier, 1.0 + bonus);
         List<ItemStack> extra = new ArrayList<>();
+        List<ItemStack> worn = equipment(dead);
         ListIterator<ItemStack> it = event.getDrops().listIterator();
         while (it.hasNext()) {
             ItemStack drop = it.next();
-            if (!eligible(drop)) {
+            if (!eligible(drop) || wasEquipped(drop, worn)) {
                 continue;
             }
             it.set(scaled(drop, multiplier, extra));
@@ -78,6 +87,35 @@ public final class LootListener implements Listener {
                 item.getWorld().dropItem(item.getLocation(), more);
             }
         }
+    }
+
+    /** Everything the mob was holding or wearing (it may have picked up a player's stack). */
+    private static List<ItemStack> equipment(LivingEntity dead) {
+        List<ItemStack> out = new ArrayList<>();
+        EntityEquipment eq = dead.getEquipment();
+        if (eq == null) {
+            return out;
+        }
+        for (EquipmentSlot slot : EquipmentSlot.values()) {
+            try {
+                ItemStack item = eq.getItem(slot);
+                if (!item.isEmpty()) {
+                    out.add(item);
+                }
+            } catch (IllegalArgumentException ignored) {
+                // slot not supported by this mob
+            }
+        }
+        return out;
+    }
+
+    private static boolean wasEquipped(ItemStack drop, List<ItemStack> worn) {
+        for (ItemStack item : worn) {
+            if (item.isSimilar(drop)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private boolean eligible(ItemStack drop) {

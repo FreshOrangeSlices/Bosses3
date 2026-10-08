@@ -131,6 +131,10 @@ public final class WaystoneManager {
         return List.copyOf(byId.values());
     }
 
+    public boolean exists(String id) {
+        return byId.containsKey(id);
+    }
+
     public @Nullable Waystone at(Block block) {
         String id = byLocation.get(Waystone.key(block));
         return id == null ? null : byId.get(id);
@@ -267,6 +271,9 @@ public final class WaystoneManager {
             }
             Block block = world.getBlockAt(w.x, w.y, w.z);
             if (block.getType() != Material.LODESTONE) {
+                if (!world.getChunkAt(w.x >> 4, w.z >> 4).isEntitiesLoaded()) {
+                    continue; // wait until its floating name is loaded too, so it can be removed with it
+                }
                 byId.remove(w.id);
                 byLocation.remove(w.key());
                 removeLabel(w);
@@ -472,6 +479,10 @@ public final class WaystoneManager {
                 }
                 travelling.remove(id);
                 cancel();
+                if (f.waystoneBlockInCombat && inBossFight(p)) {
+                    p.sendMessage(m().prefixed("waystone-combat")); // a boss started hunting them mid warm-up
+                    return;
+                }
                 arrive(p, target);
             }
         }.runTaskTimer(plugin, 0L, 2L);

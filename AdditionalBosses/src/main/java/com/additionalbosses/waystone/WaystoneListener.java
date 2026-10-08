@@ -3,6 +3,7 @@ package com.additionalbosses.waystone;
 import com.additionalbosses.AdditionalBosses;
 import com.additionalbosses.item.ItemService;
 import com.additionalbosses.util.Fx;
+import com.additionalbosses.util.Keys;
 import com.additionalbosses.util.Text;
 import io.papermc.paper.datacomponent.DataComponentTypes;
 import net.kyori.adventure.text.Component;
@@ -10,6 +11,7 @@ import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import org.bukkit.GameMode;
 import org.bukkit.Material;
 import org.bukkit.block.Block;
+import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
@@ -27,8 +29,10 @@ import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryDragEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
+import org.bukkit.event.world.EntitiesLoadEvent;
 import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.persistence.PersistentDataType;
 
 /**
  * Placing, using, naming and protecting waystones, and the waystone menu.
@@ -54,7 +58,7 @@ public final class WaystoneListener implements Listener {
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onPlace(BlockPlaceEvent event) {
         ItemStack item = event.getItemInHand();
-        if (plugin.items().kind(item) != ItemService.Kind.WAYSTONE) {
+        if (plugin.items().kind(item) != ItemService.Kind.WAYSTONE || !event.canBuild()) {
             return;
         }
         if (!plugin.settings().features.waystonesEnabled) {
@@ -64,19 +68,25 @@ public final class WaystoneListener implements Listener {
         ways().place(event.getPlayer(), event.getBlockPlaced(), item);
     }
 
+    /** Only the owner (or an admin) may break it. */
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
+    public void onBreakCheck(BlockBreakEvent event) {
+        Waystone w = ways().at(event.getBlock());
+        if (w != null && !isOwnerOrAdmin(event.getPlayer(), w)) {
+            event.setCancelled(true);
+            event.getPlayer().sendMessage(plugin.settings().messages.prefixed("waystone-not-owner",
+                Placeholder.unparsed("owner", w.ownerName)));
+        }
+    }
+
+    /** Runs last, only if nothing (e.g. a protection plugin) cancelled the break. */
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onBreak(BlockBreakEvent event) {
         Waystone w = ways().at(event.getBlock());
         if (w == null) {
             return;
         }
         Player player = event.getPlayer();
-        if (!isOwnerOrAdmin(player, w)) {
-            event.setCancelled(true);
-            player.sendMessage(plugin.settings().messages.prefixed("waystone-not-owner",
-                Placeholder.unparsed("owner", w.ownerName)));
-            return;
-        }
         event.setDropItems(false);
         ways().remove(w);
         if (player.getGameMode() != GameMode.CREATIVE) {
@@ -84,6 +94,17 @@ public final class WaystoneListener implements Listener {
             b.getWorld().dropItemNaturally(b.getLocation().add(0.5, 0.5, 0.5), ways().createItem(w.name));
         }
         player.sendMessage(plugin.settings().messages.prefixed("waystone-removed", Placeholder.unparsed("name", w.name)));
+    }
+
+    /** Floating names left behind by waystones that no longer exist (e.g. removed with WorldEdit far away). */
+    @EventHandler
+    public void onEntitiesLoad(EntitiesLoadEvent event) {
+        for (Entity e : event.getEntities()) {
+            String id = e.getPersistentDataContainer().get(Keys.WAYSTONE_LABEL, PersistentDataType.STRING);
+            if (id != null && !ways().exists(id)) {
+                e.remove();
+            }
+        }
     }
 
     @EventHandler(ignoreCancelled = true)

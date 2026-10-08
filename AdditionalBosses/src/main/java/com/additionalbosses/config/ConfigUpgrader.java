@@ -21,7 +21,7 @@ import java.util.regex.Pattern;
 public final class ConfigUpgrader {
 
     public static final int CURRENT = 2;
-    private static final Pattern VERSION = Pattern.compile("^config-version:\\s*(\\d+)\\s*$");
+    private static final Pattern VERSION = Pattern.compile("^config-version:\\s*(\\d+)\\s*(#.*)?$");
     private static final Pattern STORMCALLER = Pattern.compile("^(\\s+stormcaller:\\s*\\{.*\\bweight:\\s*)6(\\b.*)$");
 
     private ConfigUpgrader() {

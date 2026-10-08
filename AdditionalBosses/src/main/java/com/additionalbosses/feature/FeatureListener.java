@@ -123,9 +123,9 @@ public final class FeatureListener implements Listener {
             case TOTEM -> {
                 EquipmentSlot hand = event.getHand();
                 Block clicked = event.getClickedBlock();
-                if (action == Action.RIGHT_CLICK_BLOCK && clicked != null && usable(clicked)
-                    && !player.isSneaking()) {
-                    return; // let chests, doors and buttons work normally
+                if (action == Action.RIGHT_CLICK_BLOCK && clicked != null
+                    && ((usable(clicked) && !player.isSneaking()) || plugin.waystones().at(clicked) != null)) {
+                    return; // let chests, doors, buttons and waystones work normally
                 }
                 if (rightClick && hand != null) {
                     event.setCancelled(true);
