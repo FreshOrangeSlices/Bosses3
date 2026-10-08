@@ -58,6 +58,10 @@ public final class CompassManager {
         pointing.clear();
     }
 
+    public void forget(UUID player) {
+        pointing.remove(player);
+    }
+
     private @Nullable ItemStack heldCompass(Player player) {
         ItemService items = plugin.items();
         PlayerInventory inv = player.getInventory();

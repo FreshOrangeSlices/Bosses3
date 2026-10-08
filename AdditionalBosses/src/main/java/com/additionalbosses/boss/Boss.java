@@ -60,7 +60,7 @@ public final class Boss {
         this.entity = entity;
         this.rank = rank;
         this.categoryId = categoryId;
-        this.traits = new ArrayList<>(traits);
+        this.traits = new java.util.concurrent.CopyOnWriteArrayList<>(traits);
         this.name = name;
         this.plainName = plainName;
         this.damageMultiplier = damageMultiplier;
@@ -87,7 +87,7 @@ public final class Boss {
         return Collections.unmodifiableList(traits);
     }
 
-    /** Adds a trait mid-fight (Last Stand, Nemesis adaptation). */
+    /** Adds a trait mid-fight (Last Stand). Safe even while traits are being iterated. */
     public void addTrait(BossTrait trait) {
         if (!hasTrait(trait.id())) {
             traits.add(trait);

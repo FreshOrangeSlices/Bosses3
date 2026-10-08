@@ -160,12 +160,20 @@ public final class BossManager {
         if (cls == null || !Mob.class.isAssignableFrom(cls)) {
             return null;
         }
+        if (at.getWorld().getDifficulty() == org.bukkit.Difficulty.PEACEFUL
+            && org.bukkit.entity.Enemy.class.isAssignableFrom(cls)) {
+            return null; // it would vanish on its first tick
+        }
         Boss[] out = new Boss[1];
-        at.getWorld().spawn(at, cls, SpawnReason.CUSTOM, e -> {
+        Entity spawned = at.getWorld().spawn(at, cls, SpawnReason.CUSTOM, e -> {
             if (e instanceof LivingEntity living) {
                 out[0] = createBoss(living, rank, category, traits, announce);
             }
         });
+        if (out[0] != null && !spawned.isValid()) {
+            unregister(out[0]); // another plugin cancelled the spawn
+            return null;
+        }
         return out[0];
     }
 
@@ -208,6 +216,7 @@ public final class BossManager {
         }
 
         applyStats(entity, rank, rs.stats(), profile);
+        preventSunburn(entity);
 
         PersistentDataContainer pdc = entity.getPersistentDataContainer();
         pdc.set(Keys.BOSS, PersistentDataType.BYTE, (byte) 1);
@@ -263,12 +272,14 @@ public final class BossManager {
                 traits.add(t);
             }
         }
-        if (pdc.has(Keys.NEMESIS, PersistentDataType.STRING)) {
-            // A Nemesis left over from a plugin reload: its saved record brings it back properly later.
-            entity.remove();
+        String nemesisId = pdc.get(Keys.NEMESIS, PersistentDataType.STRING);
+        if (nemesisId != null && !plugin.nemesis().canReattach(nemesisId, entity)) {
+            // A stray copy (its record is gone or it is already out): remove it once the add event is over.
+            Bukkit.getScheduler().runTask(plugin, entity::remove);
             return null;
         }
         Boss boss = build(entity, rank, category, traits);
+        preventSunburn(entity);
         boss.setUndyingUsed(pdc.has(Keys.BOSS_UNDYING, PersistentDataType.BYTE));
         if (pdc.has(Keys.BOSS_LAST_STAND, PersistentDataType.BYTE)) {
             boss.setLastStand(true);
@@ -278,7 +289,21 @@ public final class BossManager {
             t.onApply(boss, false);
         }
         register(boss);
+        if (nemesisId != null) {
+            plugin.nemesis().reattach(boss, nemesisId); // e.g. it followed its prey through a portal
+        }
         return boss;
+    }
+
+    /** Bosses no longer wear helmets, so undead bosses would otherwise burn away in daylight. */
+    private static void preventSunburn(LivingEntity e) {
+        if (e instanceof Zombie z) {
+            z.setShouldBurnInDay(false);
+        } else if (e instanceof AbstractSkeleton sk) {
+            sk.setShouldBurnInDay(false);
+        } else if (e instanceof org.bukkit.entity.Phantom ph) {
+            ph.setShouldBurnInDay(false);
+        }
     }
 
     /** Carries boss status over when a boss converts (Zombie -> Drowned, Skeleton -> Stray, Piglin -> Zombified...). */
@@ -520,7 +545,7 @@ public final class BossManager {
                 rewards.add(plugin.trophies().createTrophy(boss, killer));
             }
             if (f.totemEnabled && Rng.chance(f.totemDropChance.getOrDefault(boss.rank(), 0.0))) {
-                rewards.add(plugin.items().createTotem(boss.rank()));
+                rewards.add(plugin.items().createTotem(null)); // dropped totems call a random rank
             }
             dropRewards(boss, rewards);
             if (killer != null) {

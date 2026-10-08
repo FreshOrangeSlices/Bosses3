@@ -121,6 +121,15 @@ public final class BossListener implements Listener {
         }
     }
 
+    /** A Nemesis never turns into something else (a drowned, a zombified piglin...); it stays itself. */
+    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
+    public void onNemesisTransform(EntityTransformEvent event) {
+        Boss boss = bosses().get(event.getEntity());
+        if (boss != null && boss.isNemesis()) {
+            event.setCancelled(true);
+        }
+    }
+
     /** Zombie -> Drowned, Skeleton -> Stray, Piglin -> Zombified Piglin keep their boss status. */
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onTransform(EntityTransformEvent event) {
@@ -230,5 +239,6 @@ public final class BossListener implements Listener {
     @EventHandler
     public void onQuit(PlayerQuitEvent event) {
         plugin.bossBars().forget(event.getPlayer(), bosses().active());
+        plugin.compass().forget(event.getPlayer().getUniqueId());
     }
 }

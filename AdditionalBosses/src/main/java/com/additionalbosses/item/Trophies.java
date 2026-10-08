@@ -223,7 +223,12 @@ public final class Trophies {
         for (Component line : lore) {
             loreMini.add(Text.MM.serialize(line));
         }
-        at.getWorld().spawn(at, type.getEntityClass(), false, ent -> {
+        if (at.getWorld().getDifficulty() == org.bukkit.Difficulty.PEACEFUL
+            && org.bukkit.entity.Enemy.class.isAssignableFrom(type.getEntityClass())) {
+            player.sendMessage(Text.mm("<red>Hostile statues can't stand in Peaceful difficulty.</red>"));
+            return false;
+        }
+        Entity placed = at.getWorld().spawn(at, type.getEntityClass(), false, ent -> {
             if (!(ent instanceof LivingEntity statue)) {
                 return;
             }
@@ -263,6 +268,9 @@ public final class Trophies {
             statue.getPersistentDataContainer().set(Keys.STATUE, PersistentDataType.STRING, data);
             statue.getPersistentDataContainer().set(Keys.STATUE_LORE, PersistentDataType.LIST.strings(), loreMini);
         });
+        if (!placed.isValid()) {
+            return false; // something (e.g. a protection plugin) stopped it
+        }
         Fx.particle(at.clone().add(0, 1, 0), Particle.CLOUD, 15, 0.4, 0.02);
         Fx.play(at, "block.stone.place", 1.0f, 0.8f);
         return true;

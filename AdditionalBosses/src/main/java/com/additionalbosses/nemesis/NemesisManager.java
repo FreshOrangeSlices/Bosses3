@@ -28,8 +28,10 @@ import org.bukkit.attribute.AttributeInstance;
 import org.bukkit.attribute.AttributeModifier;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
+import org.bukkit.entity.Hoglin;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Mob;
+import org.bukkit.entity.PiglinAbstract;
 import org.bukkit.entity.Player;
 import org.bukkit.event.entity.EntityDeathEvent;
 import org.bukkit.inventory.ItemStack;
@@ -73,7 +75,7 @@ public final class NemesisManager {
         return plugin.settings().messages;
     }
 
-    /** "Minecraft time" used for return timers: the main world's full time (sleeping skips it forward). */
+    /** "Minecraft time" used for return timers (see {@link Clock}). */
     public long clock() {
         return Clock.now();
     }
@@ -85,6 +87,7 @@ public final class NemesisManager {
     public void load() {
         records.clear();
         YamlConfiguration yaml = YamlConfiguration.loadConfiguration(file);
+        Clock.load(yaml.getLong("clock-offset", 0L));
         ConfigurationSection root = yaml.getConfigurationSection("nemeses");
         if (root != null) {
             for (String id : root.getKeys(false)) {
@@ -104,6 +107,7 @@ public final class NemesisManager {
 
     public void save() {
         YamlConfiguration yaml = new YamlConfiguration();
+        yaml.set("clock-offset", Clock.offset());
         for (NemesisRecord r : records.values()) {
             r.save(yaml.createSection("nemeses." + r.id));
         }
@@ -425,10 +429,10 @@ public final class NemesisManager {
     // =====================================================================
 
     private void checkReturns() {
+        long now = clock(); // also keeps the day counter in step with sleeping
         if (!f().nemesisEnabled || records.isEmpty()) {
             return;
         }
-        long now = clock();
         long maxWait = Math.round(f().nemesisReturnDays * DAY);
         boolean dirty = false;
         for (NemesisRecord r : List.copyOf(records.values())) {
@@ -449,6 +453,7 @@ public final class NemesisManager {
             if (owner == null || owner.isDead()
                 || (owner.getGameMode() != GameMode.SURVIVAL && owner.getGameMode() != GameMode.ADVENTURE)
                 || owner.getWorld().getEnvironment() == World.Environment.THE_END
+                || owner.getWorld().getDifficulty() == org.bukkit.Difficulty.PEACEFUL
                 || !plugin.settings().worldAllowed(owner.getWorld())) {
                 continue;
             }
@@ -471,17 +476,19 @@ public final class NemesisManager {
                 traits.add(t);
             }
         }
-        Boss boss = plugin.bosses().summon(r.type, spot, r.rank, traits, false, "nemesis");
-        if (boss == null) {
-            records.remove(r.id);
+        Class<?> cls = r.type.getEntityClass();
+        if (cls == null || !Mob.class.isAssignableFrom(cls)) {
+            records.remove(r.id); // that mob can't exist any more
             save();
             return;
         }
-        configure(boss, r);
+        Boss boss = plugin.bosses().summon(r.type, spot, r.rank, traits, false, "nemesis");
+        if (boss == null) {
+            return; // the spawn was blocked here; try again on the next check
+        }
         r.returns++;
         updateTitles(r);
-        boss.rename(displayName(r), plainName(r));
-        plugin.bossBars().retitle(boss);
+        configure(boss, r);
         plugin.bossBars().updateHealth(boss, boss.health());
         save();
 
@@ -494,17 +501,11 @@ public final class NemesisManager {
         plugin.bosses().engage(boss, owner);
     }
 
-    /** Applies everything a Nemesis is: its saved traits, level scaling, white name, and persistence rules. */
+    /** Applies everything a Nemesis is: level scaling, white name, and persistence rules. */
     private void configure(Boss boss, NemesisRecord r) {
         FeatureSettings f = f();
         LivingEntity e = boss.entity();
-        r.entity = e.getUniqueId();
-        r.lostTicks = 0;
-        boss.setNemesisId(r.id);
         e.getPersistentDataContainer().set(Keys.NEMESIS, PersistentDataType.STRING, r.id);
-        e.setPersistent(false);          // never saved into the world; the record brings it back
-        e.setRemoveWhenFarAway(false);   // never despawns while out
-
         int level = r.level;
         AttributeInstance hp = e.getAttribute(Attribute.MAX_HEALTH);
         if (hp != null) {
@@ -519,14 +520,51 @@ public final class NemesisManager {
             size.addModifier(new AttributeModifier(Keys.MOD_NEMESIS_SIZE,
                 Math.min(f.nemesisMaxExtraSize, level * f.nemesisSizePerLevel), AttributeModifier.Operation.ADD_NUMBER));
         }
+        if (e instanceof PiglinAbstract piglin) {
+            piglin.setImmuneToZombification(true); // it would turn into an ordinary mob in the Overworld
+        }
+        if (e instanceof Hoglin hoglin) {
+            hoglin.setImmuneToZombification(true);
+        }
+        applyRuntime(boss, r);
+    }
+
+    /** The in-memory side of a Nemesis (damage, trait power, name, bar). Its body is saved on the mob itself. */
+    private void applyRuntime(Boss boss, NemesisRecord r) {
+        FeatureSettings f = f();
+        LivingEntity e = boss.entity();
+        r.entity = e.getUniqueId();
+        r.lostTicks = 0;
+        boss.setNemesisId(r.id);
+        e.setPersistent(false);          // never saved into the world; the record brings it back
+        e.setRemoveWhenFarAway(false);   // never despawns while out
         boss.setDamageMultiplier(Math.min(f.nemesisMaxDamageMultiplier,
-            boss.damageMultiplier() * (1.0 + level * f.nemesisDamagePerLevel / 100.0)));
-        boss.setPower(Math.min(4.0, boss.power() * (1.0 + level * f.nemesisPowerPerLevel / 100.0)));
+            boss.damageMultiplier() * (1.0 + r.level * f.nemesisDamagePerLevel / 100.0)));
+        boss.setPower(Math.min(4.0, boss.power() * (1.0 + r.level * f.nemesisPowerPerLevel / 100.0)));
+        boss.rename(displayName(r), plainName(r));
         e.setCustomNameVisible(true);
         BossBar bar = boss.bar();
         if (bar != null) {
             bar.color(BossBar.Color.PINK);
             bar.overlay(BossBar.Overlay.NOTCHED_20);
+        }
+        plugin.bossBars().retitle(boss);
+    }
+
+    /** True if a Nemesis mob that just appeared (e.g. through a portal) is the real one and should stay. */
+    public boolean canReattach(String id, LivingEntity entity) {
+        NemesisRecord r = records.get(id);
+        if (r == null || !f().nemesisEnabled) {
+            return false;
+        }
+        Boss other = activeBoss(r);
+        return other == null || other.uuid().equals(entity.getUniqueId());
+    }
+
+    public void reattach(Boss boss, String id) {
+        NemesisRecord r = records.get(id);
+        if (r != null) {
+            applyRuntime(boss, r);
         }
     }
 

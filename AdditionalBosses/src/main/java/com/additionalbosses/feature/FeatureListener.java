@@ -22,6 +22,7 @@ import org.bukkit.entity.EntityType;
 import org.bukkit.entity.Mob;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
+import org.bukkit.event.Event;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
@@ -35,6 +36,7 @@ import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.PlayerInventory;
 import org.bukkit.inventory.ShapelessRecipe;
 import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.scheduler.BukkitRunnable;
@@ -111,11 +113,8 @@ public final class FeatureListener implements Listener {
         switch (kind) {
             case STATUE -> {
                 // Never let the statue behave like a real spawn egg (spawning a mob or changing a spawner).
-                event.setCancelled(true);
-                if (action == Action.RIGHT_CLICK_BLOCK && event.getClickedBlock() != null
-                    && event.getHand() == EquipmentSlot.HAND) {
-                    placeStatue(player, item, event.getClickedBlock().getRelative(event.getBlockFace()));
-                }
+                // Placing it happens in onStatuePlace, after protection plugins had their say.
+                event.setUseItemInHand(Event.Result.DENY);
             }
             case TOTEM -> {
                 EquipmentSlot hand = event.getHand();
@@ -150,6 +149,25 @@ public final class FeatureListener implements Listener {
         return block.getType().isInteractable();
     }
 
+    @EventHandler(priority = EventPriority.HIGHEST)
+    public void onStatuePlace(PlayerInteractEvent event) {
+        Block clicked = event.getClickedBlock();
+        if (event.getAction() != Action.RIGHT_CLICK_BLOCK || event.getHand() != EquipmentSlot.HAND || clicked == null
+            || items().kind(event.getItem()) != ItemService.Kind.STATUE) {
+            return;
+        }
+        event.setUseItemInHand(Event.Result.DENY);
+        if (event.useInteractedBlock() == Event.Result.DENY) {
+            return; // a protection plugin said no
+        }
+        Player player = event.getPlayer();
+        if (usable(clicked) && !player.isSneaking()) {
+            return; // open the chest / door instead
+        }
+        event.setUseInteractedBlock(Event.Result.DENY);
+        placeStatue(player, event.getItem(), clicked.getRelative(event.getBlockFace()));
+    }
+
     private void placeStatue(Player player, ItemStack item, Block at) {
         if (!at.isPassable() || !at.getRelative(0, 1, 0).isPassable()) {
             Fx.play(player.getLocation(), "block.note_block.bass", 0.8f, 0.6f);
@@ -173,9 +191,6 @@ public final class FeatureListener implements Listener {
         String raw = item.getPersistentDataContainer().getOrDefault(Keys.TOTEM_RANK, PersistentDataType.STRING, "");
         BossRank fixed = BossMobs.parseOrNull(raw);
         BossRank rank = fixed != null ? fixed : BossMobs.rollRank(f.totemRankWeights, BossRank.GREEN);
-        if (items().kind(player.getInventory().getItem(hand)) == ItemService.Kind.TOTEM) {
-            consumeOne(player, hand);
-        }
         player.sendMessage(plugin.settings().messages.prefixed("totem-ritual"));
         Fx.play(player.getLocation(), "item.totem.use", 0.7f, 0.6f);
         Fx.play(player.getLocation(), "ambient.cave", 1.0f, 0.8f);
@@ -208,6 +223,11 @@ public final class FeatureListener implements Listener {
                 }
                 cancel();
                 rituals.remove(id);
+                // The totem is only used up once the ritual completes.
+                if (p.getGameMode() != GameMode.CREATIVE && !consumeTotem(p, raw)) {
+                    p.sendMessage(plugin.settings().messages.prefixed("totem-blocked"));
+                    return;
+                }
                 summonFromTotem(p, rank);
             }
         }.runTaskTimer(plugin, 0L, 10L);
@@ -305,6 +325,21 @@ public final class FeatureListener implements Listener {
         if (items().kind(event.getItem()) == ItemService.Kind.STATUE) {
             event.setCancelled(true);
         }
+    }
+
+    /** Removes one totem of the given kind from anywhere in the inventory. False if the player no longer has one. */
+    private boolean consumeTotem(Player player, String rankRaw) {
+        PlayerInventory inv = player.getInventory();
+        for (int slot = 0; slot < inv.getSize(); slot++) {
+            ItemStack stack = inv.getItem(slot);
+            if (items().kind(stack) != ItemService.Kind.TOTEM || stack == null || !rankRaw.equals(
+                stack.getPersistentDataContainer().getOrDefault(Keys.TOTEM_RANK, PersistentDataType.STRING, ""))) {
+                continue;
+            }
+            inv.setItem(slot, stack.getAmount() > 1 ? stack.asQuantity(stack.getAmount() - 1) : null);
+            return true;
+        }
+        return false;
     }
 
     private static void consumeOne(Player player, EquipmentSlot hand) {
