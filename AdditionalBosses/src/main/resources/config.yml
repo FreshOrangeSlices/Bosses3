@@ -1,0 +1,455 @@
+# =====================================================================
+#  Additional Bosses - configuration
+# ---------------------------------------------------------------------
+#  * Chances are percentages: 1.5 means 1.5%.
+#  * Mob names use Minecraft's names (ZOMBIE, WITHER_SKELETON, ...).
+#  * Sounds use Minecraft sound keys, optionally followed by volume and
+#    pitch: "entity.wither.spawn 0.6 1.1". Leave "" for no sound.
+#  * After editing, run /bosses reload (or restart the server).
+#  All numbers here are starting points, not final balance.
+# =====================================================================
+
+bosses:
+  enabled: true
+  # Roll #1: chance that an eligible mob becomes a boss when it spawns.
+  # (Roll #2, the rank, uses the weights in mob-categories below.)
+  # Hostile mobs spawn (and quietly despawn) constantly, so small values
+  # go a long way. Raise it for more bosses, lower it for fewer.
+  spawn-chance: 0.5
+  # Which spawns can become bosses. Spawners are left out on purpose so
+  # mob farms can't farm bosses. Categories can override this list.
+  spawn-reasons: [NATURAL, PATROL, RAID]
+  worlds:
+    # blacklist = every world except the ones listed
+    # whitelist = only the worlds listed
+    mode: blacklist
+    list: []
+  # These mobs never become bosses, even if listed in a category.
+  excluded-mobs: []
+  # Most bosses that can be loaded at the same time (all worlds).
+  max-active: 15
+  # A new boss can't appear within this many blocks of another boss.
+  min-distance-between: 32
+  # Show the boss name above its head at all times.
+  always-show-name: true
+  # Dress humanoid bosses (zombies, skeletons, piglins) in armor dyed
+  # their rank colour. It is cosmetic only: no armor points, never drops.
+  display-gear: true
+  # Seconds after the last hit before a player counts as out of combat
+  # (their boss bar disappears).
+  combat-timeout: 15
+  # Only give rewards when a player took part in the fight.
+  require-player-for-rewards: true
+
+bossbar:
+  # Engaged players within this many blocks see the boss bar.
+  view-distance: 48
+  # Show "❤ 85/100" next to the boss name in the bar.
+  show-health-numbers: true
+
+presentation:
+  # Spawn announcements reach players within this many blocks.
+  announce-radius: 48
+
+# =====================================================================
+#  RANKS
+#  stats:  health/damage/speed are multipliers; armor, armor-toughness,
+#          knockback-resistance and size are added on top.
+#  traits: how many traits the boss rolls, and how strong they are.
+#  rewards: independent chances, each rolled separately on death.
+#  gear:   what Boss Gear looks like for this rank.
+#  presentation:
+#    announce:        NONE, ACTIONBAR, CHAT or TITLE (nearby players)
+#    sound:           played on announce and when you first engage it
+#    death-broadcast: NONE, NEARBY or SERVER
+# =====================================================================
+ranks:
+  GRAY:
+    name: Hard
+    stats: { health: 1.6, damage: 1.2, armor: 2, armor-toughness: 0, knockback-resistance: 0.1, speed: 1.0, size: 0.05 }
+    traits: { min: 1, max: 1, power: 1.0 }
+    xp: { multiplier: 3, bonus: 10 }
+    rewards: { boss-gear: 20, empowerment: 10, relic: 2, relic-catalyst: 0 }
+    gear:
+      materials: { COPPER: 30, IRON: 60, DIAMOND: 10 }
+      enchantments: { min: 1, max: 2 }
+      min-level-percent: 30     # enchant levels roll from this % of the vanilla max up to the max
+      over-max-chance: 0        # chance per enchantment to go above the vanilla max
+      over-max-levels: 0        # how far above the vanilla max it can go
+    persistent: false           # true = stops despawning once a player has fought it
+    presentation: { announce: NONE, sound: "", death-sound: "", particles: 1, death-broadcast: NONE }
+
+  GREEN:
+    name: Very Hard
+    stats: { health: 2.0, damage: 1.35, armor: 4, armor-toughness: 1, knockback-resistance: 0.2, speed: 1.05, size: 0.1 }
+    traits: { min: 1, max: 2, power: 1.15 }
+    xp: { multiplier: 4, bonus: 25 }
+    rewards: { boss-gear: 30, empowerment: 18, relic: 4, relic-catalyst: 0 }
+    gear:
+      materials: { IRON: 55, GOLD: 10, DIAMOND: 35 }
+      enchantments: { min: 1, max: 3 }
+      min-level-percent: 45
+      over-max-chance: 0
+      over-max-levels: 0
+    persistent: true
+    presentation: { announce: NONE, sound: "block.amethyst_block.resonate 1 0.8", death-sound: "entity.player.levelup 0.6 1.2", particles: 2, death-broadcast: NONE }
+
+  RED:
+    name: Brutal
+    stats: { health: 2.75, damage: 1.55, armor: 6, armor-toughness: 2, knockback-resistance: 0.3, speed: 1.08, size: 0.15 }
+    traits: { min: 2, max: 2, power: 1.3 }
+    xp: { multiplier: 6, bonus: 50 }
+    rewards: { boss-gear: 45, empowerment: 28, relic: 8, relic-catalyst: 0 }
+    gear:
+      materials: { IRON: 25, DIAMOND: 65, NETHERITE: 10 }
+      enchantments: { min: 2, max: 3 }
+      min-level-percent: 60
+      over-max-chance: 0
+      over-max-levels: 0
+    persistent: true
+    presentation: { announce: ACTIONBAR, sound: "entity.evoker.prepare_summon 0.8 0.9", death-sound: "entity.player.levelup 0.8 1.0", particles: 2, death-broadcast: NEARBY }
+
+  PURPLE:
+    name: Nightmare
+    stats: { health: 3.5, damage: 1.8, armor: 8, armor-toughness: 4, knockback-resistance: 0.45, speed: 1.1, size: 0.2 }
+    traits: { min: 2, max: 3, power: 1.5 }
+    xp: { multiplier: 8, bonus: 100 }
+    rewards: { boss-gear: 65, empowerment: 40, relic: 15, relic-catalyst: 1.5 }
+    gear:
+      materials: { DIAMOND: 70, NETHERITE: 30 }
+      enchantments: { min: 2, max: 4 }
+      min-level-percent: 80
+      over-max-chance: 25
+      over-max-levels: 1
+    persistent: true
+    presentation: { announce: CHAT, sound: "entity.elder_guardian.curse 0.5 1.0", death-sound: "ui.toast.challenge_complete 0.7 1.2", particles: 3, death-broadcast: NEARBY }
+
+  GOLD:
+    name: Legendary
+    stats: { health: 5.0, damage: 2.1, armor: 10, armor-toughness: 6, knockback-resistance: 0.6, speed: 1.12, size: 0.3 }
+    traits: { min: 3, max: 4, power: 1.75 }
+    xp: { multiplier: 12, bonus: 300 }
+    rewards: { boss-gear: 100, empowerment: 60, relic: 30, relic-catalyst: 5 }
+    gear:
+      materials: { DIAMOND: 40, NETHERITE: 60 }
+      enchantments: { min: 3, max: 5 }
+      min-level-percent: 100
+      over-max-chance: 40
+      over-max-levels: 2
+    persistent: true
+    presentation: { announce: TITLE, sound: "entity.wither.spawn 0.6 1.1", death-sound: "ui.toast.challenge_complete 1.0 1.0", particles: 4, death-broadcast: SERVER }
+
+# =====================================================================
+#  MOB CATEGORIES - which mobs can become bosses, and their rank odds.
+#  weights: roll #2 (rank). They don't have to add up to 100.
+#  spawn-chance-multiplier: scales roll #1 for this category.
+#  spawn-reasons (optional): replaces the global list for this category.
+#  display-name / description: shown in the guide book.
+# =====================================================================
+mob-categories:
+  common-overworld:
+    display-name: Common Overworld
+    weights: { GRAY: 40, GREEN: 30, RED: 18, PURPLE: 9, GOLD: 3 }
+    mobs: [BOGGED, BREEZE, CAMEL_HUSK, CAVE_SPIDER, CREEPER, DROWNED, ENDERMAN, ENDERMITE, GUARDIAN, HUSK,
+           PARCHED, PHANTOM, PILLAGER, SILVERFISH, SKELETON_HORSE, SLIME, SPIDER, STRAY, VINDICATOR, WITCH,
+           ZOMBIE_HORSE, ZOMBIE_VILLAGER]
+
+  zombie-skeleton:
+    display-name: Zombie & Skeleton
+    description: The most basic mobs are strangely likely to be Legendary.
+    weights: { GRAY: 37, GREEN: 28, RED: 18, PURPLE: 9, GOLD: 8 }
+    mobs: [ZOMBIE, SKELETON]
+
+  nether:
+    display-name: Nether
+    weights: { GRAY: 15, GREEN: 35, RED: 30, PURPLE: 15, GOLD: 5 }
+    mobs: [BLAZE, GHAST, HOGLIN, MAGMA_CUBE, WITHER_SKELETON, ZOGLIN]
+
+  nether-crowd:
+    display-name: Nether Crowds
+    description: They spawn in huge numbers, so they roll lower.
+    spawn-chance-multiplier: 0.5
+    weights: { GRAY: 30, GREEN: 35, RED: 23, PURPLE: 10, GOLD: 2 }
+    mobs: [PIGLIN, ZOMBIFIED_PIGLIN]
+
+  dangerous:
+    display-name: Dangerous
+    # DEFAULT lets structure mobs (Elder Guardians, Piglin Brutes in bastions,
+    # mansion illagers) roll once, the first time their chunk loads.
+    spawn-reasons: [NATURAL, PATROL, RAID, DEFAULT]
+    weights: { GRAY: 5, GREEN: 20, RED: 35, PURPLE: 30, GOLD: 10 }
+    mobs: [PIGLIN_BRUTE, ELDER_GUARDIAN, RAVAGER, EVOKER, ILLUSIONER]
+
+  native-bosses:
+    display-name: Native Bosses
+    description: Already bosses in vanilla, so they start at Brutal.
+    enabled: false              # set to true to allow Warden/Wither boss variants
+    spawn-reasons: [NATURAL, BUILD_WITHER]
+    weights: { RED: 50, PURPLE: 35, GOLD: 15 }
+    mobs: [WARDEN, WITHER]
+
+# =====================================================================
+#  MOB PROFILES - how strongly rank stats apply to some mob families.
+#  1.0 = full rank bonus, 0.5 = half the bonus, 0 = none.
+#  (defense covers armor, armor toughness and knockback resistance.)
+#  Mobs not listed use 1.0 for everything.
+# =====================================================================
+mob-profiles:
+  explosive:
+    mobs: [CREEPER]
+    health: 1.0
+    damage: 0.5
+    defense: 1.0
+    speed: 0.5
+    size: 1.0
+  small:
+    mobs: [SILVERFISH, ENDERMITE, CAVE_SPIDER, VEX]
+    health: 0.6
+    damage: 1.0
+    defense: 0.5
+    speed: 0.5
+    size: 1.5
+  large:
+    mobs: [RAVAGER, ELDER_GUARDIAN, HOGLIN, ZOGLIN, GHAST, PIGLIN_BRUTE]
+    health: 0.8
+    damage: 0.8
+    defense: 1.0
+    speed: 0.5
+    size: 0.4
+  flying:
+    mobs: [PHANTOM, BLAZE, BREEZE]
+    health: 1.0
+    damage: 1.0
+    defense: 0.5
+    speed: 0.0
+    size: 1.0
+  native-boss:
+    mobs: [WARDEN, WITHER]
+    health: 0.5
+    damage: 0.5
+    defense: 0.5
+    speed: 0.0
+    size: 0.0
+
+# =====================================================================
+#  TRAITS - combat behaviour. "weight" = how often it is picked.
+#  Every trait can be turned off with enabled: false.
+#  Higher ranks multiply most numbers below by their trait "power".
+# =====================================================================
+traits:
+  # Pairs that can never appear on the same boss.
+  incompatible:
+    - [leaping, blinking]
+    - [leaping, charging]
+    - [blinking, charging]
+
+  # ---- Offense ----
+  berserk:      { enabled: true, weight: 10, health-threshold: 50, damage-bonus: 35, speed-bonus: 20 }
+  vampiric:     { enabled: true, weight: 10, heal-percent: 25 }
+  venomous:     { enabled: true, weight: 8, effect-seconds: 4, amplifier: 1 }
+  executioner:  { enabled: true, weight: 8, health-threshold: 40, damage-bonus: 50 }
+  deadeye:      { enabled: true, weight: 12, projectile-speed-bonus: 40, damage-bonus: 25 }   # ranged mobs only
+  volley:       { enabled: true, weight: 12, extra-arrows: 2, spread: 8 }                      # archers only
+  # ---- Defense ----
+  bulwark:      { enabled: true, weight: 10, damage-reduction: 20 }
+  regenerating: { enabled: true, weight: 8, heal-percent-per-second: 1.5, delay-seconds: 4 }
+  warded:       { enabled: true, weight: 8, block-chance: 50 }
+  undying:      { enabled: true, weight: 6, revive-health-percent: 50 }
+  thorned:      { enabled: true, weight: 8, reflect-percent: 20 }
+  # ---- Movement ----
+  swift:        { enabled: true, weight: 10, speed-bonus: 25 }
+  leaping:      { enabled: true, weight: 8, cooldown-seconds: 6, min-distance: 4, max-distance: 14, strength: 1.0 }
+  blinking:     { enabled: true, weight: 6, cooldown-seconds: 8, min-distance: 7 }
+  charging:     { enabled: true, weight: 6, cooldown-seconds: 10, duration-seconds: 2.5, damage-bonus: 30, knockback: 1.0 }
+  # ---- Control ----
+  frostbound:   { enabled: true, weight: 8, effect-seconds: 3, amplifier: 1 }
+  shadowed:     { enabled: true, weight: 6, effect-seconds: 4 }
+  gravitic:     { enabled: true, weight: 5, cooldown-seconds: 8, radius: 10, strength: 0.9 }
+  quaking:      { enabled: true, weight: 6, cooldown-seconds: 9, radius: 5, damage: 4, knockback: 1.1 }
+  # ---- Special ----
+  summoner:     { enabled: true, weight: 6, minions: 2, health-thresholds: [75, 50, 25] }
+  volatile:     { enabled: true, weight: 25, explosion-radius-bonus: 2, fuse-reduction: 30 }   # creepers only
+  infernal:     { enabled: true, weight: 6, ignite-seconds: 4 }
+
+# =====================================================================
+#  BOSS GEAR - the one special equipment item a boss can drop.
+# =====================================================================
+boss-gear:
+  # How often each kind of item is chosen.
+  item-weights: { SWORD: 20, AXE: 12, SPEAR: 8, MACE: 2, BOW: 8, CROSSBOW: 5, TRIDENT: 2,
+                  HELMET: 11, CHESTPLATE: 11, LEGGINGS: 11, BOOTS: 11 }
+  # Extra weight added for certain mobs (skeletons tend to drop bows...).
+  mob-preferences:
+    SKELETON: { BOW: 40 }
+    STRAY: { BOW: 40 }
+    BOGGED: { BOW: 40 }
+    PARCHED: { BOW: 40 }
+    PILLAGER: { CROSSBOW: 40 }
+    PIGLIN: { CROSSBOW: 20, SWORD: 10 }
+    DROWNED: { TRIDENT: 30 }
+    VINDICATOR: { AXE: 40 }
+    PIGLIN_BRUTE: { AXE: 40 }
+    WITHER_SKELETON: { SWORD: 30 }
+    BREEZE: { MACE: 15 }
+  allow-curse-enchantments: false
+  # Enchantments that are never rolled, e.g. [mending, "minecraft:infinity"]
+  excluded-enchantments: []
+
+# =====================================================================
+#  EMPOWERMENT - runes that add a permanent stat to an item.
+#  applies-to: ANY, WEAPON, MELEE, RANGED, ARMOR, HELMET, CHESTPLATE,
+#              LEGGINGS, BOOTS, SHIELD, TOOL
+#  operation:  ADD_NUMBER (flat), ADD_SCALAR (% of base value)
+#  percent:    show the amount as a percentage in lore
+#  ranges:     [min, max] the rune can roll, by the dropping boss's rank
+# =====================================================================
+empowerment:
+  # How many runes one item can hold.
+  max-per-item: 2
+  stats:
+    attack-damage:
+      attribute: attack_damage
+      operation: ADD_NUMBER
+      display: Attack Damage
+      weight: 20
+      applies-to: [MELEE]
+      ranges: { GRAY: [0.5, 1.0], GREEN: [1.0, 1.5], RED: [1.5, 2.0], PURPLE: [2.0, 3.0], GOLD: [3.0, 4.0] }
+    attack-speed:
+      attribute: attack_speed
+      operation: ADD_NUMBER
+      display: Attack Speed
+      weight: 12
+      applies-to: [MELEE]
+      ranges: { GRAY: [0.05, 0.1], GREEN: [0.1, 0.15], RED: [0.15, 0.2], PURPLE: [0.2, 0.3], GOLD: [0.3, 0.4] }
+    max-health:
+      attribute: max_health
+      operation: ADD_NUMBER
+      display: Max Health
+      weight: 15
+      applies-to: [ARMOR, SHIELD, RANGED]
+      ranges: { GRAY: [1, 2], GREEN: [2, 2], RED: [2, 3], PURPLE: [3, 4], GOLD: [4, 6] }
+    armor:
+      attribute: armor
+      operation: ADD_NUMBER
+      display: Armor
+      weight: 15
+      applies-to: [ARMOR, SHIELD]
+      ranges: { GRAY: [0.5, 1.0], GREEN: [1.0, 1.5], RED: [1.5, 2.0], PURPLE: [2.0, 3.0], GOLD: [3.0, 4.0] }
+    armor-toughness:
+      attribute: armor_toughness
+      operation: ADD_NUMBER
+      display: Armor Toughness
+      weight: 10
+      applies-to: [ARMOR]
+      ranges: { GRAY: [0.5, 1.0], GREEN: [1.0, 1.5], RED: [1.5, 2.0], PURPLE: [2.0, 2.5], GOLD: [2.5, 3.0] }
+    knockback-resistance:
+      attribute: knockback_resistance
+      operation: ADD_NUMBER
+      display: Knockback Resistance
+      percent: true
+      weight: 8
+      applies-to: [ARMOR]
+      ranges: { GRAY: [0.02, 0.04], GREEN: [0.04, 0.06], RED: [0.06, 0.08], PURPLE: [0.08, 0.1], GOLD: [0.1, 0.15] }
+    movement-speed:
+      attribute: movement_speed
+      operation: ADD_SCALAR
+      display: Movement Speed
+      percent: true
+      weight: 8
+      applies-to: [BOOTS, LEGGINGS, RANGED]
+      ranges: { GRAY: [0.02, 0.03], GREEN: [0.03, 0.04], RED: [0.04, 0.06], PURPLE: [0.06, 0.08], GOLD: [0.08, 0.1] }
+
+# =====================================================================
+#  RELICS - permanent unique abilities bound to equipment.
+#  Every relic always has 1 good effect. corruption-chance adds 1 curse
+#  on top (the curse doesn't use a relic slot).
+# =====================================================================
+relics:
+  base-slots: 1
+  corruption-chance: 10
+  # false = you only discover a curse when you bind the relic.
+  reveal-corruption: false
+  # Binding is permanent, so ask the player to confirm (click twice).
+  confirm-binding: true
+  # Can the same relic be bound twice to one item (needs 2 slots)?
+  allow-duplicates-on-item: false
+  catalyst:
+    # Relic Catalyst: an extremely rare drop that adds +1 relic slot.
+    enabled: true
+    max-slots: 2
+
+  effects:
+    blood-pact:    { enabled: true, weight: 10, heal-percent: 12 }
+    soul-harvest:  { enabled: true, weight: 10, heal: 3, boss-heal: 12 }   # health points (2 = 1 heart)
+    second-dawn:   { enabled: true, weight: 5, cooldown-minutes: 10 }
+    bramble-heart: { enabled: true, weight: 8, reflect-percent: 25 }
+    emberheart:    { enabled: true, weight: 8, ignite-seconds: 4 }
+    frostbite:     { enabled: true, weight: 8, slow-seconds: 2, amplifier: 1 }
+    stormcaller:   { enabled: true, weight: 6, chance: 10, bonus-damage: 4 }
+    windstep:      { enabled: true, weight: 8, cooldown-seconds: 4, strength: 1.2 }
+    hunters-mark:  { enabled: true, weight: 6, reward-chance-bonus: 25, boss-damage-bonus: 10 }
+    echo-strike:   { enabled: true, weight: 8, chance: 15, echo-damage-percent: 50 }
+    owls-sight:    { enabled: true, weight: 6 }
+    lodestone:     { enabled: true, weight: 6, radius: 6 }
+    aegis:         { enabled: true, weight: 8, health-threshold: 30, absorption-level: 2, duration-seconds: 10, cooldown-seconds: 60 }
+    featherweight: { enabled: true, weight: 6, fall-reduction: 75 }
+    prospector:    { enabled: true, weight: 6, xp-bonus: 50 }
+
+  curses:
+    dread:         { enabled: true, weight: 10, chance: 20, duration-seconds: 3 }
+    butterfingers: { enabled: true, weight: 6, chance: 2 }
+    fowl-omen:     { enabled: true, weight: 8, chance: 5, cooldown-seconds: 15 }
+    insomnia:      { enabled: true, weight: 8 }
+    limelight:     { enabled: true, weight: 8 }
+    gluttony:      { enabled: true, weight: 8, exhaustion: 0.8 }
+    recoil:        { enabled: true, weight: 8, strength: 0.45 }
+    glass-bones:   { enabled: true, weight: 8, fall-multiplier: 2.0 }
+    blood-tithe:   { enabled: true, weight: 6, health-cost: 1.0 }
+
+# =====================================================================
+#  ITEMS - what the special drops look like.
+#  (They can't be used in crafting recipes.)
+# =====================================================================
+items:
+  rune-material: AMETHYST_SHARD
+  relic-material: HEART_OF_THE_SEA
+  catalyst-material: NETHER_STAR
+
+guide:
+  # Give every player the Boss Hunter's Compendium the first time they join.
+  give-on-first-join: true
+
+# =====================================================================
+#  MESSAGES (MiniMessage format: <red>, <bold>, <gradient:...>, etc.)
+#  Placeholders: <boss> <player> <rank> <items> <item> <stat> <relic>
+#                <curse> <count> <fits>
+# =====================================================================
+messages:
+  prefix: "<dark_gray>[<gold>Bosses</gold>]</dark_gray> "
+  spawn-chat: "<gray>A</gray> <boss> <gray>has appeared nearby...</gray>"
+  spawn-actionbar: "<boss> <gray>is somewhere nearby...</gray>"
+  spawn-title: "<rank>"
+  spawn-subtitle: "<boss> <gray>has appeared!</gray>"
+  enraged: "<boss> <red>becomes enraged!</red>"
+  undying: "<boss> <gold>refuses to die!</gold>"
+  slain: "<player> <gray>has slain</gray> <boss><gray>!</gray>"
+  slain-unknown: "<boss> <gray>has fallen.</gray>"
+  rewards: "<gray>The boss dropped:</gray> <items>"
+  rune-applied: "<aqua>Empowered!</aqua> <gray>Your</gray> <item> <gray>gained</gray> <aqua><stat></aqua><gray>.</gray>"
+  relic-bound: "<light_purple>Relic bound!</light_purple> <gray>Your</gray> <item> <gray>now carries</gray> <light_purple><relic></light_purple><gray>.</gray>"
+  relic-corrupted: "<dark_red><bold>CORRUPTED!</bold></dark_red> <red>The relic carried a curse:</red> <dark_red><curse></dark_red>"
+  catalyst-applied: "<gold>Relic Catalyst absorbed!</gold> <gray>Your</gray> <item> <gray>now has</gray> <gold><count></gold> <gray>Relic slots.</gray>"
+  confirm-relic: "<yellow>Binding is permanent.</yellow> <gray>Do it again within 10 seconds to bind</gray> <light_purple><relic></light_purple> <gray>to your</gray> <item><gray>.</gray>"
+  confirm-catalyst: "<yellow>This is permanent.</yellow> <gray>Do it again within 10 seconds to use the Catalyst on your</gray> <item><gray>.</gray>"
+  apply-not-equipment: "<red>That item can't be upgraded. Use weapons, armor, shields or tools.</red>"
+  apply-wrong-type: "<red>This rune only fits: <fits>.</red>"
+  apply-empowerment-full: "<red>That item already holds the maximum of <count> Empowerments.</red>"
+  apply-no-relic-slot: "<red>That item has no free Relic slot.</red>"
+  apply-duplicate-relic: "<red>That item already carries <relic>.</red>"
+  apply-catalyst-max: "<red>That item already has the maximum of <count> Relic slots.</red>"
+  apply-creative: "<yellow>In creative mode, hold the equipment in your main hand and the rune/relic in your off hand, then use</yellow> <white>/bosses apply</white><yellow>.</yellow>"
+  apply-how: "<gray>Hold the equipment in your <white>main hand</white> and the Rune, Relic or Catalyst in your <white>off hand</white>, then run</gray> <white>/bosses apply</white><gray>. You can also pick it up in your inventory and click it onto the item.</gray>"
+  second-dawn: "<gold>Second Dawn</gold> <yellow>pulls you back from the brink!</yellow>"
+  insomnia: "<dark_purple>Your Insomnia curse won't let you sleep.</dark_purple>"
+  butterfingers: "<red>Butterfingers!</red> <gray>You fumbled your item.</gray>"
+  guide-received: "<gold>You received the</gold> <yellow>Boss Hunter's Compendium</yellow><gold>. Read it to learn about bosses!</gold>"

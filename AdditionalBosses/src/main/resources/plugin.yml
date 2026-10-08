@@ -1,0 +1,17 @@
+name: AdditionalBosses
+version: '${version}'
+main: com.additionalbosses.AdditionalBosses
+api-version: '26.3'
+description: Ordinary mobs occasionally become ranked bosses with traits, bossbars and special rewards.
+authors: [ AdditionalBosses ]
+
+# The /bosses command is registered in code (Paper's command API), so it is not listed here.
+permissions:
+  additionalbosses.use:
+    description: Player commands (/bosses guide, apply, inspect, stats, help).
+    default: true
+  additionalbosses.admin:
+    description: Admin commands (spawn, give, list, killall, reload, guide for others).
+    default: op
+    children:
+      additionalbosses.use: true
