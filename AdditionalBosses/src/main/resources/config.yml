@@ -1,4 +1,4 @@
-config-version: 3   # used by the plugin to update this file; don't change
+config-version: 4   # used by the plugin to update this file; don't change
 # =====================================================================
 #  Additional Bosses - configuration
 # ---------------------------------------------------------------------
@@ -574,11 +574,11 @@ escalation:
 trophies:
   enabled: true
   # Right-click a block with a trophy to place a tiny frozen copy of the
-  # boss (scale 0.1 = a tenth of a normal mob; the smallest allowed is
-  # 0.0625). To pick it up, sneak + right-click it, or sneak + right-click
-  # the block under it with an empty hand.
+  # boss. scale: 0.0625 (1/16 of a normal mob) is the smallest Minecraft
+  # allows; 0.125 is 1/8. To pick it up, sneak + right-click it, or
+  # sneak + right-click the block under it with an empty hand.
   placeable: true
-  scale: 0.1
+  scale: 0.0625
   chance:
     GRAY: 4
     GREEN: 7
