@@ -1,0 +1,50 @@
+name: Build plugin
+
+# Builds the plugin in the AdditionalBosses folder on every push, or when you press "Run workflow".
+# The finished jar appears under "Artifacts" on the run's summary page.
+on:
+  push:
+    tags: [ "v*" ]
+    branches: [ "**" ]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+defaults:
+  run:
+    working-directory: AdditionalBosses
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the code
+        uses: actions/checkout@v6
+
+      - name: Set up Java 25
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "25"
+          cache: gradle
+
+      - name: Make the Gradle wrapper executable
+        run: chmod +x ./gradlew
+
+      - name: Build the plugin jar
+        run: ./gradlew build --no-daemon --stacktrace
+
+      - name: Upload the jar
+        uses: actions/upload-artifact@v6
+        with:
+          name: AdditionalBosses
+          path: AdditionalBosses/build/libs/*.jar
+          if-no-files-found: error
+
+      - name: Publish a release (only for v* tags)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v3
+        with:
+          files: AdditionalBosses/build/libs/*.jar
