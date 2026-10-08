@@ -15,7 +15,7 @@ bosses:
   # (Roll #2, the rank, uses the weights in mob-categories below.)
   # Hostile mobs spawn (and quietly despawn) constantly, so small values
   # go a long way. Raise it for more bosses, lower it for fewer.
-  spawn-chance: 10.0
+  spawn-chance: 15.0
   # Which spawns can become bosses. Spawners are left out on purpose so
   # mob farms can't farm bosses. Categories can override this list.
   spawn-reasons: [NATURAL, PATROL, RAID]
