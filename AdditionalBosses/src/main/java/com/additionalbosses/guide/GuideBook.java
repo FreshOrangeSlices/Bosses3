@@ -568,7 +568,7 @@ public final class GuideBook {
 
         // ---------------- Front matter: title page + clickable contents (as many pages as it needs) ----------
         List<Map.Entry<String, Integer>> all = new ArrayList<>(sections.entrySet());
-        if (2 + contentsPages(all, 0, null).size() + body.size() <= MAX_PAGES) {
+        if (1 + contentsPages(all, 0, null).size() + body.size() <= MAX_PAGES) {
             return List.of(book("Boss Hunter's Compendium", null, all, body));
         }
         // Too long for one book: split into two volumes at the section boundary nearest the middle.

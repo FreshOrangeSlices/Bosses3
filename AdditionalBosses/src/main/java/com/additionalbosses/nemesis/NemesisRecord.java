@@ -48,6 +48,8 @@ public final class NemesisRecord {
 
     /** Runtime only: server tick until which it prowls (0 = not prowling). */
     public int prowlUntil;
+    /** Runtime only: someone other than its prey who attacked it while prowling (it fights back). */
+    public @Nullable UUID provoker;
     /** Runtime only: the living mob while the Nemesis is in the world. */
     public @Nullable UUID entity;
     /** Runtime only: ticks the owner has been out of reach. */

@@ -30,6 +30,7 @@ import org.bukkit.attribute.AttributeModifier;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Hoglin;
+import org.bukkit.entity.EntityType;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Mob;
 import org.bukkit.entity.PiglinAbstract;
@@ -249,7 +250,7 @@ public final class NemesisManager {
         NemesisRecord created = create(boss, victim);
         created.kills = 1;
         updateTitles(created);
-        configure(boss, created);
+        configure(boss, created, false);
         retreat(boss, created);
         victim.sendMessage(messages().prefixed("nemesis-born", Placeholder.component("boss", displayName(created))));
     }
@@ -279,7 +280,7 @@ public final class NemesisManager {
         NemesisRecord created = create(boss, playerId, name == null ? "?" : name);
         created.escapes = 1;
         updateTitles(created);
-        configure(boss, created);
+        configure(boss, created, false);
         retreat(boss, created);
         if (p != null) {
             p.sendMessage(messages().prefixed("nemesis-born", Placeholder.component("boss", displayName(created))));
@@ -335,17 +336,22 @@ public final class NemesisManager {
         return r != null && r.prowlUntil > 0;
     }
 
+    /** Mobs driven by "brain" AI (piglins, hoglins, breezes...) can't be steered, so they don't prowl. */
+    private static final Set<EntityType> BRAIN_AI = Set.of(EntityType.PIGLIN, EntityType.PIGLIN_BRUTE,
+        EntityType.HOGLIN, EntityType.ZOGLIN, EntityType.BREEZE, EntityType.WARDEN, EntityType.CREAKING);
+
     /** Leaves the fight: prowls nearby for a few minutes (if enabled), then vanishes until its return. */
     private boolean retreat(Boss boss, NemesisRecord r) {
         r.lostTicks = 0;
         r.returnAt = clock() + Math.round(f().nemesisReturnDays * DAY);
         LivingEntity e = boss.entity();
         int prowlTicks = (int) Math.round(f().nemesisProwlMinutes * 1200);
-        if (prowlTicks <= 0 || !e.isValid() || e.isDead()) {
+        if (prowlTicks <= 0 || !e.isValid() || e.isDead() || BRAIN_AI.contains(e.getType())) {
             vanish(boss, r);
             return true;
         }
         r.prowlUntil = Bukkit.getCurrentTick() + prowlTicks;
+        r.provoker = null;
         boss.engaged().clear();
         if (e instanceof Mob mob) {
             mob.setTarget(null);
@@ -363,6 +369,17 @@ public final class NemesisManager {
         if (Bukkit.getCurrentTick() >= r.prowlUntil) {
             vanish(boss, r);
             return true;
+        }
+        if (r.provoker != null) {
+            Player p = Bukkit.getPlayer(r.provoker);
+            if (p != null && boss.fightable(p) && p.getLocation().distanceSquared(e.getLocation()) < 24 * 24) {
+                if (e instanceof Mob mob && mob.getTarget() != p) {
+                    mob.setTarget(p);
+                }
+                return false; // busy fighting whoever attacked it
+            }
+            r.provoker = null;
+            boss.engaged().clear();
         }
         if (e instanceof Mob mob && !(e instanceof org.bukkit.entity.Creeper)
             && r.outingKills < f().nemesisKillLevelsPerOuting) {
@@ -388,7 +405,9 @@ public final class NemesisManager {
                 || !(near instanceof org.bukkit.entity.Animals || near instanceof org.bukkit.entity.Enemy)
                 || com.additionalbosses.boss.BossManager.isBoss(near) || com.additionalbosses.boss.BossManager.isMinion(near)
                 || near.getPersistentDataContainer().has(Keys.STATUE, PersistentDataType.STRING)
-                || (near instanceof org.bukkit.entity.Tameable t && t.isTamed()) || near.isInvulnerable()) {
+                || (near instanceof org.bukkit.entity.Tameable t && t.isTamed()) || near.isInvulnerable()
+                || near instanceof org.bukkit.entity.Boss || near instanceof org.bukkit.entity.Warden
+                || near instanceof org.bukkit.entity.Ravager || near instanceof org.bukkit.entity.ElderGuardian) {
                 continue;
             }
             double d = near.getLocation().distanceSquared(hunter.getLocation());
@@ -406,11 +425,24 @@ public final class NemesisManager {
         if (r == null || r.prowlUntil <= 0) {
             return;
         }
-        r.prowlUntil = 0;
+        if (attacker.getUniqueId().equals(r.owner)) {
+            r.prowlUntil = 0; // its prey came back for more: the hunt is on again
+            r.provoker = null;
+        } else if (attacker.getUniqueId().equals(r.provoker)) {
+            return;
+        } else {
+            r.provoker = attacker.getUniqueId(); // someone else: it fights them off, but keeps prowling
+        }
         if (boss.entity() instanceof Mob mob) {
             mob.setTarget(attacker);
         }
         attacker.sendMessage(messages().prefixed("nemesis-provoked", Placeholder.component("boss", displayName(r))));
+    }
+
+    /** While prowling it only targets players who attacked it. */
+    public boolean mayTarget(Boss boss, Player player) {
+        NemesisRecord r = get(boss.nemesisId());
+        return r == null || r.prowlUntil <= 0 || player.getUniqueId().equals(r.provoker);
     }
 
     /** Every mob a Nemesis kills makes it one level stronger (a few per outing). */
@@ -643,7 +675,7 @@ public final class NemesisManager {
             }
         }
         Class<?> cls = r.type.getEntityClass();
-        if (cls == null || !Mob.class.isAssignableFrom(cls)) {
+        if (cls == null || !Mob.class.isAssignableFrom(cls) || com.additionalbosses.config.PluginSettings.isMount(r.type)) {
             records.remove(r.id); // that mob can't exist any more
             save();
             return;
@@ -656,7 +688,7 @@ public final class NemesisManager {
         r.outingKills = 0;
         r.prowlUntil = 0;
         updateTitles(r);
-        configure(boss, r);
+        configure(boss, r, true);
         plugin.bossBars().updateHealth(boss, boss.health());
         save();
 
@@ -670,8 +702,9 @@ public final class NemesisManager {
     }
 
     /** Applies everything a Nemesis is: its body (same as last time), level scaling, gear, name and persistence. */
-    private void configure(Boss boss, NemesisRecord r) {
+    private void configure(Boss boss, NemesisRecord r, boolean fullHealth) {
         LivingEntity e = boss.entity();
+        double ratio = boss.healthRatio();
         e.getPersistentDataContainer().set(Keys.NEMESIS, PersistentDataType.STRING, r.id);
         if (e instanceof org.bukkit.entity.Ageable a) {
             if (r.baby) {
@@ -690,7 +723,8 @@ public final class NemesisManager {
             hoglin.setImmuneToZombification(true);
         }
         applyBody(boss, r);
-        e.setHealth(boss.maxHealth());
+        // A returning Nemesis arrives at full strength; a boss that just became one keeps its wounds.
+        e.setHealth(Math.max(1, fullHealth ? boss.maxHealth() : Math.min(boss.maxHealth(), boss.maxHealth() * ratio)));
         applyRuntime(boss, r);
     }
 
@@ -771,11 +805,21 @@ public final class NemesisManager {
 
     /** Nemesis loot: guaranteed boss gear above the normal ceiling, a guaranteed rune, boosted relic odds, a statue. */
     public void onSlain(Boss boss, @Nullable Player killer, EntityDeathEvent event, List<ItemStack> rewards) {
-        NemesisRecord r = records.remove(boss.nemesisId());
-        save();
+        NemesisRecord r = get(boss.nemesisId());
         if (r == null) {
             return;
         }
+        if (killer == null) {
+            // Killed by something other than a player (a golem, lava...): that isn't the end of a Nemesis.
+            r.entity = null;
+            r.prowlUntil = 0;
+            r.provoker = null;
+            r.returnAt = Math.max(r.returnAt, clock() + Math.round(f().nemesisReturnDays * DAY));
+            save();
+            return;
+        }
+        records.remove(r.id);
+        save();
         if (killer != null) {
             var rs = plugin.settings().rank(r.rank);
             event.setDroppedExp((int) Math.round(event.getDroppedExp() * (1.0 + r.level * 0.2)));

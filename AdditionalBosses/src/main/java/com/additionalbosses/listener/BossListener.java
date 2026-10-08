@@ -158,7 +158,8 @@ public final class BossListener implements Listener {
             return;
         }
         Boss boss = bosses().get(event.getEntity());
-        if (boss != null && boss.isNemesis() && plugin.nemesis().isProwling(boss)) {
+        if (boss != null && boss.isNemesis() && event.getTarget() instanceof Player player
+            && !plugin.nemesis().mayTarget(boss, player)) {
             event.setCancelled(true);
         }
     }

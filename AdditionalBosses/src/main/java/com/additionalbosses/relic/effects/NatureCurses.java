@@ -71,7 +71,8 @@ public final class NatureCurses {
         @Override
         public void load(ConfigurationSection s) {
             radius = s.getDouble("radius", 10);
-            villagerPenalty = Math.max(0, Math.min(200, s.getInt("villager-price-penalty", 40)));
+            // Iron golems turn on players around -100 reputation, so stay below that.
+            villagerPenalty = Math.max(0, Math.min(99, s.getInt("villager-price-penalty", 40)));
         }
 
         @Override
@@ -91,7 +92,8 @@ public final class NatureCurses {
             Location from = p.getLocation();
             for (Entity e : p.getNearbyEntities(radius, 4, radius)) {
                 if (!(e instanceof Animals animal) || e instanceof org.bukkit.entity.Enemy
-                    || (e instanceof Tameable t && t.isTamed())) {
+                    || (e instanceof Tameable t && t.isTamed()) || animal.isLeashed() || !animal.getPassengers().isEmpty()
+                    || animal.getPathfinder().hasPath()) {
                     continue;
                 }
                 Vector away = animal.getLocation().toVector().subtract(from.toVector()).setY(0);
@@ -143,7 +145,9 @@ public final class NatureCurses {
         for (int slot = 0; slot < inv.getSize(); slot++) {
             ItemStack item = inv.getItem(slot);
             if (item != null && MEAT.contains(item.getType())) {
-                inv.setItem(slot, ItemStack.of(PLANT_FOOD[Rng.between(0, PLANT_FOOD.length - 1)], item.getAmount()));
+                // Rotten flesh never becomes coal, so a zombie farm doesn't turn into a coal farm.
+                int from = item.getType() == Material.ROTTEN_FLESH ? 1 : 0;
+                inv.setItem(slot, ItemStack.of(PLANT_FOOD[Rng.between(from, PLANT_FOOD.length - 1)], item.getAmount()));
                 changed = true;
             }
         }
