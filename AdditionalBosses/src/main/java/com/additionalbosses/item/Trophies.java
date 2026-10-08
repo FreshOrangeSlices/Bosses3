@@ -124,7 +124,7 @@ public final class Trophies {
         lore.add(Text.line("Right-click a block: place a tiny copy.", NamedTextColor.DARK_GRAY));
         lore.add(Text.line("Right-click or throw it at a boss: promote it.", NamedTextColor.DARK_GRAY));
         item.lore(lore);
-        String data = typeToken(e) + ";" + plugin.settings().features.trophyScale + ";" + gearString(e.getEquipment())
+        String data = typeToken(e) + ";1;" + gearString(e.getEquipment())
             + ";" + Text.MM.serialize(boss.name());
         item.editPersistentDataContainer(pdc -> {
             pdc.set(Keys.ITEM_KIND, PersistentDataType.STRING, ItemService.Kind.TROPHY.name());
@@ -337,6 +337,7 @@ public final class Trophies {
             return false; // something (e.g. a protection plugin) stopped it
         }
         // Apply the size once more after the mob is fully in the world, in case anything reset it on spawn.
+        resize(placed);
         Bukkit.getScheduler().runTask(plugin, () -> resize(placed));
         Fx.particle(at.clone().add(0, 1, 0), Particle.CLOUD, 15, 0.4, 0.02);
         Fx.play(at, "block.stone.place", 1.0f, 0.8f);
@@ -344,12 +345,13 @@ public final class Trophies {
     }
 
     /**
-     * Size of a placed figure: trophies use the trophy size; Nemesis statues are a fraction of the Nemesis's own size
-     * (it was bigger than a normal mob). Minecraft can't go below 0.0625.
+     * Size of a placed figure. Nemesis statues are a fraction of the Nemesis's own size (by default its full size).
+     * Trophies are sized so their larger side (height or width) is about half a block, whatever the mob: that needs
+     * the mob's real dimensions, so it is worked out in {@link #resize} once the mob exists.
      */
     private double figureScale(boolean trophy, String storedScale) {
         var f = plugin.settings().features;
-        return trophy ? f.trophyScale : Math.max(0.0625, parseDouble(storedScale, 1.0) * f.statueScale);
+        return trophy ? 0.25 : Math.max(0.0625, parseDouble(storedScale, 1.0) * f.statueScale);
     }
 
     /** Placed trophies and statues always use the current sizes, including ones placed before they changed. */
@@ -359,15 +361,26 @@ public final class Trophies {
         }
         String data = e.getPersistentDataContainer().get(Keys.STATUE, PersistentDataType.STRING);
         String[] parts = data == null ? new String[0] : data.split(";", 4);
-        if (parts.length < 4) {
+        AttributeInstance scale = living.getAttribute(Attribute.SCALE);
+        if (parts.length < 4 || scale == null) {
             return;
         }
         ItemStack original = storedItem(e);
         boolean trophy = original != null && ItemService.Kind.TROPHY.name().equals(
             original.getPersistentDataContainer().get(Keys.ITEM_KIND, PersistentDataType.STRING));
-        AttributeInstance scale = living.getAttribute(Attribute.SCALE);
-        double wanted = figureScale(trophy, parts[1]);
-        if (scale != null && Math.abs(scale.getBaseValue() - wanted) > 1.0E-4) {
+        double wanted;
+        if (trophy) {
+            double now = scale.getValue();
+            double side = Math.max(living.getHeight(), living.getWidth());
+            if (now <= 0 || side <= 0) {
+                return;
+            }
+            double natural = side / now; // its size at scale 1
+            wanted = Math.max(0.0625, Math.min(2.0, plugin.settings().features.trophySize / natural));
+        } else {
+            wanted = figureScale(false, parts[1]);
+        }
+        if (Math.abs(scale.getBaseValue() - wanted) > 1.0E-3) {
             scale.setBaseValue(wanted);
         }
     }
