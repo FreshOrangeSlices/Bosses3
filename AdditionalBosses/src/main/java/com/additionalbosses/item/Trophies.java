@@ -2,6 +2,7 @@ package com.additionalbosses.item;
 
 import com.additionalbosses.AdditionalBosses;
 import com.additionalbosses.boss.Boss;
+import com.additionalbosses.boss.BossRank;
 import com.additionalbosses.nemesis.NemesisRecord;
 import com.additionalbosses.util.Clock;
 import com.additionalbosses.util.Fx;
@@ -31,6 +32,7 @@ import org.bukkit.persistence.PersistentDataType;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Locale;
@@ -96,27 +98,58 @@ public final class Trophies {
         return String.valueOf(Clock.day());
     }
 
-    /** A cosmetic trophy named after the mob type. It looks like a themed item but can't be used or crafted. */
+    /**
+     * A trophy named after the mob type (a Blaze Core, a Ravager Horn...). Place it to get a tiny frozen copy of the
+     * boss, or use it on a living boss to promote it.
+     */
     public ItemStack createTrophy(Boss boss, @Nullable Player killer) {
-        EntityType type = boss.entity().getType();
+        LivingEntity e = boss.entity();
+        EntityType type = e.getType();
         Look look = LOOKS.getOrDefault(type, new Look("bone", Text.pretty(type.name()) + " Remnant"));
         ItemStack item = ItemStack.of(Material.PAPER);
         item.setData(DataComponentTypes.ITEM_MODEL, Key.key(look.model()));
-        item.setData(DataComponentTypes.ITEM_NAME, Component.text(look.name(), boss.rank().color()));
+        item.setData(DataComponentTypes.ITEM_NAME, boss.rank().styled(look.name()));
         item.setData(DataComponentTypes.MAX_STACK_SIZE, 1);
-        if (boss.rank().atLeast(com.additionalbosses.boss.BossRank.PURPLE) || boss.isNemesis()) {
+        if (boss.rank().atLeast(BossRank.PURPLE) || boss.isNemesis()) {
             item.setData(DataComponentTypes.ENCHANTMENT_GLINT_OVERRIDE, true);
         }
         List<Component> lore = new ArrayList<>();
-        lore.add(Text.line("Boss Trophy", NamedTextColor.GOLD));
+        lore.add(Text.line(boss.rank().starText() + " Boss Trophy", NamedTextColor.GOLD));
         lore.add(Text.line("From: " + boss.plainName(), NamedTextColor.GRAY));
         if (killer != null) {
-            lore.add(Text.line("Slain by " + killer.getName() + " on day " + day(boss.entity()), NamedTextColor.DARK_GRAY));
+            lore.add(Text.line("Slain by " + killer.getName() + " on day " + day(e), NamedTextColor.DARK_GRAY));
         }
+        lore.add(Component.empty());
+        lore.add(Text.line("Right-click a block: place a tiny copy.", NamedTextColor.DARK_GRAY));
+        lore.add(Text.line("Right-click or throw it at a boss: promote it.", NamedTextColor.DARK_GRAY));
         item.lore(lore);
-        item.editPersistentDataContainer(pdc ->
-            pdc.set(Keys.ITEM_KIND, PersistentDataType.STRING, ItemService.Kind.TROPHY.name()));
+        double scale = (e.getAttribute(Attribute.SCALE) == null ? 1.0 : e.getAttribute(Attribute.SCALE).getValue())
+            * plugin.settings().features.trophyScale;
+        String data = type.name() + ";" + Math.max(0.0625, scale) + ";" + gearString(e.getEquipment()) + ";"
+            + Text.MM.serialize(boss.name());
+        item.editPersistentDataContainer(pdc -> {
+            pdc.set(Keys.ITEM_KIND, PersistentDataType.STRING, ItemService.Kind.TROPHY.name());
+            pdc.set(Keys.ITEM_RANK, PersistentDataType.STRING, boss.rank().name());
+            pdc.set(Keys.STATUE, PersistentDataType.STRING, data);
+        });
         return item;
+    }
+
+    /** The rank of the boss a trophy came from (older trophies: read from the name colour). */
+    public static BossRank trophyRank(ItemStack trophy) {
+        BossRank rank = BossRank.parse(trophy.getPersistentDataContainer().get(Keys.ITEM_RANK, PersistentDataType.STRING));
+        if (rank != null) {
+            return rank;
+        }
+        Component name = trophy.getData(DataComponentTypes.ITEM_NAME);
+        if (name != null && name.color() != null) {
+            for (BossRank r : BossRank.values()) {
+                if (r.color().equals(name.color())) {
+                    return r;
+                }
+            }
+        }
+        return BossRank.GRAY;
     }
 
     /** The Nemesis statue item (a spawn egg that places a frozen display of the slain Nemesis). */
@@ -142,17 +175,32 @@ public final class Trophies {
     private static String gearString(@Nullable EntityEquipment eq) {
         List<String> parts = new ArrayList<>();
         for (EquipmentSlot slot : SLOTS) {
-            Material m = Material.AIR;
+            String part = "AIR";
             if (eq != null) {
                 try {
-                    m = eq.getItem(slot).getType();
+                    ItemStack item = eq.getItem(slot);
+                    if (!item.isEmpty()) {
+                        part = "b64:" + Base64.getEncoder().encodeToString(item.asOne().serializeAsBytes());
+                    }
                 } catch (IllegalArgumentException ignored) {
                     // slot not supported by this mob
                 }
             }
-            parts.add(m.name());
+            parts.add(part);
         }
         return String.join(",", parts);
+    }
+
+    private static @Nullable ItemStack gearItem(String part) {
+        if (part.startsWith("b64:")) {
+            try {
+                return ItemStack.deserializeBytes(Base64.getDecoder().decode(part.substring(4)));
+            } catch (RuntimeException ex) {
+                return null;
+            }
+        }
+        Material m = Material.matchMaterial(part); // older statues stored only the material
+        return m == null || m.isAir() || !m.isItem() ? null : ItemStack.of(m);
     }
 
     private static void applyGear(@Nullable EntityEquipment eq, String gear) {
@@ -165,12 +213,12 @@ public final class Trophies {
             parts = new String[]{"AIR", "AIR", "AIR", "AIR", parts[0], "AIR"}; // older statues: main hand only
         }
         for (int i = 0; i < Math.min(parts.length, SLOTS.length); i++) {
-            Material m = Material.matchMaterial(parts[i]);
-            if (m == null || m.isAir() || !m.isItem()) {
+            ItemStack item = gearItem(parts[i]);
+            if (item == null) {
                 continue;
             }
             try {
-                eq.setItem(SLOTS[i], ItemStack.of(m));
+                eq.setItem(SLOTS[i], item);
                 eq.setDropChance(SLOTS[i], 0f);
             } catch (IllegalArgumentException ignored) {
                 // slot not supported by this mob
@@ -228,6 +276,9 @@ public final class Trophies {
             player.sendMessage(Text.mm("<red>Hostile statues can't stand in Peaceful difficulty.</red>"));
             return false;
         }
+        boolean mini = ItemService.Kind.TROPHY.name().equals(
+            item.getPersistentDataContainer().get(Keys.ITEM_KIND, PersistentDataType.STRING));
+        String original = Base64.getEncoder().encodeToString(item.asOne().serializeAsBytes());
         Entity placed = at.getWorld().spawn(at, type.getEntityClass(), false, ent -> {
             if (!(ent instanceof LivingEntity statue)) {
                 return;
@@ -241,7 +292,7 @@ public final class Trophies {
             statue.setCollidable(false);
             statue.setCanPickupItems(false);
             statue.customName(name);
-            statue.setCustomNameVisible(true);
+            statue.setCustomNameVisible(!mini); // trophies show their name only when you look at them
             AttributeInstance s = statue.getAttribute(Attribute.SCALE);
             if (s != null) {
                 s.setBaseValue(scale);
@@ -267,6 +318,7 @@ public final class Trophies {
             }
             statue.getPersistentDataContainer().set(Keys.STATUE, PersistentDataType.STRING, data);
             statue.getPersistentDataContainer().set(Keys.STATUE_LORE, PersistentDataType.LIST.strings(), loreMini);
+            statue.getPersistentDataContainer().set(Keys.STATUE_ITEM, PersistentDataType.STRING, original);
         });
         if (!placed.isValid()) {
             return false; // something (e.g. a protection plugin) stopped it
@@ -285,6 +337,17 @@ public final class Trophies {
         String data = statue.getPersistentDataContainer().get(Keys.STATUE, PersistentDataType.STRING);
         if (data == null) {
             return null;
+        }
+        String original = statue.getPersistentDataContainer().get(Keys.STATUE_ITEM, PersistentDataType.STRING);
+        if (original != null) {
+            try {
+                ItemStack item = ItemStack.deserializeBytes(Base64.getDecoder().decode(original));
+                Fx.particle(Fx.center(statue), Particle.CLOUD, 15, 0.4, 0.02);
+                statue.remove();
+                return item;
+            } catch (RuntimeException ignored) {
+                // fall back to rebuilding it below
+            }
         }
         String[] parts = data.split(";", 4);
         if (parts.length < 4) {

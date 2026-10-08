@@ -5,6 +5,7 @@ import com.additionalbosses.item.EquipmentType;
 import com.additionalbosses.util.Rng;
 import com.additionalbosses.util.Text;
 import org.bukkit.attribute.Attribute;
+import org.jetbrains.annotations.Nullable;
 import org.bukkit.attribute.AttributeModifier;
 
 import java.util.List;
@@ -12,11 +13,14 @@ import java.util.Map;
 import java.util.StringJoiner;
 
 /**
- * One stat an Empowerment Rune can carry (config.yml: empowerment.stats).
+ * One stat an Empowerment Rune can carry (config.yml: empowerment.stats). Most stats are attribute bonuses;
+ * "effect" stats (loot, fortune) are multipliers the plugin applies itself.
  */
 public record EmpowermentStat(
     String id,
-    Attribute attribute,
+    @Nullable Attribute attribute,
+    @Nullable Attribute extraAttribute,
+    @Nullable String effect,
     AttributeModifier.Operation operation,
     String displayName,
     boolean percent,
@@ -44,8 +48,14 @@ public record EmpowermentStat(
         return percent ? Math.round(value * 1000.0) / 1000.0 : Math.round(value * 100.0) / 100.0;
     }
 
-    /** "+1.5 Attack Damage" or "+6% Movement Speed" */
+    public static final String LOOT = "loot";
+    public static final String FORTUNE = "fortune";
+
+    /** "+1.5 Attack Damage", "+6% Movement Speed" or "x1.25 Mob Loot" */
     public String format(double amount) {
+        if (effect != null) {
+            return "x" + Text.num(1.0 + amount) + " " + displayName;
+        }
         if (percent) {
             return "+" + Text.num(amount * 100.0) + "% " + displayName;
         }

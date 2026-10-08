@@ -4,10 +4,12 @@ import com.additionalbosses.boss.BossBarManager;
 import com.additionalbosses.boss.BossManager;
 import com.additionalbosses.boss.Presentation;
 import com.additionalbosses.command.BossesCommand;
+import com.additionalbosses.config.ConfigUpgrader;
 import com.additionalbosses.config.PluginSettings;
 import com.additionalbosses.feature.CompassManager;
 import com.additionalbosses.feature.EscalationManager;
 import com.additionalbosses.feature.FeatureListener;
+import com.additionalbosses.feature.LootListener;
 import com.additionalbosses.guide.GuideBook;
 import com.additionalbosses.item.ItemService;
 import com.additionalbosses.item.Trophies;
@@ -16,6 +18,8 @@ import com.additionalbosses.listener.CombatListener;
 import com.additionalbosses.listener.ItemListener;
 import com.additionalbosses.listener.PlayerListener;
 import com.additionalbosses.nemesis.NemesisManager;
+import com.additionalbosses.waystone.WaystoneListener;
+import com.additionalbosses.waystone.WaystoneManager;
 import com.additionalbosses.relic.RelicManager;
 import com.additionalbosses.reward.RewardManager;
 import com.additionalbosses.trait.TraitManager;
@@ -50,6 +54,7 @@ public final class AdditionalBosses extends JavaPlugin {
     private EscalationManager escalation;
     private CompassManager compass;
     private FeatureListener features;
+    private WaystoneManager waystones;
 
     public static AdditionalBosses get() {
         return instance;
@@ -60,6 +65,7 @@ public final class AdditionalBosses extends JavaPlugin {
         instance = this;
         Keys.init(this);
         saveDefaultConfig();
+        ConfigUpgrader.upgrade(this);
 
         traits = new TraitManager();
         relics = new RelicManager(this);
@@ -74,8 +80,10 @@ public final class AdditionalBosses extends JavaPlugin {
         escalation = new EscalationManager(this);
         compass = new CompassManager(this);
         features = new FeatureListener(this);
+        waystones = new WaystoneManager(this);
         reloadSettings();
         nemesis.load();
+        waystones.load();
         compass.start();
 
         PluginManager pm = getServer().getPluginManager();
@@ -84,6 +92,8 @@ public final class AdditionalBosses extends JavaPlugin {
         pm.registerEvents(new ItemListener(this), this);
         pm.registerEvents(new PlayerListener(this), this);
         pm.registerEvents(features, this);
+        pm.registerEvents(new WaystoneListener(this), this);
+        pm.registerEvents(new LootListener(this), this);
 
         registerCommand("bosses", "Additional Bosses commands", List.of("ab", "boss"), new BossesCommand(this));
 
@@ -91,7 +101,7 @@ public final class AdditionalBosses extends JavaPlugin {
         getLogger().info("Additional Bosses enabled: " + traits.enabledTraits().size() + " traits, "
             + relics.enabledEffects(false).size() + " relics, " + relics.enabledEffects(true).size() + " curses"
             + (restored > 0 ? ", " + restored + " bosses restored" : "") + ", "
-            + nemesis.count() + " Nemeses remembered.");
+            + nemesis.count() + " Nemeses remembered, " + waystones.count() + " waystones.");
     }
 
     @Override
@@ -104,6 +114,9 @@ public final class AdditionalBosses extends JavaPlugin {
         }
         if (nemesis != null) {
             nemesis.shutdown();
+        }
+        if (waystones != null) {
+            waystones.shutdown();
         }
         if (bosses != null) {
             bosses.shutdown();
@@ -175,5 +188,9 @@ public final class AdditionalBosses extends JavaPlugin {
 
     public CompassManager compass() {
         return compass;
+    }
+
+    public WaystoneManager waystones() {
+        return waystones;
     }
 }

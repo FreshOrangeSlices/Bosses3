@@ -100,6 +100,7 @@ public final class CombatListener implements Listener {
                 trait.afterDamaged(victimBoss, event, finalDamage, ctx);
             }
             plugin.bosses().checkLastStand(victimBoss, victim.getHealth() - finalDamage);
+            plugin.bosses().checkPhases(victimBoss, victim.getHealth() - finalDamage);
             plugin.bossBars().updateHealth(victimBoss, victim.getHealth() - finalDamage);
         }
         if (attacker instanceof Player player && attacker != victim && !ctx.secondary()) {

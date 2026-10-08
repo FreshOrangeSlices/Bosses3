@@ -9,6 +9,7 @@ import com.additionalbosses.item.ItemService;
 import com.additionalbosses.item.Trophies;
 import com.additionalbosses.util.Fx;
 import com.additionalbosses.util.Keys;
+import com.additionalbosses.util.Rng;
 import com.additionalbosses.util.SafeSpots;
 import org.bukkit.Bukkit;
 import org.bukkit.GameMode;
@@ -18,6 +19,7 @@ import org.bukkit.NamespacedKey;
 import org.bukkit.Particle;
 import org.bukkit.block.Block;
 import org.bukkit.entity.Entity;
+import org.bukkit.entity.Item;
 import org.bukkit.entity.EntityType;
 import org.bukkit.entity.Mob;
 import org.bukkit.entity.Player;
@@ -31,6 +33,7 @@ import org.bukkit.event.entity.EntityCombustEvent;
 import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.event.entity.EntityTargetEvent;
 import org.bukkit.event.entity.EntityTransformEvent;
+import org.bukkit.event.player.PlayerDropItemEvent;
 import org.bukkit.event.player.PlayerInteractEntityEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
@@ -40,6 +43,7 @@ import org.bukkit.inventory.PlayerInventory;
 import org.bukkit.inventory.ShapelessRecipe;
 import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.scheduler.BukkitRunnable;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.HashSet;
 import java.util.Set;
@@ -119,9 +123,9 @@ public final class FeatureListener implements Listener {
             case TOTEM -> {
                 EquipmentSlot hand = event.getHand();
                 Block clicked = event.getClickedBlock();
-                if (action == Action.RIGHT_CLICK_BLOCK && clicked != null && usable(clicked)
-                    && !player.isSneaking()) {
-                    return; // let chests, doors and buttons work normally
+                if (action == Action.RIGHT_CLICK_BLOCK && clicked != null
+                    && ((usable(clicked) && !player.isSneaking()) || plugin.waystones().at(clicked) != null)) {
+                    return; // let chests, doors, buttons and waystones work normally
                 }
                 if (rightClick && hand != null) {
                     event.setCancelled(true);
@@ -152,9 +156,14 @@ public final class FeatureListener implements Listener {
     @EventHandler(priority = EventPriority.HIGHEST)
     public void onStatuePlace(PlayerInteractEvent event) {
         Block clicked = event.getClickedBlock();
+        ItemService.Kind kind = items().kind(event.getItem());
         if (event.getAction() != Action.RIGHT_CLICK_BLOCK || event.getHand() != EquipmentSlot.HAND || clicked == null
-            || items().kind(event.getItem()) != ItemService.Kind.STATUE) {
+            || (kind != ItemService.Kind.STATUE && kind != ItemService.Kind.TROPHY)) {
             return;
+        }
+        if (kind == ItemService.Kind.TROPHY && (!plugin.settings().features.trophyPlacing
+            || !event.getItem().getPersistentDataContainer().has(Keys.STATUE, PersistentDataType.STRING))) {
+            return; // older trophies have no statue data
         }
         event.setUseItemInHand(Event.Result.DENY);
         if (event.useInteractedBlock() == Event.Result.DENY) {
@@ -271,6 +280,16 @@ public final class FeatureListener implements Listener {
             event.setCancelled(true);
         }
         Entity clicked = event.getRightClicked();
+        if (items().kind(hand) == ItemService.Kind.TROPHY) {
+            event.setCancelled(true);
+            Boss boss = plugin.bosses().get(clicked);
+            if (boss != null && event.getHand() == EquipmentSlot.HAND) {
+                if (offerTrophy(player, hand, boss)) {
+                    consumeOne(player, EquipmentSlot.HAND);
+                }
+                return;
+            }
+        }
         if (!Trophies.isStatue(clicked)) {
             return;
         }
@@ -285,6 +304,75 @@ public final class FeatureListener implements Listener {
             }
             Fx.play(player.getLocation(), "entity.item.pickup", 0.8f, 0.8f);
         }
+    }
+
+    /** Throwing (dropping) a trophy: it flies a little further, and if it touches a boss it is offered to it. */
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onThrowTrophy(PlayerDropItemEvent event) {
+        Item thrown = event.getItemDrop();
+        if (items().kind(thrown.getItemStack()) != ItemService.Kind.TROPHY || !plugin.settings().features.promotionEnabled) {
+            return;
+        }
+        Player player = event.getPlayer();
+        thrown.setVelocity(player.getLocation().getDirection().multiply(0.9).add(new org.bukkit.util.Vector(0, 0.15, 0)));
+        UUID thrower = player.getUniqueId();
+        new BukkitRunnable() {
+            int ticks = 0;
+
+            @Override
+            public void run() {
+                if (!thrown.isValid() || (ticks += 2) > 60) {
+                    cancel();
+                    return;
+                }
+                Fx.particle(thrown.getLocation(), Particle.END_ROD, 1, 0.05, 0);
+                for (Entity near : thrown.getNearbyEntities(1.2, 1.5, 1.2)) {
+                    Boss boss = plugin.bosses().get(near);
+                    if (boss == null) {
+                        continue;
+                    }
+                    Player p = Bukkit.getPlayer(thrower);
+                    if (offerTrophy(p, thrown.getItemStack(), boss)) {
+                        thrown.remove();
+                    }
+                    cancel();
+                    return;
+                }
+            }
+        }.runTaskTimer(plugin, 2L, 2L);
+    }
+
+    /**
+     * Offers a trophy to a boss: it rises by the trophy's strength (Gray trophies only sometimes work).
+     * Returns true if the trophy was used up.
+     */
+    private boolean offerTrophy(@Nullable Player player, ItemStack trophy, Boss boss) {
+        FeatureSettings f = plugin.settings().features;
+        if (!f.promotionEnabled) {
+            return false;
+        }
+        if (boss.isNemesis() || boss.rank() == BossRank.ASCENDANT) {
+            if (player != null) {
+                player.sendMessage(plugin.settings().messages.prefixed("promote-blocked"));
+            }
+            return false;
+        }
+        BossRank trophyRank = Trophies.trophyRank(trophy);
+        int[] range = f.promotionSteps.getOrDefault(trophyRank, new int[]{1, 1});
+        int steps = Rng.between(range[0], range[1]);
+        if (trophyRank == BossRank.GRAY) {
+            steps = Rng.chance(f.grayPromotionChance) ? Math.max(1, steps) : 0;
+        }
+        if (steps <= 0) {
+            Fx.particle(Fx.center(boss.entity()), Particle.ASH, 30, 0.5, 0.02);
+            Fx.play(boss.entity().getLocation(), "block.sand.break", 1.0f, 0.6f);
+            if (player != null) {
+                player.sendMessage(plugin.settings().messages.prefixed("promote-fail"));
+            }
+            return true;
+        }
+        plugin.bosses().promote(boss, steps, player);
+        return true;
     }
 
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)

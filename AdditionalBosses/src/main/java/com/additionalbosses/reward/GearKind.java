@@ -19,7 +19,25 @@ public enum GearKind {
     HELMET("HELMET", true, true, null),
     CHESTPLATE("CHESTPLATE", true, true, null),
     LEGGINGS("LEGGINGS", true, true, null),
-    BOOTS("BOOTS", true, true, null);
+    BOOTS("BOOTS", true, true, null),
+    PICKAXE("PICKAXE", false, true, null),
+    SHOVEL("SHOVEL", false, true, null),
+    HOE("HOE", false, true, null);
+
+    /** Weights used when config.yml's item-weights doesn't mention a kind (e.g. configs from older versions). */
+    public int defaultWeight() {
+        return switch (this) {
+            case PICKAXE -> 6;
+            case SHOVEL -> 4;
+            case HOE -> 3;
+            default -> 0;
+        };
+    }
+
+    /** Mining/farming tools (axes count as weapons). */
+    public boolean tool() {
+        return this == PICKAXE || this == SHOVEL || this == HOE;
+    }
 
     private final @Nullable String suffix;
     private final boolean armor;

@@ -2,6 +2,7 @@ package com.additionalbosses.nemesis;
 
 import com.additionalbosses.AdditionalBosses;
 import com.additionalbosses.boss.Boss;
+import com.additionalbosses.boss.BossArmor;
 import com.additionalbosses.boss.BossRank;
 import com.additionalbosses.config.FeatureSettings;
 import com.additionalbosses.config.Messages;
@@ -525,6 +526,10 @@ public final class NemesisManager {
         }
         if (e instanceof Hoglin hoglin) {
             hoglin.setImmuneToZombification(true);
+        }
+        if (f.nemesisGearEvolution) {
+            // Chainmail -> iron -> diamond -> netherite, trimmed, with a weapon that upgrades alongside.
+            BossArmor.applyNemesis(f, e, level, r.id);
         }
         applyRuntime(boss, r);
     }

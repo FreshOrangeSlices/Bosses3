@@ -47,7 +47,7 @@ import java.util.UUID;
  */
 public final class ItemService {
 
-    public enum Kind { GEAR, RUNE, RELIC, CATALYST, GUIDE, COMPASS, TOTEM, TROPHY, STATUE }
+    public enum Kind { GEAR, RUNE, RELIC, CATALYST, GUIDE, COMPASS, TOTEM, TROPHY, STATUE, WAYSTONE }
 
     private record Pending(String token, int expiresAt) {
     }
@@ -118,6 +118,21 @@ public final class ItemService {
         return out;
     }
 
+    /** Sum of an effect stat (loot / fortune) on an item, e.g. 0.35 for a x1.35 multiplier. */
+    public double effectBonus(@Nullable ItemStack item, String effect) {
+        if (item == null || item.isEmpty() || !item.getPersistentDataContainer().has(Keys.EMPOWERMENTS)) {
+            return 0;
+        }
+        double total = 0;
+        for (Map.Entry<String, Double> e : empowerments(item).entrySet()) {
+            EmpowermentStat stat = settings().stat(e.getKey());
+            if (stat != null && effect.equals(stat.effect())) {
+                total += e.getValue();
+            }
+        }
+        return total;
+    }
+
     // =====================================================================
     // Creating items
     // =====================================================================
@@ -125,11 +140,7 @@ public final class ItemService {
     /** Gives an item its Boss Gear identity: rank-coloured name with stars, label and source. */
     public void markGear(ItemStack item, BossRank rank, String sourceName, GearQuality quality) {
         String rankName = settings().rank(rank).name();
-        Component name = Component.text(rank.starText() + " " + rankName + " " + Text.pretty(item.getType().name()),
-            rank.color());
-        if (rank == BossRank.GOLD) {
-            name = name.decorate(TextDecoration.BOLD);
-        }
+        Component name = rank.styled(rank.starText() + " " + rankName + " " + Text.pretty(item.getType().name()));
         item.setData(DataComponentTypes.ITEM_NAME, name);
         item.editPersistentDataContainer(pdc -> {
             pdc.set(Keys.ITEM_KIND, PersistentDataType.STRING, Kind.GEAR.name());
@@ -322,7 +333,7 @@ public final class ItemService {
         EquipmentType type = EquipmentType.of(target.getType());
         Kind targetKind = kind(target);
         if (targetKind == Kind.COMPASS || targetKind == Kind.TOTEM || targetKind == Kind.TROPHY
-            || targetKind == Kind.STATUE || targetKind == Kind.GUIDE) {
+            || targetKind == Kind.STATUE || targetKind == Kind.GUIDE || targetKind == Kind.WAYSTONE) {
             return m.prefixed("apply-not-equipment");
         }
         if (target.isEmpty() || !type.isEquipment() || kind(target) == Kind.RUNE || kind(target) == Kind.RELIC
@@ -417,7 +428,9 @@ public final class ItemService {
                 return m.prefixed("apply-not-equipment");
             }
             EquipmentType type = EquipmentType.of(target.getType());
-            addModifier(target, stat, amount, type);
+            if (stat.effect() == null) {
+                addModifier(target, stat, amount, type);
+            }
             List<String> emps = list(target, Keys.EMPOWERMENTS);
             emps.add(stat.id() + ":" + String.format(Locale.ROOT, "%.4f", amount));
             target.editPersistentDataContainer(pdc -> pdc.set(Keys.EMPOWERMENTS, PersistentDataType.LIST.strings(), emps));
@@ -484,9 +497,14 @@ public final class ItemService {
                 builder.addModifier(entry.attribute(), entry.modifier(), entry.getGroup(), entry.display());
             }
         }
-        NamespacedKey key = new NamespacedKey(plugin, "empower_" + UUID.randomUUID().toString().substring(0, 8));
-        AttributeModifier modifier = new AttributeModifier(key, amount, stat.operation(), type.slotGroup());
-        builder.addModifier(stat.attribute(), modifier, type.slotGroup(), AttributeModifierDisplay.hidden());
+        for (org.bukkit.attribute.Attribute attribute : new org.bukkit.attribute.Attribute[]{stat.attribute(), stat.extraAttribute()}) {
+            if (attribute == null) {
+                continue;
+            }
+            NamespacedKey key = new NamespacedKey(plugin, "empower_" + UUID.randomUUID().toString().substring(0, 8));
+            AttributeModifier modifier = new AttributeModifier(key, amount, stat.operation(), type.slotGroup());
+            builder.addModifier(attribute, modifier, type.slotGroup(), AttributeModifierDisplay.hidden());
+        }
         target.setData(DataComponentTypes.ATTRIBUTE_MODIFIERS, builder.build());
     }
 

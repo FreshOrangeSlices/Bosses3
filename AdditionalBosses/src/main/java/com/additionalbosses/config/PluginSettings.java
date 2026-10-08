@@ -45,7 +45,6 @@ public final class PluginSettings {
     public final int maxActive;
     public final double minDistanceBetween;
     public final boolean alwaysShowName;
-    public final boolean displayGear;
     public final boolean environmentalParticles;
     public final int combatTimeoutTicks;
     public final boolean requirePlayerForRewards;
@@ -109,7 +108,6 @@ public final class PluginSettings {
         maxActive = Math.max(0, c.getInt("bosses.max-active", 15));
         minDistanceBetween = Math.max(0, c.getDouble("bosses.min-distance-between", 32));
         alwaysShowName = c.getBoolean("bosses.always-show-name", true);
-        displayGear = c.getBoolean("bosses.display-gear", false);
         environmentalParticles = c.getBoolean("bosses.environmental-particles", true);
         combatTimeoutTicks = Math.max(20, (int) Math.round(c.getDouble("bosses.combat-timeout", 15) * 20));
         requirePlayerForRewards = c.getBoolean("bosses.require-player-for-rewards", true);
@@ -198,6 +196,11 @@ public final class PluginSettings {
                 gearWeights.put(kind, 10);
             }
         }
+        for (GearKind kind : GearKind.values()) {
+            if (gw != null && !gw.contains(kind.name()) && kind.defaultWeight() > 0) {
+                gearWeights.put(kind, kind.defaultWeight()); // newer kinds (tools) for older configs
+            }
+        }
         ConfigurationSection prefs = c.getConfigurationSection("boss-gear.mob-preferences");
         if (prefs != null) {
             for (String mob : prefs.getKeys(false)) {
@@ -231,11 +234,20 @@ public final class PluginSettings {
                 if (s == null || !s.getBoolean("enabled", true)) {
                     continue;
                 }
-                Attribute attribute = parseAttribute(s.getString("attribute", ""));
-                if (attribute == null) {
+                String effect = s.getString("effect");
+                if (effect != null) {
+                    effect = effect.trim().toLowerCase(Locale.ROOT);
+                    if (!effect.equals(EmpowermentStat.LOOT) && !effect.equals(EmpowermentStat.FORTUNE)) {
+                        log.warning("empowerment.stats." + id + ": unknown effect '" + effect + "' (loot, fortune)");
+                        continue;
+                    }
+                }
+                Attribute attribute = effect != null ? null : parseAttribute(s.getString("attribute", ""));
+                if (effect == null && attribute == null) {
                     log.warning("empowerment.stats." + id + ": unknown attribute '" + s.getString("attribute") + "'");
                     continue;
                 }
+                Attribute extra = s.isString("extra-attribute") ? parseAttribute(s.getString("extra-attribute", "")) : null;
                 AttributeModifier.Operation op;
                 try {
                     op = AttributeModifier.Operation.valueOf(s.getString("operation", "ADD_NUMBER").toUpperCase(Locale.ROOT));
@@ -257,14 +269,23 @@ public final class PluginSettings {
                     log.warning("empowerment.stats." + id + ": no ranges set, skipping");
                     continue;
                 }
+                fillAscendantRange(ranges);
                 List<String> applies = s.getStringList("applies-to");
                 if (applies.isEmpty()) {
                     applies = List.of("ANY");
                 }
-                empowermentStats.add(new EmpowermentStat(id, attribute, op, s.getString("display", id),
-                    s.getBoolean("percent", false), s.getDouble("weight", 10), List.copyOf(applies), ranges));
+                empowermentStats.add(new EmpowermentStat(id, attribute, extra, effect, op, s.getString("display", id),
+                    s.getBoolean("percent", effect != null), s.getDouble("weight", 10), List.copyOf(applies), ranges));
             }
         }
+        // Runes added in newer versions, for configs that don't list them yet.
+        addDefaultStat(stats, "loot", null, null, EmpowermentStat.LOOT, "Mob Loot", 8, List.of("WEAPON"),
+            new double[][]{{0.05, 0.1}, {0.1, 0.15}, {0.15, 0.2}, {0.2, 0.3}, {0.3, 0.4}, {0.4, 0.5}});
+        addDefaultStat(stats, "fortune", null, null, EmpowermentStat.FORTUNE, "Ore Drops", 8, List.of("TOOL"),
+            new double[][]{{0.05, 0.1}, {0.1, 0.15}, {0.15, 0.2}, {0.2, 0.3}, {0.3, 0.4}, {0.4, 0.5}});
+        addDefaultStat(stats, "reach", Attribute.ENTITY_INTERACTION_RANGE, Attribute.BLOCK_INTERACTION_RANGE, null,
+            "Reach", 6, List.of("MELEE", "TOOL"),
+            new double[][]{{0.25, 0.5}, {0.5, 0.75}, {0.5, 1.0}, {0.75, 1.25}, {1.0, 1.5}, {1.5, 2.0}});
 
         // ---------------- relics ----------------
         relicBaseSlots = Math.max(1, c.getInt("relics.base-slots", 1));
@@ -283,6 +304,28 @@ public final class PluginSettings {
         guideOnFirstJoin = c.getBoolean("guide.give-on-first-join", true);
         messages = new Messages(c.getConfigurationSection("messages"));
         features = new FeatureSettings(c, log);
+    }
+
+    private void addDefaultStat(@Nullable ConfigurationSection stats, String id, @Nullable Attribute attribute,
+                                @Nullable Attribute extra, @Nullable String effect, String display, double weight,
+                                List<String> appliesTo, double[][] ranges) {
+        if (stats != null && stats.contains(id)) {
+            return; // configured (or deliberately disabled) in config.yml
+        }
+        Map<BossRank, double[]> map = new EnumMap<>(BossRank.class);
+        for (BossRank rank : BossRank.values()) {
+            map.put(rank, ranges[Math.min(ranges.length - 1, rank.ordinal())]);
+        }
+        empowermentStats.add(new EmpowermentStat(id, attribute, extra, effect, AttributeModifier.Operation.ADD_NUMBER,
+            display, effect != null, weight, appliesTo, map));
+    }
+
+    /** Older configs have no Ascendant ranges: Ascendant runes roll from the top of Gold's range up to 25% higher. */
+    private static void fillAscendantRange(Map<BossRank, double[]> ranges) {
+        double[] gold = ranges.get(BossRank.GOLD);
+        if (!ranges.containsKey(BossRank.ASCENDANT) && gold != null) {
+            ranges.put(BossRank.ASCENDANT, new double[]{gold[1], gold[1] * 1.25});
+        }
     }
 
     // =====================================================================
@@ -333,24 +376,25 @@ public final class PluginSettings {
     private static RankSettings parseRank(BossRank rank, @Nullable ConfigurationSection s, Logger log) {
         int i = rank.ordinal();
         // Fallback values (used only if a line is missing from config.yml).
-        double[] health = {1.6, 2.0, 2.75, 3.5, 5.0};
-        double[] damage = {1.2, 1.35, 1.55, 1.8, 2.1};
-        double[] armor = {2, 4, 6, 8, 10};
-        double[] tough = {0, 1, 2, 4, 6};
-        double[] kb = {0.1, 0.2, 0.3, 0.45, 0.6};
-        double[] speed = {1.0, 1.05, 1.08, 1.1, 1.12};
-        double[] size = {0.05, 0.1, 0.15, 0.2, 0.3};
-        int[] tMin = {1, 1, 2, 2, 3};
-        int[] tMax = {1, 2, 2, 3, 4};
-        double[] power = {1.0, 1.15, 1.3, 1.5, 1.75};
-        double[] xpMul = {3, 4, 6, 8, 12};
-        int[] xpBonus = {10, 25, 50, 100, 300};
-        double[] gear = {20, 30, 45, 65, 100};
-        double[] emp = {10, 18, 28, 40, 60};
-        double[] relic = {2, 4, 8, 15, 30};
-        double[] cat = {0, 0, 0, 1.5, 5};
+        double[] health = {1.6, 2.0, 2.75, 3.5, 5.0, 8.0};
+        double[] damage = {1.2, 1.35, 1.55, 1.8, 2.1, 2.6};
+        double[] armor = {2, 4, 6, 8, 10, 14};
+        double[] tough = {0, 1, 2, 4, 6, 8};
+        double[] kb = {0.1, 0.2, 0.3, 0.45, 0.6, 0.8};
+        double[] speed = {1.0, 1.05, 1.08, 1.1, 1.12, 1.15};
+        double[] size = {0.05, 0.1, 0.15, 0.2, 0.3, 0.65};
+        int[] tMin = {1, 1, 2, 2, 3, 4};
+        int[] tMax = {1, 2, 2, 3, 4, 5};
+        double[] power = {1.0, 1.15, 1.3, 1.5, 1.75, 2.1};
+        double[] xpMul = {3, 4, 6, 8, 12, 20};
+        int[] xpBonus = {10, 25, 50, 100, 300, 800};
+        double[] gear = {20, 30, 45, 65, 100, 100};
+        double[] emp = {10, 18, 28, 40, 60, 100};
+        double[] relic = {2, 4, 8, 15, 30, 60};
+        double[] cat = {0, 0, 0, 1.5, 5, 15};
+        boolean ascendant = rank == BossRank.ASCENDANT;
 
-        if (s == null) {
+        if (s == null && !ascendant) {
             log.warning("ranks." + rank.name() + " is missing from config.yml, using built-in defaults");
         }
         ConfigurationSection st = s == null ? null : s.getConfigurationSection("stats");
@@ -398,22 +442,28 @@ public final class PluginSettings {
             }
         }
         if (quality.isEmpty()) {
-            quality.put(GearQuality.STANDARD, 1);
+            if (ascendant) {
+                quality.put(GearQuality.FINE, 30);
+                quality.put(GearQuality.MASTERWORK, 70);
+            } else {
+                quality.put(GearQuality.STANDARD, 1);
+            }
         }
         ConfigurationSection es = gs == null ? null : gs.getConfigurationSection("enchantments");
         int eMin = (int) d(es, "min", 1 + i / 2);
         int eMax = Math.max(eMin, (int) d(es, "max", 2 + i));
         RankSettings.Gear gearSettings = new RankSettings.Gear(materials, quality, eMin, eMax,
-            d(gs, "min-level-percent", 30 + i * 17), d(gs, "over-max-chance", i >= 3 ? 25 : 0),
+            d(gs, "min-level-percent", Math.min(100, 30 + i * 17)), d(gs, "over-max-chance", ascendant ? 60 : i >= 3 ? 25 : 0),
             (int) d(gs, "over-max-levels", Math.max(0, i - 2)));
 
         ConfigurationSection ps = s == null ? null : s.getConfigurationSection("presentation");
         RankSettings.Presentation presentation = new RankSettings.Presentation(
-            parseEnum(RankSettings.Announce.class, str(ps, "announce", "NONE"), RankSettings.Announce.NONE),
-            Fx.parseSound(str(ps, "sound", "")),
-            Fx.parseSound(str(ps, "death-sound", "")),
-            (int) d(ps, "particles", i),
-            parseEnum(RankSettings.Broadcast.class, str(ps, "death-broadcast", "NONE"), RankSettings.Broadcast.NONE));
+            parseEnum(RankSettings.Announce.class, str(ps, "announce", ascendant ? "TITLE" : "NONE"), RankSettings.Announce.NONE),
+            Fx.parseSound(str(ps, "sound", ascendant ? "block.beacon.activate 1 0.6" : "")),
+            Fx.parseSound(str(ps, "death-sound", ascendant ? "ui.toast.challenge_complete 1 1.4" : "")),
+            (int) d(ps, "particles", ascendant ? 6 : i),
+            parseEnum(RankSettings.Broadcast.class, str(ps, "death-broadcast", ascendant ? "SERVER" : "NONE"),
+                RankSettings.Broadcast.NONE));
 
         return new RankSettings(rank, str(s, "name", rank.defaultName()), stats, traits,
             d(xp, "multiplier", xpMul[i]), (int) d(xp, "bonus", xpBonus[i]), rewards, gearSettings,
