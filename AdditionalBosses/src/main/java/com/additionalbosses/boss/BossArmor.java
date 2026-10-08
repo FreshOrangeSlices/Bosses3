@@ -58,19 +58,43 @@ public final class BossArmor {
         equipSet(e, pick[0], pick[1], pattern, rank == BossRank.ASCENDANT);
     }
 
+    /** The armor tier a mob is wearing right now: 0 chain/copper/gold, 1 iron, 2 diamond, 3 netherite. */
+    public static int wornStage(LivingEntity e) {
+        EntityEquipment eq = e.getEquipment();
+        if (eq == null) {
+            return 0;
+        }
+        int best = 0;
+        for (EquipmentSlot slot : SLOTS) {
+            String n = eq.getItem(slot).getType().name();
+            best = Math.max(best, n.startsWith("NETHERITE") ? 3 : n.startsWith("DIAMOND") ? 2 : n.startsWith("IRON") ? 1 : 0);
+        }
+        return best;
+    }
+
     /**
      * Nemesis gear by level: chainmail, then iron, diamond and netherite, gaining trims and finally a glint.
-     * The trim pattern is fixed per Nemesis (from its id), so it keeps its look between returns.
+     * It never looks worse than its rank or the armor it wore as a boss ({@code floor}). The trim pattern is fixed
+     * per Nemesis (from its id), so it keeps its look between returns.
      */
-    public static void applyNemesis(FeatureSettings f, LivingEntity e, int level, String seed) {
-        int stage = Math.min(4, Math.max(0, level / 10));
+    public static void applyNemesis(FeatureSettings f, LivingEntity e, int level, String seed, BossRank rank, String hand,
+                                    int floor) {
+        // A Nemesis never looks worse than the boss it came from: high ranks start further along.
+        int startStage = switch (rank) {
+            case GRAY -> 0;
+            case GREEN, RED -> 1;
+            case PURPLE -> 2;
+            case GOLD -> 3;
+            case ASCENDANT -> 4;
+        };
+        int stage = Math.min(4, Math.max(Math.max(startStage, floor), level / 10));
         String[] armor = {"CHAINMAIL", "IRON", "DIAMOND", "NETHERITE", "NETHERITE"};
         String[] trims = {null, "iron", "redstone", "gold", "quartz"};
         String pattern = f.trimPatterns.get(Math.floorMod(seed.hashCode(), f.trimPatterns.size()));
         if (showsArmor(e)) {
             equipSet(e, armor[stage], trims[stage], pattern, stage >= 4);
         }
-        ItemStack weapon = nemesisWeapon(e.getType(), stage, e.getEquipment());
+        ItemStack weapon = nemesisWeapon(e.getType(), stage, hand);
         EntityEquipment eq = e.getEquipment();
         if (weapon != null && eq != null) {
             eq.setItemInMainHand(weapon);
@@ -78,13 +102,12 @@ public final class BossArmor {
         }
     }
 
-    private static @Nullable ItemStack nemesisWeapon(EntityType type, int stage, @Nullable EntityEquipment eq) {
+    private static @Nullable ItemStack nemesisWeapon(EntityType type, int stage, String hand) {
         String[] tiers = {"STONE", "IRON", "DIAMOND", "NETHERITE", "NETHERITE"};
         Material material = switch (type) {
             case ZOMBIE, HUSK, ZOMBIE_VILLAGER, WITHER_SKELETON, ZOMBIFIED_PIGLIN -> mat(tiers[stage] + "_SWORD");
             case VINDICATOR, PIGLIN_BRUTE -> mat(tiers[stage] + "_AXE");
-            case PIGLIN -> eq != null && eq.getItemInMainHand().getType() == Material.CROSSBOW
-                ? Material.CROSSBOW : mat(tiers[stage] + "_SWORD");
+            case PIGLIN -> "CROSSBOW".equals(hand) ? Material.CROSSBOW : mat(tiers[stage] + "_SWORD");
             case SKELETON, STRAY, BOGGED, PARCHED -> Material.BOW;
             case PILLAGER -> Material.CROSSBOW;
             case DROWNED -> Material.TRIDENT;

@@ -123,10 +123,8 @@ public final class Trophies {
         lore.add(Text.line("Right-click a block: place a tiny copy.", NamedTextColor.DARK_GRAY));
         lore.add(Text.line("Right-click or throw it at a boss: promote it.", NamedTextColor.DARK_GRAY));
         item.lore(lore);
-        double scale = (e.getAttribute(Attribute.SCALE) == null ? 1.0 : e.getAttribute(Attribute.SCALE).getValue())
-            * plugin.settings().features.trophyScale;
-        String data = type.name() + ";" + Math.max(0.0625, scale) + ";" + gearString(e.getEquipment()) + ";"
-            + Text.MM.serialize(boss.name());
+        String data = typeToken(e) + ";" + plugin.settings().features.trophyScale + ";" + gearString(e.getEquipment())
+            + ";" + Text.MM.serialize(boss.name());
         item.editPersistentDataContainer(pdc -> {
             pdc.set(Keys.ITEM_KIND, PersistentDataType.STRING, ItemService.Kind.TROPHY.name());
             pdc.set(Keys.ITEM_RANK, PersistentDataType.STRING, boss.rank().name());
@@ -165,7 +163,12 @@ public final class Trophies {
         lore.add(Component.empty());
         lore.add(Text.line("Right-click a block to place it.", NamedTextColor.DARK_GRAY));
         lore.add(Text.line("Sneak + right-click the statue to pick it up.", NamedTextColor.DARK_GRAY));
-        return statueItem(e.getType(), scale, gear, Text.MM.serialize(name), lore);
+        return statueItem(typeToken(e), scale, gear, Text.MM.serialize(name), lore);
+    }
+
+    /** "ZOMBIE", or "ZOMBIE:baby" for a baby, so statues keep the look of the mob they came from. */
+    private static String typeToken(LivingEntity e) {
+        return e.getType().name() + (e instanceof org.bukkit.entity.Ageable a && !a.isAdult() ? ":baby" : "");
     }
 
     /** What the mob had on, slot by slot: head, chest, legs, feet, main hand, off hand. */
@@ -226,14 +229,14 @@ public final class Trophies {
         }
     }
 
-    private ItemStack statueItem(EntityType type, double scale, String gear, String nameMini, List<Component> lore) {
-        Material egg = Material.matchMaterial(type.name() + "_SPAWN_EGG");
+    private ItemStack statueItem(String typeToken, double scale, String gear, String nameMini, List<Component> lore) {
+        Material egg = Material.matchMaterial(typeToken.split(":")[0] + "_SPAWN_EGG");
         ItemStack item = ItemStack.of(egg == null ? Material.ZOMBIE_SPAWN_EGG : egg);
         item.setData(DataComponentTypes.ITEM_NAME, Text.MM.deserialize(nameMini));
         item.setData(DataComponentTypes.ENCHANTMENT_GLINT_OVERRIDE, true);
         item.setData(DataComponentTypes.MAX_STACK_SIZE, 1);
         item.lore(lore);
-        String data = type.name() + ";" + scale + ";" + gear + ";" + nameMini;
+        String data = typeToken + ";" + scale + ";" + gear + ";" + nameMini;
         item.editPersistentDataContainer(pdc -> {
             pdc.set(Keys.ITEM_KIND, PersistentDataType.STRING, ItemService.Kind.STATUE.name());
             pdc.set(Keys.STATUE, PersistentDataType.STRING, data);
@@ -251,16 +254,21 @@ public final class Trophies {
         if (parts.length < 4) {
             return false;
         }
+        String[] token = parts[0].split(":");
+        boolean baby = token.length > 1 && token[1].equals("baby");
         EntityType type;
         try {
-            type = EntityType.valueOf(parts[0]);
+            type = EntityType.valueOf(token[0]);
         } catch (IllegalArgumentException ex) {
             return false;
         }
         if (type.getEntityClass() == null || !LivingEntity.class.isAssignableFrom(type.getEntityClass())) {
             return false;
         }
-        double scale = parseDouble(parts[1], 1.0);
+        boolean trophy = ItemService.Kind.TROPHY.name().equals(
+            item.getPersistentDataContainer().get(Keys.ITEM_KIND, PersistentDataType.STRING));
+        // Trophies always use the configured trophy size (older ones stored a bigger scale).
+        double scale = trophy ? plugin.settings().features.trophyScale : parseDouble(parts[1], 1.0);
         String gear = parts[2];
         Component name = Text.MM.deserialize(parts[3]);
         List<Component> lore = item.lore() == null ? List.of() : item.lore();
@@ -276,8 +284,7 @@ public final class Trophies {
             player.sendMessage(Text.mm("<red>Hostile statues can't stand in Peaceful difficulty.</red>"));
             return false;
         }
-        boolean mini = ItemService.Kind.TROPHY.name().equals(
-            item.getPersistentDataContainer().get(Keys.ITEM_KIND, PersistentDataType.STRING));
+        boolean mini = trophy;
         String original = Base64.getEncoder().encodeToString(item.asOne().serializeAsBytes());
         Entity placed = at.getWorld().spawn(at, type.getEntityClass(), false, ent -> {
             if (!(ent instanceof LivingEntity statue)) {
@@ -299,7 +306,11 @@ public final class Trophies {
             }
             applyGear(statue.getEquipment(), gear);
             if (statue instanceof org.bukkit.entity.Ageable ageable) {
-                ageable.setAdult();
+                if (baby) {
+                    ageable.setBaby();
+                } else {
+                    ageable.setAdult();
+                }
             }
             if (statue instanceof Zombie z) {
                 z.setShouldBurnInDay(false);
@@ -326,6 +337,31 @@ public final class Trophies {
         Fx.particle(at.clone().add(0, 1, 0), Particle.CLOUD, 15, 0.4, 0.02);
         Fx.play(at, "block.stone.place", 1.0f, 0.8f);
         return true;
+    }
+
+    /** Mini trophies are too small to click reliably, so they can also be picked up via the block below them. */
+    public @Nullable Entity trophyOn(org.bukkit.block.Block block) {
+        Location top = block.getLocation().add(0.5, 1.0, 0.5);
+        for (Entity e : block.getWorld().getNearbyEntities(top, 0.6, 0.6, 0.6)) {
+            ItemStack original = storedItem(e);
+            if (original != null && ItemService.Kind.TROPHY.name().equals(
+                original.getPersistentDataContainer().get(Keys.ITEM_KIND, PersistentDataType.STRING))) {
+                return e;
+            }
+        }
+        return null;
+    }
+
+    private static @Nullable ItemStack storedItem(Entity e) {
+        String raw = e.getPersistentDataContainer().get(Keys.STATUE_ITEM, PersistentDataType.STRING);
+        if (raw == null) {
+            return null;
+        }
+        try {
+            return ItemStack.deserializeBytes(Base64.getDecoder().decode(raw));
+        } catch (RuntimeException ex) {
+            return null;
+        }
     }
 
     public static boolean isStatue(Entity entity) {
@@ -360,13 +396,12 @@ public final class Trophies {
                 lore.add(Text.noItalic(Text.MM.deserialize(line)));
             }
         }
-        EntityType type;
         try {
-            type = EntityType.valueOf(parts[0]);
+            EntityType.valueOf(parts[0].split(":")[0]);
         } catch (IllegalArgumentException ex) {
             return null;
         }
-        ItemStack item = statueItem(type, parseDouble(parts[1], 1.0), parts[2], parts[3], lore);
+        ItemStack item = statueItem(parts[0], parseDouble(parts[1], 1.0), parts[2], parts[3], lore);
         Fx.particle(Fx.center(statue), Particle.CLOUD, 15, 0.4, 0.02);
         statue.remove();
         return item;

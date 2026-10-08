@@ -260,6 +260,10 @@ public final class BossManager {
             return active.get(entity.getUniqueId());
         }
         PersistentDataContainer pdc = entity.getPersistentDataContainer();
+        if (PluginSettings.isMount(entity.getType())) {
+            demote(entity); // a horse/camel boss from an older version: mounts can't be bosses any more
+            return null;
+        }
         BossRank rank = BossRank.parse(pdc.get(Keys.BOSS_RANK, PersistentDataType.STRING));
         if (rank == null) {
             rank = BossRank.GRAY;
@@ -287,7 +291,7 @@ public final class BossManager {
         boss.setUndyingUsed(pdc.has(Keys.BOSS_UNDYING, PersistentDataType.BYTE));
         if (pdc.has(Keys.BOSS_LAST_STAND, PersistentDataType.BYTE)) {
             boss.setLastStand(true);
-            boss.setPower(boss.power() * (1.0 + settings().features.lastStandPowerBonus / 100.0));
+            boss.scalePower(1.0 + settings().features.lastStandPowerBonus / 100.0);
         }
         for (BossTrait t : traits) {
             t.onApply(boss, false);
@@ -297,6 +301,33 @@ public final class BossManager {
             plugin.nemesis().reattach(boss, nemesisId); // e.g. it followed its prey through a portal
         }
         return boss;
+    }
+
+    /** Turns a boss back into an ordinary mob (used for mob types that can no longer be bosses). */
+    private static void demote(LivingEntity e) {
+        PersistentDataContainer pdc = e.getPersistentDataContainer();
+        for (org.bukkit.NamespacedKey key : new org.bukkit.NamespacedKey[]{Keys.BOSS, Keys.BOSS_RANK, Keys.BOSS_TRAITS,
+            Keys.BOSS_CATEGORY, Keys.BOSS_UNDYING, Keys.BOSS_LAST_STAND, Keys.BOSS_THREAT, Keys.BOSS_PHASE}) {
+            pdc.remove(key);
+        }
+        for (Attribute attribute : new Attribute[]{Attribute.MAX_HEALTH, Attribute.ARMOR, Attribute.ARMOR_TOUGHNESS,
+            Attribute.KNOCKBACK_RESISTANCE, Attribute.MOVEMENT_SPEED, Attribute.SCALE, Attribute.FOLLOW_RANGE}) {
+            AttributeInstance inst = e.getAttribute(attribute);
+            if (inst == null) {
+                continue;
+            }
+            for (org.bukkit.NamespacedKey key : new org.bukkit.NamespacedKey[]{Keys.MOD_HEALTH, Keys.MOD_ARMOR,
+                Keys.MOD_TOUGHNESS, Keys.MOD_KNOCKBACK, Keys.MOD_SPEED, Keys.MOD_SIZE, Keys.MOD_FOLLOW,
+                Keys.MOD_DIFFICULTY, Keys.MOD_THREAT, Keys.MOD_TRAIT_SWIFT, Keys.MOD_TRAIT_BERSERK, Keys.MOD_LAST_STAND}) {
+                inst.removeModifier(key);
+            }
+        }
+        AttributeInstance max = e.getAttribute(Attribute.MAX_HEALTH);
+        if (max != null && e.getHealth() > max.getValue()) {
+            e.setHealth(max.getValue());
+        }
+        e.customName(null);
+        e.setCustomNameVisible(false);
     }
 
     /** Bosses no longer wear helmets, so undead bosses would otherwise burn away in daylight. */
@@ -517,7 +548,7 @@ public final class BossManager {
         setModifier(e, Attribute.MAX_HEALTH, Keys.MOD_THREAT, threat * f.threatMaxHealth / 100.0,
             AttributeModifier.Operation.MULTIPLY_SCALAR_1);
         e.setHealth(Math.max(1, boss.maxHealth() * ratio));
-        boss.setDamageMultiplier(boss.damageMultiplier() * (1.0 + threat * f.threatMaxDamage / 100.0));
+        boss.scaleDamage(1.0 + threat * f.threatMaxDamage / 100.0);
         plugin.bossBars().updateHealth(boss, e.getHealth());
     }
 
@@ -789,7 +820,7 @@ public final class BossManager {
         LivingEntity e = boss.entity();
         boss.setLastStand(true);
         e.getPersistentDataContainer().set(Keys.BOSS_LAST_STAND, PersistentDataType.BYTE, (byte) 1);
-        boss.setPower(boss.power() * (1.0 + f.lastStandPowerBonus / 100.0));
+        boss.scalePower(1.0 + f.lastStandPowerBonus / 100.0);
         setModifier(e, Attribute.MOVEMENT_SPEED, Keys.MOD_LAST_STAND, f.lastStandSpeedBonus / 100.0,
             AttributeModifier.Operation.MULTIPLY_SCALAR_1);
         if (f.lastStandDormantTrait) {

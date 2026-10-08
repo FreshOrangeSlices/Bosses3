@@ -6,6 +6,7 @@ import com.additionalbosses.relic.effects.Auras;
 import com.additionalbosses.relic.effects.Burdened;
 import com.additionalbosses.relic.effects.Curses;
 import com.additionalbosses.relic.effects.MoreCurses;
+import com.additionalbosses.relic.effects.NatureCurses;
 import com.additionalbosses.relic.effects.Relics;
 import com.additionalbosses.util.Keys;
 import com.additionalbosses.util.Rng;
@@ -112,6 +113,8 @@ public final class RelicManager {
         register(new MoreCurses.Reduction());
         register(new MoreCurses.Matador());
         register(new MoreCurses.MotherHen());
+        register(new NatureCurses.Pariah());
+        register(new NatureCurses.Herbivore());
     }
 
     public void register(RelicEffect effect) {
@@ -131,7 +134,7 @@ public final class RelicManager {
             if (s.getBoolean("enabled", true)) {
                 enabled.add(effect.id());
             }
-            weights.put(effect.id(), Math.max(0, s.getDouble("weight", 10)));
+            weights.put(effect.id(), Math.max(0, s.getDouble("weight", effect.defaultWeight())));
             effect.load(s);
         }
         for (String group : List.of("effects", "curses")) {
@@ -415,6 +418,16 @@ public final class RelicManager {
         for (Active a : active(p)) {
             a.effect().onJump(context(p, a), event);
         }
+    }
+
+    /** True if the player currently has this relic or curse active. */
+    public boolean has(Player p, String id) {
+        for (Active a : active(p)) {
+            if (a.effect().id().equals(id)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     public boolean preventsSleep(Player p) {

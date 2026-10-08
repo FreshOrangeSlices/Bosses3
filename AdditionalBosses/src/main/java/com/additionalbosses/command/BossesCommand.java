@@ -383,6 +383,10 @@ public final class BossesCommand implements BasicCommand {
             error(sender, "Not a mob: " + args[1]);
             return;
         }
+        if (PluginSettings.isMount(type)) {
+            error(sender, "Rideable mobs can't be bosses.");
+            return;
+        }
         MobCategory category = plugin.settings().categoryFor(type);
         BossRank rank;
         if (args.length >= 3 && !args[2].equalsIgnoreCase("random")) {
