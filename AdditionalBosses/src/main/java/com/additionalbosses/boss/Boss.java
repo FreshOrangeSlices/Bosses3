@@ -113,12 +113,28 @@ public final class Boss {
         entity.customName(name);
     }
 
-    public void setDamageMultiplier(double damageMultiplier) {
-        this.damageMultiplier = damageMultiplier;
+    /** Multiplies the boss's own damage (Threat Scaling). */
+    public void scaleDamage(double factor) {
+        this.damageMultiplier *= factor;
     }
 
-    public void setPower(double power) {
-        this.traitPower = power;
+    /** Multiplies the boss's own trait power (Last Stand). */
+    public void scalePower(double factor) {
+        this.traitPower *= factor;
+    }
+
+    private double nemesisDamage = 1.0;
+    private double nemesisPower = 1.0;
+    private double nemesisDamageCap = Double.MAX_VALUE;
+
+    /**
+     * Nemesis level scaling, kept separate from the boss's own numbers so it can be updated as the Nemesis levels
+     * up without compounding.
+     */
+    public void setNemesisScaling(double damageFactor, double powerFactor, double damageCap) {
+        this.nemesisDamage = damageFactor;
+        this.nemesisPower = powerFactor;
+        this.nemesisDamageCap = damageCap;
     }
 
     public @Nullable String nemesisId() {
@@ -175,12 +191,18 @@ public final class Boss {
 
     /** Rank (and mob-profile) damage multiplier applied to everything this boss hits. */
     public double damageMultiplier() {
-        return damageMultiplier;
+        if (nemesisDamage == 1.0) {
+            return damageMultiplier;
+        }
+        return Math.min(Math.max(damageMultiplier, nemesisDamageCap), damageMultiplier * nemesisDamage);
     }
 
     /** How strong traits are for this boss's rank (1.0 = base). */
     public double power() {
-        return traitPower;
+        if (nemesisPower == 1.0) {
+            return traitPower;
+        }
+        return Math.min(Math.max(traitPower, 4.0), traitPower * nemesisPower);
     }
 
     public double health() {

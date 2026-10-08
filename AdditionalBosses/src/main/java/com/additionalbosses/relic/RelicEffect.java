@@ -34,6 +34,11 @@ public interface RelicEffect {
     default void load(ConfigurationSection section) {
     }
 
+    /** Selection weight when config.yml has no entry for this relic. */
+    default double defaultWeight() {
+        return 10;
+    }
+
     /** True if {@link #onPassive} should be called about once a second while equipped. */
     default boolean passive() {
         return false;

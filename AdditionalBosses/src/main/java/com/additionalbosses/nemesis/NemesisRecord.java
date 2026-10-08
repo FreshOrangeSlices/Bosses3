@@ -33,7 +33,21 @@ public final class NemesisRecord {
     public int rangedHits;
     public long createdAt;
     public long returnAt;
+    /** Its own name ("Scrawl"), unique on the server. */
+    public String name = "";
+    /** What it was known for as a boss ("Bulwark" -> "Scrawl the Bulwark"). */
+    public String epithet = "";
+    /** Body kept the same between returns: baby or adult, slime size, what it held. */
+    public boolean baby;
+    public int size = -1;
+    public String hand = "";
+    /** Gear tier it already wore as a boss, so its Nemesis gear never looks worse (0 chain .. 3 netherite). */
+    public int gearFloor;
+    /** Levels gained from killing other mobs during the current outing (capped per outing). */
+    public int outingKills;
 
+    /** Runtime only: server tick until which it prowls (0 = not prowling). */
+    public int prowlUntil;
     /** Runtime only: the living mob while the Nemesis is in the world. */
     public @Nullable UUID entity;
     /** Runtime only: ticks the owner has been out of reach. */
@@ -69,6 +83,12 @@ public final class NemesisRecord {
         s.set("ranged-hits", rangedHits);
         s.set("created-at", createdAt);
         s.set("return-at", returnAt);
+        s.set("name", name);
+        s.set("epithet", epithet);
+        s.set("baby", baby);
+        s.set("size", size);
+        s.set("hand", hand);
+        s.set("gear-floor", gearFloor);
     }
 
     public static @Nullable NemesisRecord load(String id, ConfigurationSection s) {
@@ -93,6 +113,12 @@ public final class NemesisRecord {
             r.rangedHits = s.getInt("ranged-hits");
             r.createdAt = s.getLong("created-at");
             r.returnAt = s.getLong("return-at");
+            r.name = s.getString("name", "");
+            r.epithet = s.getString("epithet", "");
+            r.baby = s.getBoolean("baby", false);
+            r.size = s.getInt("size", -1);
+            r.hand = s.getString("hand", "");
+            r.gearFloor = s.getInt("gear-floor", 0);
             return r;
         } catch (IllegalArgumentException ex) {
             return null;

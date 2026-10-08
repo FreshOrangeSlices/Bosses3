@@ -127,6 +127,8 @@ public final class FeatureSettings {
     public final double nemesisSizePerLevel;
     public final double nemesisMaxExtraSize;
     public final double nemesisRevengeXpMultiplier;
+    public final double nemesisProwlMinutes;
+    public final int nemesisKillLevelsPerOuting;
 
     public FeatureSettings(FileConfiguration c, Logger log) {
         lastStandRanks = ranks(c.getStringList("last-stand.ranks"), EnumSet.of(BossRank.PURPLE, BossRank.GOLD));
@@ -168,7 +170,7 @@ public final class FeatureSettings {
         ascendantShockwaveRadius = c.getDouble("ascendant.phases.shockwave-radius", 7);
         ascendantShockwaveDamage = c.getDouble("ascendant.phases.shockwave-damage", 6);
         trophyPlacing = c.getBoolean("trophies.placeable", true);
-        trophyScale = Math.max(0.0625, Math.min(1.0, c.getDouble("trophies.scale", 0.125)));
+        trophyScale = Math.max(0.0625, Math.min(1.0, c.getDouble("trophies.scale", 0.1)));
 
         waystonesEnabled = c.getBoolean("waystones.enabled", true);
         waystoneAscendantDrops = Math.max(0, c.getInt("waystones.ascendant-drops", 2));
@@ -260,6 +262,8 @@ public final class FeatureSettings {
         nemesisSizePerLevel = c.getDouble("nemesis.size-per-level", 0.02);
         nemesisMaxExtraSize = c.getDouble("nemesis.max-extra-size", 0.5);
         nemesisRevengeXpMultiplier = Math.max(1, c.getDouble("nemesis.revenge-xp-multiplier", 2));
+        nemesisProwlMinutes = Math.max(0, c.getDouble("nemesis.prowl-minutes", 3));
+        nemesisKillLevelsPerOuting = Math.max(0, c.getInt("nemesis.levels-from-kills-per-outing", 5));
         if (log != null && compassTiers.size() > 5) {
             log.info("Hunter's Compass has " + compassTiers.size() + " tiers configured.");
         }

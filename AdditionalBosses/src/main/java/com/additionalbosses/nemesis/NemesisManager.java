@@ -44,7 +44,10 @@ import java.io.File;
 import java.io.IOException;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.Locale;
+import java.util.Set;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -101,9 +104,34 @@ public final class NemesisManager {
                 }
             }
         }
+        boolean named = false;
+        for (NemesisRecord r : records.values()) {
+            if (r.name.isBlank()) {
+                r.name = NemesisNames.pick(r.type, takenNames());
+                named = true;
+            }
+            if (r.epithet.isBlank()) {
+                BossTrait first = r.traits.isEmpty() ? null : plugin.traits().get(r.traits.get(0));
+                r.epithet = first != null ? first.adjective() : plugin.settings().rank(r.baseRank).name();
+                named = true;
+            }
+        }
+        if (named) {
+            save(); // Nemeses from an older version get their own names
+        }
         if (returnTask == null) {
             returnTask = Bukkit.getScheduler().runTaskTimer(plugin, this::checkReturns, 200L, 100L);
         }
+    }
+
+    private Set<String> takenNames() {
+        Set<String> taken = new HashSet<>();
+        for (NemesisRecord r : records.values()) {
+            if (!r.name.isBlank()) {
+                taken.add(r.name.toLowerCase(Locale.ROOT));
+            }
+        }
+        return taken;
     }
 
     public void save() {
@@ -205,10 +233,12 @@ public final class NemesisManager {
                 r.kills++;
                 absorbFight(r, boss, victim.getUniqueId());
                 grow(r, f.nemesisLevelsOnKill, boss.entity());
-                withdraw(boss, r);
+                refreshBody(boss, r);
+                retreat(boss, r);
                 victim.sendMessage(messages().prefixed("nemesis-grows", Placeholder.component("boss", displayName(r))));
             } else {
                 grow(r, 1, boss.entity()); // it also grows by killing anyone else
+                refreshBody(boss, r);
                 save();
             }
             return;
@@ -219,7 +249,8 @@ public final class NemesisManager {
         NemesisRecord created = create(boss, victim);
         created.kills = 1;
         updateTitles(created);
-        withdraw(boss, created);
+        configure(boss, created);
+        retreat(boss, created);
         victim.sendMessage(messages().prefixed("nemesis-born", Placeholder.component("boss", displayName(created))));
     }
 
@@ -248,7 +279,8 @@ public final class NemesisManager {
         NemesisRecord created = create(boss, playerId, name == null ? "?" : name);
         created.escapes = 1;
         updateTitles(created);
-        withdraw(boss, created);
+        configure(boss, created);
+        retreat(boss, created);
         if (p != null) {
             p.sendMessage(messages().prefixed("nemesis-born", Placeholder.component("boss", displayName(created))));
         }
@@ -263,6 +295,9 @@ public final class NemesisManager {
         NemesisRecord r = get(boss.nemesisId());
         if (r == null) {
             return false;
+        }
+        if (r.prowlUntil > 0) {
+            return prowl(boss, r);
         }
         Player owner = Bukkit.getPlayer(r.owner);
         LivingEntity e = boss.entity();
@@ -283,11 +318,126 @@ public final class NemesisManager {
         r.escapes++;
         absorbFight(r, boss, r.owner);
         grow(r, f().nemesisLevelsOnEscape, e);
-        withdraw(boss, r);
+        refreshBody(boss, r);
+        boolean removed = retreat(boss, r);
         if (owner != null) {
             owner.sendMessage(messages().prefixed("nemesis-flee", Placeholder.component("boss", displayName(r))));
         }
-        return true;
+        return removed;
+    }
+
+    // =====================================================================
+    // Prowling: after it lets its prey go, it roams for a while and feeds on other mobs
+    // =====================================================================
+
+    public boolean isProwling(Boss boss) {
+        NemesisRecord r = get(boss.nemesisId());
+        return r != null && r.prowlUntil > 0;
+    }
+
+    /** Leaves the fight: prowls nearby for a few minutes (if enabled), then vanishes until its return. */
+    private boolean retreat(Boss boss, NemesisRecord r) {
+        r.lostTicks = 0;
+        r.returnAt = clock() + Math.round(f().nemesisReturnDays * DAY);
+        LivingEntity e = boss.entity();
+        int prowlTicks = (int) Math.round(f().nemesisProwlMinutes * 1200);
+        if (prowlTicks <= 0 || !e.isValid() || e.isDead()) {
+            vanish(boss, r);
+            return true;
+        }
+        r.prowlUntil = Bukkit.getCurrentTick() + prowlTicks;
+        boss.engaged().clear();
+        if (e instanceof Mob mob) {
+            mob.setTarget(null);
+        }
+        plugin.bossBars().refreshViewers(boss);
+        Fx.particle(Fx.center(e), Particle.LARGE_SMOKE, 30, 0.6, 0.05);
+        Fx.play(e.getLocation(), "entity.wither.ambient", 0.6f, 0.6f);
+        save();
+        return false;
+    }
+
+    /** Runs every boss tick while prowling: hunt nearby mobs, ignore players unless provoked. */
+    private boolean prowl(Boss boss, NemesisRecord r) {
+        LivingEntity e = boss.entity();
+        if (Bukkit.getCurrentTick() >= r.prowlUntil) {
+            vanish(boss, r);
+            return true;
+        }
+        if (e instanceof Mob mob && !(e instanceof org.bukkit.entity.Creeper)
+            && r.outingKills < f().nemesisKillLevelsPerOuting) {
+            LivingEntity target = mob.getTarget();
+            if (target == null || !target.isValid() || target.isDead() || target instanceof Player) {
+                LivingEntity prey = findPrey(e);
+                if (prey != null) {
+                    mob.setTarget(prey);
+                }
+            }
+        }
+        if (Rng.chance(20)) {
+            Fx.particle(Fx.center(e), Particle.SMOKE, 6, 0.4, 0.01);
+        }
+        return false;
+    }
+
+    private static @Nullable LivingEntity findPrey(LivingEntity hunter) {
+        LivingEntity best = null;
+        double bestDist = Double.MAX_VALUE;
+        for (org.bukkit.entity.Entity near : hunter.getNearbyEntities(16, 8, 16)) {
+            if (!(near instanceof LivingEntity prey) || near instanceof Player || near instanceof org.bukkit.entity.ArmorStand
+                || !(near instanceof org.bukkit.entity.Animals || near instanceof org.bukkit.entity.Enemy)
+                || com.additionalbosses.boss.BossManager.isBoss(near) || com.additionalbosses.boss.BossManager.isMinion(near)
+                || near.getPersistentDataContainer().has(Keys.STATUE, PersistentDataType.STRING)
+                || (near instanceof org.bukkit.entity.Tameable t && t.isTamed()) || near.isInvulnerable()) {
+                continue;
+            }
+            double d = near.getLocation().distanceSquared(hunter.getLocation());
+            if (d < bestDist) {
+                bestDist = d;
+                best = prey;
+            }
+        }
+        return best;
+    }
+
+    /** A player attacked a prowling Nemesis: it turns on them. */
+    public void onProvoked(Boss boss, Player attacker) {
+        NemesisRecord r = get(boss.nemesisId());
+        if (r == null || r.prowlUntil <= 0) {
+            return;
+        }
+        r.prowlUntil = 0;
+        if (boss.entity() instanceof Mob mob) {
+            mob.setTarget(attacker);
+        }
+        attacker.sendMessage(messages().prefixed("nemesis-provoked", Placeholder.component("boss", displayName(r))));
+    }
+
+    /** Every mob a Nemesis kills makes it one level stronger (a few per outing). */
+    public void onPreyKilled(Boss boss, LivingEntity prey) {
+        NemesisRecord r = get(boss.nemesisId());
+        if (r == null || r.outingKills >= f().nemesisKillLevelsPerOuting || r.level >= f().nemesisMaxLevel) {
+            return;
+        }
+        r.outingKills++;
+        grow(r, 1, boss.entity());
+        refreshBody(boss, r);
+        save();
+        LivingEntity e = boss.entity();
+        Fx.particle(Fx.center(e), Particle.SOUL, 12, 0.4, 0.03);
+        Fx.play(e.getLocation(), "entity.player.levelup", 0.6f, 0.5f);
+    }
+
+    /** Re-applies level scaling, gear and name to the living Nemesis after it levels up (keeps its health %). */
+    private void refreshBody(Boss boss, NemesisRecord r) {
+        LivingEntity e = boss.entity();
+        if (!e.isValid() || e.isDead()) {
+            return;
+        }
+        double ratio = boss.healthRatio();
+        applyBody(boss, r);
+        e.setHealth(Math.max(1, Math.min(boss.maxHealth(), boss.maxHealth() * ratio)));
+        applyRuntime(boss, r);
     }
 
     private NemesisRecord create(Boss boss, Player owner) {
@@ -300,6 +450,16 @@ public final class NemesisManager {
         r.traits = new ArrayList<>(boss.traitIds());
         r.baseTraitCount = r.traits.size();
         r.createdAt = clock();
+        r.name = NemesisNames.pick(r.type, takenNames());
+        com.additionalbosses.trait.Synergies.Synergy synergy = com.additionalbosses.trait.Synergies.find(boss.traits());
+        r.epithet = synergy != null ? synergy.title()
+            : !boss.traits().isEmpty() ? boss.traits().get(0).adjective() : plugin.settings().rank(boss.rank()).name();
+        LivingEntity e = boss.entity();
+        r.baby = e instanceof org.bukkit.entity.Ageable a && !a.isAdult();
+        r.size = e instanceof org.bukkit.entity.Slime slime ? slime.getSize() : -1;
+        org.bukkit.inventory.EntityEquipment eq = e.getEquipment();
+        r.hand = eq == null || eq.getItemInMainHand().isEmpty() ? "" : eq.getItemInMainHand().getType().name();
+        r.gearFloor = BossArmor.wornStage(e);
         absorbFight(r, boss, owner);
         records.put(id, r);
         return r;
@@ -316,8 +476,9 @@ public final class NemesisManager {
     private void grow(NemesisRecord r, int levels, LivingEntity sample) {
         FeatureSettings f = f();
         r.level = Math.min(f.nemesisMaxLevel, r.level + levels);
-        int rankIndex = Math.min(BossRank.GOLD.ordinal(), r.baseRank.ordinal() + (r.level - 1) / f.nemesisLevelsPerRank);
-        r.rank = BossRank.values()[rankIndex];
+        // It climbs a rank every few levels (up to Legendary), but never drops below the rank it started at.
+        int climbed = Math.min(BossRank.GOLD.ordinal(), r.baseRank.ordinal() + (r.level - 1) / f.nemesisLevelsPerRank);
+        r.rank = BossRank.values()[Math.max(r.baseRank.ordinal(), climbed)];
         int wanted = Math.min(f.nemesisMaxTraits, r.baseTraitCount + (r.level - 1) / f.nemesisLevelsPerTrait);
         int guard = 0;
         while (r.traits.size() < wanted && guard++ < 10) {
@@ -395,28 +556,31 @@ public final class NemesisManager {
         }
     }
 
-    /** "☠ ★★★★ Twice-Fled Zombie, Steve's Bane [Lv 7]" — white, so it stands out from every normal boss. */
+    /**
+     * "☆ Returned Scrawl the Bulwark [Lv 7]": one white star (not rank stars, so it reads as its own category),
+     * its history title, its own name, and what it was known for as a boss.
+     */
     public Component displayName(NemesisRecord r) {
-        Component c = Component.text("☠ ", NamedTextColor.DARK_RED)
-            .append(Component.text(r.rank.starText() + " ", r.rank.color()))
-            .append(Component.text(r.title() + " " + Text.pretty(r.type.name()), NamedTextColor.WHITE)
-                .decorate(TextDecoration.BOLD));
-        if (r.kills > 0) {
-            c = c.append(Component.text(", " + r.ownerName + "'s Bane", NamedTextColor.GRAY));
-        }
-        return c.append(Component.text(" [Lv " + r.level + "]", NamedTextColor.DARK_GRAY));
+        return Component.text("☆ ", NamedTextColor.WHITE)
+            .append(Component.text(r.title() + " ", NamedTextColor.GRAY))
+            .append(Component.text(r.name, NamedTextColor.WHITE).decorate(TextDecoration.BOLD))
+            .append(Component.text(" the " + r.epithet, NamedTextColor.WHITE))
+            .append(Component.text(" [Lv " + r.level + "]", NamedTextColor.DARK_GRAY));
     }
 
     public String plainName(NemesisRecord r) {
-        return r.title() + " " + Text.pretty(r.type.name()) + (r.kills > 0 ? ", " + r.ownerName + "'s Bane" : "");
+        return r.title() + " " + r.name + " the " + r.epithet;
     }
 
-    /** Removes the Nemesis from the world; it comes back after the configured number of days. */
-    private void withdraw(Boss boss, NemesisRecord r) {
+    /** Removes the Nemesis from the world; it comes back when its return time comes. */
+    private void vanish(Boss boss, NemesisRecord r) {
         LivingEntity e = boss.entity();
         r.entity = null;
         r.lostTicks = 0;
-        r.returnAt = clock() + Math.round(f().nemesisReturnDays * DAY);
+        r.prowlUntil = 0;
+        if (r.returnAt <= clock()) {
+            r.returnAt = clock() + Math.round(f().nemesisReturnDays * DAY);
+        }
         Fx.particle(Fx.center(e), Particle.LARGE_SMOKE, 40, 0.6, 0.05);
         Fx.play(e.getLocation(), "entity.wither.ambient", 0.6f, 0.6f);
         plugin.bosses().removeMinions(boss);
@@ -440,7 +604,8 @@ public final class NemesisManager {
             if (r.entity != null && activeBoss(r) == null) {
                 // Its chunk unloaded or it was removed some other way: it slinks off and returns a bit later.
                 r.entity = null;
-                r.returnAt = now + DAY / 8;
+                r.prowlUntil = 0;
+                r.returnAt = Math.max(r.returnAt, now + DAY / 8);
                 dirty = true;
             }
             if (r.returnAt - now > maxWait) {
@@ -488,6 +653,8 @@ public final class NemesisManager {
             return; // the spawn was blocked here; try again on the next check
         }
         r.returns++;
+        r.outingKills = 0;
+        r.prowlUntil = 0;
         updateTitles(r);
         configure(boss, r);
         plugin.bossBars().updateHealth(boss, boss.health());
@@ -502,24 +669,19 @@ public final class NemesisManager {
         plugin.bosses().engage(boss, owner);
     }
 
-    /** Applies everything a Nemesis is: level scaling, white name, and persistence rules. */
+    /** Applies everything a Nemesis is: its body (same as last time), level scaling, gear, name and persistence. */
     private void configure(Boss boss, NemesisRecord r) {
-        FeatureSettings f = f();
         LivingEntity e = boss.entity();
         e.getPersistentDataContainer().set(Keys.NEMESIS, PersistentDataType.STRING, r.id);
-        int level = r.level;
-        AttributeInstance hp = e.getAttribute(Attribute.MAX_HEALTH);
-        if (hp != null) {
-            hp.removeModifier(Keys.MOD_NEMESIS_HEALTH);
-            hp.addModifier(new AttributeModifier(Keys.MOD_NEMESIS_HEALTH, level * f.nemesisHealthPerLevel / 100.0,
-                AttributeModifier.Operation.MULTIPLY_SCALAR_1));
-            e.setHealth(hp.getValue());
+        if (e instanceof org.bukkit.entity.Ageable a) {
+            if (r.baby) {
+                a.setBaby();
+            } else {
+                a.setAdult();
+            }
         }
-        AttributeInstance size = e.getAttribute(Attribute.SCALE);
-        if (size != null) {
-            size.removeModifier(Keys.MOD_NEMESIS_SIZE);
-            size.addModifier(new AttributeModifier(Keys.MOD_NEMESIS_SIZE,
-                Math.min(f.nemesisMaxExtraSize, level * f.nemesisSizePerLevel), AttributeModifier.Operation.ADD_NUMBER));
+        if (e instanceof org.bukkit.entity.Slime slime && r.size > 0) {
+            slime.setSize(r.size);
         }
         if (e instanceof PiglinAbstract piglin) {
             piglin.setImmuneToZombification(true); // it would turn into an ordinary mob in the Overworld
@@ -527,11 +689,38 @@ public final class NemesisManager {
         if (e instanceof Hoglin hoglin) {
             hoglin.setImmuneToZombification(true);
         }
-        if (f.nemesisGearEvolution) {
-            // Chainmail -> iron -> diamond -> netherite, trimmed, with a weapon that upgrades alongside.
-            BossArmor.applyNemesis(f, e, level, r.id);
-        }
+        applyBody(boss, r);
+        e.setHealth(boss.maxHealth());
         applyRuntime(boss, r);
+    }
+
+    /** Level-based health, size and gear. */
+    private void applyBody(Boss boss, NemesisRecord r) {
+        FeatureSettings f = f();
+        LivingEntity e = boss.entity();
+        int level = r.level;
+        AttributeInstance hp = e.getAttribute(Attribute.MAX_HEALTH);
+        if (hp != null) {
+            hp.removeModifier(Keys.MOD_NEMESIS_HEALTH);
+            hp.addModifier(new AttributeModifier(Keys.MOD_NEMESIS_HEALTH, level * f.nemesisHealthPerLevel / 100.0,
+                AttributeModifier.Operation.MULTIPLY_SCALAR_1));
+        }
+        AttributeInstance size = e.getAttribute(Attribute.SCALE);
+        if (size != null) {
+            size.removeModifier(Keys.MOD_NEMESIS_SIZE);
+            size.addModifier(new AttributeModifier(Keys.MOD_NEMESIS_SIZE,
+                Math.min(f.nemesisMaxExtraSize, level * f.nemesisSizePerLevel), AttributeModifier.Operation.ADD_NUMBER));
+        }
+        if (f.nemesisGearEvolution) {
+            // Gear upgrades with level, starting from the tier that fits its rank (a Legendary starts in netherite).
+            BossArmor.applyNemesis(f, e, level, r.id, r.rank, r.hand, r.gearFloor);
+        } else if (!r.hand.isEmpty() && e.getEquipment() != null) {
+            org.bukkit.Material held = org.bukkit.Material.matchMaterial(r.hand);
+            if (held != null && held.isItem()) {
+                e.getEquipment().setItemInMainHand(ItemStack.of(held));
+                e.getEquipment().setItemInMainHandDropChance(0f);
+            }
+        }
     }
 
     /** The in-memory side of a Nemesis (damage, trait power, name, bar). Its body is saved on the mob itself. */
@@ -543,9 +732,8 @@ public final class NemesisManager {
         boss.setNemesisId(r.id);
         e.setPersistent(false);          // never saved into the world; the record brings it back
         e.setRemoveWhenFarAway(false);   // never despawns while out
-        boss.setDamageMultiplier(Math.min(f.nemesisMaxDamageMultiplier,
-            boss.damageMultiplier() * (1.0 + r.level * f.nemesisDamagePerLevel / 100.0)));
-        boss.setPower(Math.min(4.0, boss.power() * (1.0 + r.level * f.nemesisPowerPerLevel / 100.0)));
+        boss.setNemesisScaling(1.0 + r.level * f.nemesisDamagePerLevel / 100.0,
+            1.0 + r.level * f.nemesisPowerPerLevel / 100.0, f.nemesisMaxDamageMultiplier);
         boss.rename(displayName(r), plainName(r));
         e.setCustomNameVisible(true);
         BossBar bar = boss.bar();

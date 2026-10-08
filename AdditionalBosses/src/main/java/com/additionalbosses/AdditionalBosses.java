@@ -94,6 +94,7 @@ public final class AdditionalBosses extends JavaPlugin {
         pm.registerEvents(features, this);
         pm.registerEvents(new WaystoneListener(this), this);
         pm.registerEvents(new LootListener(this), this);
+        pm.registerEvents(new com.additionalbosses.relic.effects.NatureCurses.Events(this), this);
 
         registerCommand("bosses", "Additional Bosses commands", List.of("ab", "boss"), new BossesCommand(this));
 

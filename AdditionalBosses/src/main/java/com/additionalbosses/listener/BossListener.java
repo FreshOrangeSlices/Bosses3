@@ -151,6 +151,30 @@ public final class BossListener implements Listener {
         }
     }
 
+    /** A prowling Nemesis is busy hunting other mobs: it leaves players alone unless they attack it. */
+    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
+    public void onProwlTarget(EntityTargetLivingEntityEvent event) {
+        if (!(event.getTarget() instanceof Player)) {
+            return;
+        }
+        Boss boss = bosses().get(event.getEntity());
+        if (boss != null && boss.isNemesis() && plugin.nemesis().isProwling(boss)) {
+            event.setCancelled(true);
+        }
+    }
+
+    /** Every mob a Nemesis kills makes it stronger. */
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onNemesisKill(EntityDeathEvent event) {
+        if (event.getEntity() instanceof Player) {
+            return;
+        }
+        Boss boss = bosses().get(event.getDamageSource().getCausingEntity());
+        if (boss != null && boss.isNemesis() && boss.entity().isValid()) {
+            plugin.nemesis().onPreyKilled(boss, event.getEntity());
+        }
+    }
+
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onTarget(EntityTargetLivingEntityEvent event) {
         if (!(event.getTarget() instanceof Player player)) {

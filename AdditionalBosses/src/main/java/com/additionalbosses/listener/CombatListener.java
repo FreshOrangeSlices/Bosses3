@@ -93,6 +93,9 @@ public final class CombatListener implements Listener {
         }
         if (victimBoss != null) {
             if (attacker instanceof Player player) {
+                if (victimBoss.isNemesis()) {
+                    plugin.nemesis().onProvoked(victimBoss, player);
+                }
                 plugin.bosses().engage(victimBoss, player);
                 victimBoss.recordPlayerHit(player.getUniqueId(), finalDamage, ctx.projectile());
             }

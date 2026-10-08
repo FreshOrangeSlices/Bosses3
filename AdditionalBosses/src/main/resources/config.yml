@@ -1,4 +1,4 @@
-config-version: 2   # used by the plugin to update this file; don't change
+config-version: 3   # used by the plugin to update this file; don't change
 # =====================================================================
 #  Additional Bosses - configuration
 # ---------------------------------------------------------------------
@@ -178,9 +178,10 @@ mob-categories:
   common-overworld:
     display-name: Common Overworld
     weights: { GRAY: 40, GREEN: 30, RED: 18, PURPLE: 9, GOLD: 3 }
-    mobs: [BOGGED, BREEZE, CAMEL_HUSK, CAVE_SPIDER, CREEPER, DROWNED, ENDERMAN, ENDERMITE, GUARDIAN, HUSK,
-           PARCHED, PHANTOM, PILLAGER, SILVERFISH, SKELETON_HORSE, SLIME, SPIDER, STRAY, VINDICATOR, WITCH,
-           ZOMBIE_HORSE, ZOMBIE_VILLAGER]
+    # Rideable mobs (skeleton/zombie horses, camel husks...) can't be bosses.
+    mobs: [BOGGED, BREEZE, CAVE_SPIDER, CREEPER, DROWNED, ENDERMAN, ENDERMITE, GUARDIAN, HUSK,
+           PARCHED, PHANTOM, PILLAGER, SILVERFISH, SLIME, SPIDER, STRAY, VINDICATOR, WITCH,
+           ZOMBIE_VILLAGER]
 
   zombie-skeleton:
     display-name: Zombie & Skeleton
@@ -485,6 +486,8 @@ relics:
     reduction:     { enabled: true, weight: 6, size: 0.55, reach-penalty: 1.0 }
     matador:       { enabled: true, weight: 6, radius: 16, knockback: 1.2 }
     mother-hen:    { enabled: true, weight: 6, chicks: 5 }
+    pariah:        { enabled: true, weight: 6, radius: 10, villager-price-penalty: 40 }   # animals flee, worse trades, fishing gives only treasure
+    herbivore:     { enabled: true, weight: 6 }   # can't eat meat or fish; it turns into coal, seeds or berries
 
 # =====================================================================
 #  LAST STAND - Purple and Gold bosses (and every Nemesis) fight harder
@@ -571,9 +574,11 @@ escalation:
 trophies:
   enabled: true
   # Right-click a block with a trophy to place a tiny frozen copy of the
-  # boss (scale 0.125 = 1/8 size). Sneak + right-click it to pick it up.
+  # boss (scale 0.1 = a tenth of a normal mob; the smallest allowed is
+  # 0.0625). To pick it up, sneak + right-click it, or sneak + right-click
+  # the block under it with an empty hand.
   placeable: true
-  scale: 0.125
+  scale: 0.1
   chance:
     GRAY: 4
     GREEN: 7
@@ -584,8 +589,9 @@ trophies:
 
 # =====================================================================
 #  NEMESIS - a boss that kills you (or that you flee from after a real
-#  fight) becomes YOUR Nemesis. It withdraws, grows, earns titles and
-#  counter-traits, and comes back for you after a few Minecraft days.
+#  fight) becomes YOUR Nemesis, with a name of its own ("Scrawl the
+#  Bulwark"). It prowls off, grows, earns titles and counter-traits, and
+#  comes back for you after a few Minecraft days.
 #  It ignores the boss cap and never despawns while it is out. Killing
 #  it drops guaranteed loot plus a Nemesis Statue of it.
 # =====================================================================
@@ -612,6 +618,8 @@ nemesis:
   max-extra-size: 0.5
   revenge-xp-multiplier: 2        # XP bonus for killing the boss that killed you
   gear-evolution: true            # chainmail -> iron -> diamond -> netherite (trimmed) as it levels
+  prowl-minutes: 3                # after it lets you go, it roams nearby hunting other mobs before vanishing
+  levels-from-kills-per-outing: 5 # each mob it kills is +1 level, up to this many per outing
 
 # =====================================================================
 #  DIFFICULTY - on top of the rank stats. Threat Scaling: the first time a

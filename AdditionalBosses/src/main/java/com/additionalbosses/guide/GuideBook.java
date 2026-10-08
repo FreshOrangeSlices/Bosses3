@@ -57,15 +57,17 @@ public final class GuideBook {
         this.plugin = plugin;
     }
 
+    /** Gives the guide (one book, or two volumes if it ever grows past the 100-page book limit). */
     public void give(Player player) {
-        ItemStack book = create(player);
-        for (ItemStack left : player.getInventory().addItem(book).values()) {
-            player.getWorld().dropItemNaturally(player.getLocation(), left);
+        for (ItemStack book : create(player)) {
+            for (ItemStack left : player.getInventory().addItem(book).values()) {
+                player.getWorld().dropItemNaturally(player.getLocation(), left);
+            }
         }
         player.sendMessage(plugin.settings().messages.prefixed("guide-received"));
     }
 
-    public ItemStack create(Player reader) {
+    public List<ItemStack> create(Player reader) {
         PluginSettings s = plugin.settings();
         BookWriter w = new BookWriter();
         Map<String, Integer> sections = new LinkedHashMap<>();
@@ -483,17 +485,24 @@ public final class GuideBook {
             w.text("A boss that kills you becomes your Nemesis. Flee from a " + s.rank(f.nemesisEscapeMinRank).name()
                 + "+ boss after a real fight and it may too.", INK);
             w.blank();
-            w.text("It withdraws, grows stronger and returns for you after " + Text.num(f.nemesisReturnDays)
+            w.text("It gets a name of its own, like \"Returned Scrawl the Bulwark\", shown with a single white star.", INK);
+            w.blank();
+            w.text("Then it slinks off" + (f.nemesisProwlMinutes > 0 ? " and prowls for " + Text.num(f.nemesisProwlMinutes)
+                + " minutes, hunting other mobs" : "") + ", and returns for you after " + Text.num(f.nemesisReturnDays)
                 + " Minecraft days. It ignores the boss cap and never despawns.", INK);
             w.newPage();
             w.heading("It Remembers", CURSE);
             w.text("- every death to it: +" + f.nemesisLevelsOnKill + " levels", INK);
             w.text("- every escape: +" + f.nemesisLevelsOnEscape + " level", INK);
+            if (f.nemesisKillLevelsPerOuting > 0) {
+                w.text("- every mob it kills: +1 level (up to " + f.nemesisKillLevelsPerOuting + " each time it's out)", INK);
+            }
             w.text("- a rank every " + f.nemesisLevelsPerRank + " levels, a new trait every "
                 + f.nemesisLevelsPerTrait + " (up to level " + f.nemesisMaxLevel + ")", INK);
             w.text("- it adapts: archers face wards, brawlers face thorns, runners face speed", INK);
             w.blank();
-            w.text("Its white name carries its titles: Returned, Twice-Fled, Relentless, Unbroken...", SOFT);
+            w.text("It earns titles: Returned, Twice-Fled, Relentless, Unbroken... Its gear never looks worse"
+                + " than the boss it came from, and it keeps its look (baby or not) every time.", SOFT);
             w.newPage();
             w.heading("Revenge", CURSE);
             w.text("Slay it for guaranteed Masterwork gear, a rune, better relic odds and a Nemesis Statue"
@@ -557,17 +566,43 @@ public final class GuideBook {
 
         List<Component> body = w.finish();
 
-        // ---------------- Front matter (title + clickable contents) ----------------
-        int offset = 2; // title page + contents page come first
-        List<Component> pages = new ArrayList<>();
-        pages.add(titlePage());
-        pages.add(contentsPage(sections, offset));
-        pages.addAll(body);
+        // ---------------- Front matter: title page + clickable contents (as many pages as it needs) ----------
+        List<Map.Entry<String, Integer>> all = new ArrayList<>(sections.entrySet());
+        if (2 + contentsPages(all, 0, null).size() + body.size() <= MAX_PAGES) {
+            return List.of(book("Boss Hunter's Compendium", null, all, body));
+        }
+        // Too long for one book: split into two volumes at the section boundary nearest the middle.
+        int split = 1;
+        for (int i = 1; i < all.size(); i++) {
+            if (Math.abs(all.get(i).getValue() - body.size() / 2) < Math.abs(all.get(split).getValue() - body.size() / 2)) {
+                split = i;
+            }
+        }
+        int cut = all.get(split).getValue();
+        List<Map.Entry<String, Integer>> second = new ArrayList<>();
+        for (Map.Entry<String, Integer> e : all.subList(split, all.size())) {
+            second.add(Map.entry(e.getKey(), e.getValue() - cut));
+        }
+        return List.of(
+            book("Boss Hunter's Compendium I", "Volume I", all.subList(0, split), body.subList(0, cut)),
+            book("Boss Hunter's Compendium II", "Volume II", second,
+                body.subList(cut, Math.min(body.size(), cut + MAX_PAGES - 2 - contentsPages(second, 0, null).size()))));
+    }
 
+    private static final int MAX_PAGES = 100;
+
+    private ItemStack book(String title, @org.jetbrains.annotations.Nullable String volume,
+                           List<Map.Entry<String, Integer>> sections, List<Component> body) {
+        int contentsCount = contentsPages(sections, 0, volume).size();
+        int offset = 1 + contentsCount; // title page + contents pages come before the body
+        List<Component> pages = new ArrayList<>();
+        pages.add(titlePage(volume));
+        pages.addAll(contentsPages(sections, offset, volume));
+        pages.addAll(body);
         ItemStack book = ItemStack.of(Material.WRITTEN_BOOK);
         book.setData(DataComponentTypes.WRITTEN_BOOK_CONTENT,
-            WrittenBookContent.writtenBookContent("Boss Hunter's Compendium", "Additional Bosses")
-                .addPages(pages)
+            WrittenBookContent.writtenBookContent(title, "Additional Bosses")
+                .addPages(pages.subList(0, Math.min(MAX_PAGES, pages.size())))
                 .resolved(true)
                 .build());
         book.editPersistentDataContainer(pdc ->
@@ -575,8 +610,36 @@ public final class GuideBook {
         return book;
     }
 
-    private static Component titlePage() {
+    /** The contents list, spread over as many pages as needed (each line is a clickable link). */
+    private static List<Component> contentsPages(List<Map.Entry<String, Integer>> sections, int offset,
+                                                 @org.jetbrains.annotations.Nullable String volume) {
+        List<Component> pages = new ArrayList<>();
+        TextComponent.Builder b = Component.text();
+        b.append(Component.text(volume == null ? "Contents" : "Contents - " + volume, TITLE).decorate(TextDecoration.BOLD))
+            .append(Component.newline()).append(Component.newline());
+        int used = 2;
+        for (Map.Entry<String, Integer> e : sections) {
+            String label = "▸ " + e.getKey();
+            int lines = BookWriter.lineCount(label, false);
+            if (used + lines > 14) {
+                pages.add(b.build());
+                b = Component.text();
+                used = 0;
+            }
+            int page = e.getValue() + offset + 1;
+            b.append(Component.text(label, NamedTextColor.DARK_BLUE)
+                .clickEvent(ClickEvent.changePage(page))
+                .hoverEvent(HoverEvent.showText(Component.text("Go to page " + page))));
+            b.append(Component.newline());
+            used += lines;
+        }
+        pages.add(b.build());
+        return pages;
+    }
+
+    private static Component titlePage(@org.jetbrains.annotations.Nullable String volume) {
         return Component.text()
+            .append(Component.text(volume == null ? "" : "            " + volume, SOFT))
             .append(Component.newline())
             .append(Component.text("   ADDITIONAL", TITLE).decorate(TextDecoration.BOLD)).append(Component.newline())
             .append(Component.text("      BOSSES", TITLE).decorate(TextDecoration.BOLD)).append(Component.newline())

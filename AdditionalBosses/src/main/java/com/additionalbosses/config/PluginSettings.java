@@ -145,12 +145,14 @@ public final class PluginSettings {
                     weights.put(BossRank.GRAY, 1.0);
                 }
                 Set<SpawnReason> reasons = s.isList("spawn-reasons") ? parseReasons(s.getStringList("spawn-reasons"), log) : null;
+                Set<EntityType> mobs = parseMobs(s.getStringList("mobs"), log);
+                mobs.removeIf(PluginSettings::isMount); // rideable mobs (horses, camels...) don't work as bosses
                 MobCategory category = new MobCategory(id,
                     s.getString("display-name", com.additionalbosses.util.Text.pretty(id)),
                     s.getString("description", ""),
                     s.getBoolean("enabled", true),
                     s.getDouble("spawn-chance-multiplier", 1.0), weights,
-                    parseMobs(s.getStringList("mobs"), log), reasons);
+                    mobs, reasons);
                 categories.add(category);
                 for (EntityType type : category.mobs()) {
                     MobCategory previous = categoryByType.put(type, category);
@@ -496,6 +498,12 @@ public final class PluginSettings {
             }
         }
         return out;
+    }
+
+    /** Skeleton/zombie horses, camel husks, zombie nautiluses and other mounts: never bosses. */
+    public static boolean isMount(EntityType type) {
+        Class<?> cls = type.getEntityClass();
+        return cls != null && org.bukkit.entity.Vehicle.class.isAssignableFrom(cls);
     }
 
     public static @Nullable EntityType parseMob(String raw) {

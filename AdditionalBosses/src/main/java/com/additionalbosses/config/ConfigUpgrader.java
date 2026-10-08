@@ -20,9 +20,11 @@ import java.util.regex.Pattern;
  */
 public final class ConfigUpgrader {
 
-    public static final int CURRENT = 2;
+    public static final int CURRENT = 3;
     private static final Pattern VERSION = Pattern.compile("^config-version:\\s*(\\d+)\\s*(#.*)?$");
     private static final Pattern STORMCALLER = Pattern.compile("^(\\s+stormcaller:\\s*\\{.*\\bweight:\\s*)6(\\b.*)$");
+    private static final Pattern TROPHY_SCALE = Pattern.compile("^(\\s+scale:\\s*)0\\.125(\\b.*)$");
+    private static final Pattern TOP_LEVEL = Pattern.compile("^([a-z][a-z0-9-]*):.*$");
 
     private ConfigUpgrader() {
     }
@@ -49,12 +51,24 @@ public final class ConfigUpgrader {
             }
             Files.copy(file.toPath(), new File(plugin.getDataFolder(), "config.yml.before-v" + CURRENT).toPath(),
                 StandardCopyOption.REPLACE_EXISTING);
-            // v2: Stormcaller was picked too often (weight 6 -> 2).
+            String section = "";
             for (int i = 0; i < lines.size(); i++) {
-                Matcher m = STORMCALLER.matcher(lines.get(i));
-                if (m.matches()) {
+                String line = lines.get(i);
+                Matcher top = TOP_LEVEL.matcher(line);
+                if (top.matches()) {
+                    section = top.group(1);
+                }
+                // v2: Stormcaller was picked too often (weight 6 -> 2).
+                Matcher m = STORMCALLER.matcher(line);
+                if (version < 2 && m.matches()) {
                     lines.set(i, m.group(1) + "2" + m.group(2));
                     plugin.getLogger().info("config.yml: lowered the Stormcaller relic's weight from 6 to 2.");
+                }
+                // v3: placed trophies were too big (0.125 -> 0.1).
+                Matcher t = TROPHY_SCALE.matcher(line);
+                if (version < 3 && section.equals("trophies") && t.matches()) {
+                    lines.set(i, t.group(1) + "0.1" + t.group(2));
+                    plugin.getLogger().info("config.yml: made placed trophies smaller (scale 0.125 -> 0.1).");
                 }
             }
             if (versionLine >= 0) {

@@ -49,6 +49,7 @@ public final class Messages {
         DEFAULTS.put("unstuck", "<boss> <gray>tears itself free!</gray>");
         DEFAULTS.put("nemesis-born", "<dark_red>☠</dark_red> <boss> <red>has marked you. It will return.</red>");
         DEFAULTS.put("nemesis-grows", "<dark_red>☠</dark_red> <boss> <red>grows stronger from your defeat...</red>");
+        DEFAULTS.put("nemesis-provoked", "<boss> <red>turns on you!</red>");
         DEFAULTS.put("nemesis-flee", "<dark_red>☠</dark_red> <boss> <gray>loses your trail... for now.</gray>");
         DEFAULTS.put("nemesis-return-title", "<dark_red>☠ NEMESIS ☠</dark_red>");
         DEFAULTS.put("nemesis-return-subtitle", "<boss> <gray>has returned for you</gray>");

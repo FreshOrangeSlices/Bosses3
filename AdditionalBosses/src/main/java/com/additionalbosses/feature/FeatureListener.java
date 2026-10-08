@@ -104,6 +104,30 @@ public final class FeatureListener implements Listener {
     // Using items
     // =====================================================================
 
+    /** Sneak + right-click (empty hand) the block under a mini trophy to pick it up. */
+    @EventHandler(priority = EventPriority.HIGH)
+    public void onPickUpTrophy(PlayerInteractEvent event) {
+        Block clicked = event.getClickedBlock();
+        Player player = event.getPlayer();
+        if (event.getAction() != Action.RIGHT_CLICK_BLOCK || event.getHand() != EquipmentSlot.HAND || clicked == null
+            || !player.isSneaking() || !player.getInventory().getItemInMainHand().isEmpty()
+            || event.useInteractedBlock() == Event.Result.DENY) {
+            return;
+        }
+        Entity trophy = plugin.trophies().trophyOn(clicked);
+        if (trophy == null) {
+            return;
+        }
+        ItemStack item = plugin.trophies().pickUp(trophy);
+        if (item != null) {
+            event.setCancelled(true);
+            for (ItemStack left : player.getInventory().addItem(item).values()) {
+                player.getWorld().dropItemNaturally(player.getLocation(), left);
+            }
+            Fx.play(player.getLocation(), "entity.item.pickup", 0.8f, 0.8f);
+        }
+    }
+
     @EventHandler(priority = EventPriority.LOW)
     public void onInteract(PlayerInteractEvent event) {
         ItemStack item = event.getItem();
