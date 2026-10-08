@@ -2,7 +2,10 @@ package com.additionalbosses.relic;
 
 import com.additionalbosses.AdditionalBosses;
 import com.additionalbosses.combat.DamageContext;
+import com.additionalbosses.relic.effects.Auras;
+import com.additionalbosses.relic.effects.Burdened;
 import com.additionalbosses.relic.effects.Curses;
+import com.additionalbosses.relic.effects.MoreCurses;
 import com.additionalbosses.relic.effects.Relics;
 import com.additionalbosses.util.Keys;
 import com.additionalbosses.util.Rng;
@@ -11,6 +14,9 @@ import io.papermc.paper.persistence.PersistentDataContainerView;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
+import org.bukkit.attribute.Attribute;
+import org.bukkit.attribute.AttributeInstance;
+import org.bukkit.attribute.AttributeModifier;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.MemoryConfiguration;
 import org.bukkit.entity.LivingEntity;
@@ -79,6 +85,18 @@ public final class RelicManager {
         register(new Relics.Aegis());
         register(new Relics.Featherweight());
         register(new Relics.Prospector());
+        register(Auras.ironWill());
+        register(Auras.bloodMending());
+        register(Auras.skybound());
+        register(Auras.emberWard());
+        register(Auras.tidebound());
+        register(Auras.oceanGrace());
+        register(Auras.villagerFavor());
+        register(Auras.minersFavor());
+        register(Auras.nightstalker());
+        register(Auras.sunblessed());
+        register(new Burdened.Greed());
+        register(new Burdened.HeavyCrown());
 
         register(new Curses.Dread());
         register(new Curses.Butterfingers());
@@ -89,6 +107,11 @@ public final class RelicManager {
         register(new Curses.Recoil());
         register(new Curses.GlassBones());
         register(new Curses.BloodTithe());
+        register(new MoreCurses.Terror());
+        register(new MoreCurses.Echoes());
+        register(new MoreCurses.Reduction());
+        register(new MoreCurses.Matador());
+        register(new MoreCurses.MotherHen());
     }
 
     public void register(RelicEffect effect) {
@@ -184,7 +207,9 @@ public final class RelicManager {
             collect(off, RelicContext.Slot.ARMOR, found);
         }
         List<Active> list = List.copyOf(found.values());
-        cache.put(player.getUniqueId(), list);
+        List<Active> previous = cache.put(player.getUniqueId(), list);
+        deactivateMissing(player, previous, list);
+        applyAttributes(player, list);
 
         boolean hasPassive = false;
         for (Active a : list) {
@@ -224,7 +249,66 @@ public final class RelicManager {
         }
     }
 
+    /** Calls onDeactivate for relics that were active before but aren't any more. */
+    private void deactivateMissing(Player player, @Nullable List<Active> before, List<Active> after) {
+        if (before == null) {
+            return;
+        }
+        Set<String> still = new HashSet<>();
+        for (Active a : after) {
+            still.add(a.effect().id());
+        }
+        Set<String> done = new HashSet<>();
+        for (Active a : before) {
+            if (!still.contains(a.effect().id()) && done.add(a.effect().id())) {
+                a.effect().onDeactivate(player);
+            }
+        }
+    }
+
+    /**
+     * Relic stat changes are transient attribute modifiers: they are never saved, so they can't get stuck after a
+     * crash, logout or uninstall. They are rebuilt here every time the player's equipment changes.
+     */
+    private void applyAttributes(Player player, List<Active> active) {
+        for (RelicEffect effect : registry.values()) {
+            List<RelicEffect.AttributeBonus> bonuses = effect.attributeBonuses();
+            for (int i = 0; i < bonuses.size(); i++) {
+                AttributeInstance inst = player.getAttribute(bonuses.get(i).attribute());
+                if (inst != null) {
+                    inst.removeModifier(attributeKey(effect, i));
+                }
+            }
+        }
+        Set<String> applied = new HashSet<>();
+        for (Active a : active) {
+            RelicEffect effect = a.effect();
+            if (!applied.add(effect.id())) {
+                continue;
+            }
+            List<RelicEffect.AttributeBonus> bonuses = effect.attributeBonuses();
+            for (int i = 0; i < bonuses.size(); i++) {
+                RelicEffect.AttributeBonus b = bonuses.get(i);
+                AttributeInstance inst = player.getAttribute(b.attribute());
+                if (inst != null) {
+                    inst.addTransientModifier(new AttributeModifier(attributeKey(effect, i), b.amount(), b.operation()));
+                }
+            }
+        }
+        AttributeInstance max = player.getAttribute(Attribute.MAX_HEALTH);
+        if (max != null && player.getHealth() > max.getValue()) {
+            player.setHealth(max.getValue());
+        }
+    }
+
+    private NamespacedKey attributeKey(RelicEffect effect, int index) {
+        return new NamespacedKey(plugin, "relic_" + effect.id().replace('-', '_') + "_" + index);
+    }
+
     public void forget(Player player) {
+        List<Active> before = cache.get(player.getUniqueId());
+        deactivateMissing(player, before, List.of());
+        applyAttributes(player, List.of());
         cache.remove(player.getUniqueId());
         passivePlayers.remove(player.getUniqueId());
         cooldowns.remove(player.getUniqueId());
@@ -259,6 +343,9 @@ public final class RelicManager {
         if (passiveTask != null) {
             passiveTask.cancel();
             passiveTask = null;
+        }
+        for (Player p : Bukkit.getOnlinePlayers()) {
+            forget(p);
         }
         cache.clear();
         passivePlayers.clear();
