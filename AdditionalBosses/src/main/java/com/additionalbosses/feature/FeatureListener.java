@@ -104,7 +104,7 @@ public final class FeatureListener implements Listener {
     // Using items
     // =====================================================================
 
-    /** Sneak + right-click (empty hand) the block under a mini trophy to pick it up. */
+    /** Sneak + right-click (empty hand) the block under a placed trophy or statue to pick it up. */
     @EventHandler(priority = EventPriority.HIGH)
     public void onPickUpTrophy(PlayerInteractEvent event) {
         Block clicked = event.getClickedBlock();
@@ -114,7 +114,7 @@ public final class FeatureListener implements Listener {
             || event.useInteractedBlock() == Event.Result.DENY) {
             return;
         }
-        Entity trophy = plugin.trophies().trophyOn(clicked);
+        Entity trophy = plugin.trophies().figureOn(clicked);
         if (trophy == null) {
             return;
         }

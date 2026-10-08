@@ -51,6 +51,7 @@ public final class FeatureSettings {
     public final double ascendantShockwaveDamage;
     public final boolean trophyPlacing;
     public final double trophyScale;
+    public final double statueScale;
 
     // ---- Waystones ----
     public final boolean waystonesEnabled;
@@ -170,7 +171,8 @@ public final class FeatureSettings {
         ascendantShockwaveRadius = c.getDouble("ascendant.phases.shockwave-radius", 7);
         ascendantShockwaveDamage = c.getDouble("ascendant.phases.shockwave-damage", 6);
         trophyPlacing = c.getBoolean("trophies.placeable", true);
-        trophyScale = Math.max(0.0625, Math.min(1.0, c.getDouble("trophies.scale", 0.0625)));
+        trophyScale = Math.max(0.0625, Math.min(1.0, c.getDouble("trophies.scale", 0.125)));
+        statueScale = Math.max(0.01, Math.min(1.0, c.getDouble("nemesis.statue-scale", 0.125)));
 
         waystonesEnabled = c.getBoolean("waystones.enabled", true);
         waystoneAscendantDrops = Math.max(0, c.getInt("waystones.ascendant-drops", 2));
