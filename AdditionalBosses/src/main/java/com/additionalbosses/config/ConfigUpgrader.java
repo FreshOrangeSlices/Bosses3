@@ -20,10 +20,10 @@ import java.util.regex.Pattern;
  */
 public final class ConfigUpgrader {
 
-    public static final int CURRENT = 4;
+    public static final int CURRENT = 5;
     private static final Pattern VERSION = Pattern.compile("^config-version:\\s*(\\d+)\\s*(#.*)?$");
     private static final Pattern STORMCALLER = Pattern.compile("^(\\s+stormcaller:\\s*\\{.*\\bweight:\\s*)6(\\b.*)$");
-    private static final Pattern TROPHY_SCALE = Pattern.compile("^(\\s+scale:\\s*)(0\\.125|0\\.1)(\\s.*)?$");
+    private static final Pattern TROPHY_SCALE = Pattern.compile("^(\\s+scale:\\s*)(0\\.0625|0\\.1)(\\s.*)?$");
     private static final Pattern TOP_LEVEL = Pattern.compile("^([a-z][a-z0-9-]*):.*$");
 
     private ConfigUpgrader() {
@@ -64,11 +64,12 @@ public final class ConfigUpgrader {
                     lines.set(i, m.group(1) + "2" + m.group(2));
                     plugin.getLogger().info("config.yml: lowered the Stormcaller relic's weight from 6 to 2.");
                 }
-                // v4: placed trophies were too big: shrink an unchanged default (0.125 or 0.1) to the smallest size.
+                // v5: trophies are back to 1/8 size (it was the Nemesis statue that was too big); an unchanged
+                // default from v3 (0.1) or v4 (0.0625) goes to 0.125.
                 Matcher t = TROPHY_SCALE.matcher(line);
-                if (version < 4 && section.equals("trophies") && t.matches()) {
-                    lines.set(i, t.group(1) + "0.0625" + (t.group(3) == null ? "" : t.group(3)));
-                    plugin.getLogger().info("config.yml: made placed trophies smaller (scale " + t.group(2) + " -> 0.0625).");
+                if (version < 5 && section.equals("trophies") && t.matches()) {
+                    lines.set(i, t.group(1) + "0.125" + (t.group(3) == null ? "" : t.group(3)));
+                    plugin.getLogger().info("config.yml: trophy size set back to 1/8 (scale " + t.group(2) + " -> 0.125).");
                 }
             }
             if (versionLine >= 0) {
