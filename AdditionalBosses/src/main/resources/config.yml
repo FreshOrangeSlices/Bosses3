@@ -1,3 +1,4 @@
+config-version: 2   # used by the plugin to update this file; don't change
 # =====================================================================
 #  Additional Bosses - configuration
 # ---------------------------------------------------------------------
@@ -32,10 +33,7 @@ bosses:
   min-distance-between: 32
   # Show the boss name above its head at all times.
   always-show-name: true
-  # Dress humanoid bosses (zombies, skeletons, piglins) in armor dyed
-  # their rank colour. It is cosmetic only: no armor points, never drops.
-  # Off by default: bosses are recognised by their size, name and glow instead.
-  display-gear: false
+  # (Boss armor is now set under boss-armor further down.)
   # Mob-themed particles around bosses (Blazes smoulder, Drowned drip,
   # skeletons shed bone dust, Endermen leak portal sparks...).
   environmental-particles: true
@@ -150,6 +148,24 @@ ranks:
       over-max-levels: 2
     persistent: true
     presentation: { announce: TITLE, sound: "entity.wither.spawn 0.6 1.1", death-sound: "ui.toast.challenge_complete 1.0 1.0", particles: 4, death-broadcast: SERVER }
+
+  ASCENDANT:
+    # Never spawns naturally: a boss only becomes Ascendant when trophies
+    # promote it past Legendary. Drops waystones (see waystones below).
+    name: Ascendant
+    stats: { health: 8.0, damage: 2.6, armor: 14, armor-toughness: 8, knockback-resistance: 0.8, speed: 1.15, size: 0.65 }
+    traits: { min: 4, max: 5, power: 2.1 }
+    xp: { multiplier: 20, bonus: 800 }
+    rewards: { boss-gear: 100, empowerment: 100, relic: 60, relic-catalyst: 15 }
+    gear:
+      materials: { NETHERITE: 100 }
+      quality: { FINE: 30, MASTERWORK: 70 }
+      enchantments: { min: 4, max: 6 }
+      min-level-percent: 100
+      over-max-chance: 60
+      over-max-levels: 3
+    persistent: true
+    presentation: { announce: TITLE, sound: "block.beacon.activate 1 0.6", death-sound: "ui.toast.challenge_complete 1 1.4", particles: 6, death-broadcast: SERVER }
 
 # =====================================================================
 #  MOB CATEGORIES - which mobs can become bosses, and their rank odds.
@@ -289,7 +305,11 @@ traits:
 boss-gear:
   # How often each kind of item is chosen.
   item-weights: { SWORD: 20, AXE: 12, SPEAR: 8, MACE: 2, BOW: 8, CROSSBOW: 5, TRIDENT: 2,
-                  HELMET: 11, CHESTPLATE: 11, LEGGINGS: 11, BOOTS: 11 }
+                  HELMET: 11, CHESTPLATE: 11, LEGGINGS: 11, BOOTS: 11,
+                  PICKAXE: 6, SHOVEL: 4, HOE: 3 }
+  # Chance (%) a boss pickaxe/shovel/hoe also rolls a weapon enchantment
+  # (Sharpness, Smite, Fire Aspect...) on top of its utility enchantments.
+  tool-offensive-enchant-chance: 35
   # Extra weight added for certain mobs (skeletons tend to drop bows...).
   mob-preferences:
     SKELETON: { BOW: 40 }
@@ -318,42 +338,71 @@ boss-gear:
 empowerment:
   # How many runes one item can hold.
   max-per-item: 2
+  # Loot and Fortune runes multiply drops; the total is capped here.
+  max-loot-multiplier: 3
+  max-fortune-multiplier: 3
   stats:
+    loot:
+      # Multiplies normal mob drops when this weapon gets the kill
+      # (never boss rewards or gear the mob was wearing).
+      effect: loot
+      display: Mob Loot
+      weight: 8
+      applies-to: [WEAPON]
+      ranges: { GRAY: [0.05, 0.1], GREEN: [0.1, 0.15], RED: [0.15, 0.2], PURPLE: [0.2, 0.3], GOLD: [0.3, 0.4], ASCENDANT: [0.4, 0.5] }
+    fortune:
+      # Multiplies ore drops when this tool breaks the ore (stacks with the
+      # Fortune enchantment; silk-touched blocks are never multiplied).
+      effect: fortune
+      display: Ore Drops
+      weight: 8
+      applies-to: [TOOL]
+      ranges: { GRAY: [0.05, 0.1], GREEN: [0.1, 0.15], RED: [0.15, 0.2], PURPLE: [0.2, 0.3], GOLD: [0.3, 0.4], ASCENDANT: [0.4, 0.5] }
+    reach:
+      # Extra attack and block reach while held. Keep it small if your
+      # server runs an anti-cheat.
+      attribute: entity_interaction_range
+      extra-attribute: block_interaction_range
+      operation: ADD_NUMBER
+      display: Reach
+      weight: 6
+      applies-to: [MELEE, TOOL]
+      ranges: { GRAY: [0.25, 0.5], GREEN: [0.5, 0.75], RED: [0.5, 1.0], PURPLE: [0.75, 1.25], GOLD: [1.0, 1.5], ASCENDANT: [1.5, 2.0] }
     attack-damage:
       attribute: attack_damage
       operation: ADD_NUMBER
       display: Attack Damage
       weight: 20
       applies-to: [MELEE]
-      ranges: { GRAY: [0.5, 1.0], GREEN: [1.0, 1.5], RED: [1.5, 2.0], PURPLE: [2.0, 3.0], GOLD: [3.0, 4.0] }
+      ranges: { GRAY: [0.5, 1.0], GREEN: [1.0, 1.5], RED: [1.5, 2.0], PURPLE: [2.0, 3.0], GOLD: [3.0, 4.0], ASCENDANT: [4, 5] }
     attack-speed:
       attribute: attack_speed
       operation: ADD_NUMBER
       display: Attack Speed
       weight: 12
       applies-to: [MELEE]
-      ranges: { GRAY: [0.05, 0.1], GREEN: [0.1, 0.15], RED: [0.15, 0.2], PURPLE: [0.2, 0.3], GOLD: [0.3, 0.4] }
+      ranges: { GRAY: [0.05, 0.1], GREEN: [0.1, 0.15], RED: [0.15, 0.2], PURPLE: [0.2, 0.3], GOLD: [0.3, 0.4], ASCENDANT: [0.4, 0.5] }
     max-health:
       attribute: max_health
       operation: ADD_NUMBER
       display: Max Health
       weight: 15
       applies-to: [ARMOR, SHIELD, RANGED]
-      ranges: { GRAY: [1, 2], GREEN: [2, 2], RED: [2, 3], PURPLE: [3, 4], GOLD: [4, 6] }
+      ranges: { GRAY: [1, 2], GREEN: [2, 2], RED: [2, 3], PURPLE: [3, 4], GOLD: [4, 6], ASCENDANT: [6, 7.5] }
     armor:
       attribute: armor
       operation: ADD_NUMBER
       display: Armor
       weight: 15
       applies-to: [ARMOR, SHIELD]
-      ranges: { GRAY: [0.5, 1.0], GREEN: [1.0, 1.5], RED: [1.5, 2.0], PURPLE: [2.0, 3.0], GOLD: [3.0, 4.0] }
+      ranges: { GRAY: [0.5, 1.0], GREEN: [1.0, 1.5], RED: [1.5, 2.0], PURPLE: [2.0, 3.0], GOLD: [3.0, 4.0], ASCENDANT: [4, 5] }
     armor-toughness:
       attribute: armor_toughness
       operation: ADD_NUMBER
       display: Armor Toughness
       weight: 10
       applies-to: [ARMOR]
-      ranges: { GRAY: [0.5, 1.0], GREEN: [1.0, 1.5], RED: [1.5, 2.0], PURPLE: [2.0, 2.5], GOLD: [2.5, 3.0] }
+      ranges: { GRAY: [0.5, 1.0], GREEN: [1.0, 1.5], RED: [1.5, 2.0], PURPLE: [2.0, 2.5], GOLD: [2.5, 3.0], ASCENDANT: [3, 3.75] }
     knockback-resistance:
       attribute: knockback_resistance
       operation: ADD_NUMBER
@@ -361,7 +410,7 @@ empowerment:
       percent: true
       weight: 8
       applies-to: [ARMOR]
-      ranges: { GRAY: [0.02, 0.04], GREEN: [0.04, 0.06], RED: [0.06, 0.08], PURPLE: [0.08, 0.1], GOLD: [0.1, 0.15] }
+      ranges: { GRAY: [0.02, 0.04], GREEN: [0.04, 0.06], RED: [0.06, 0.08], PURPLE: [0.08, 0.1], GOLD: [0.1, 0.15], ASCENDANT: [0.15, 0.188] }
     movement-speed:
       attribute: movement_speed
       operation: ADD_SCALAR
@@ -369,7 +418,7 @@ empowerment:
       percent: true
       weight: 8
       applies-to: [BOOTS, LEGGINGS, RANGED]
-      ranges: { GRAY: [0.02, 0.03], GREEN: [0.03, 0.04], RED: [0.04, 0.06], PURPLE: [0.06, 0.08], GOLD: [0.08, 0.1] }
+      ranges: { GRAY: [0.02, 0.03], GREEN: [0.03, 0.04], RED: [0.04, 0.06], PURPLE: [0.06, 0.08], GOLD: [0.08, 0.1], ASCENDANT: [0.1, 0.125] }
 
 # =====================================================================
 #  RELICS - permanent unique abilities bound to equipment.
@@ -397,7 +446,7 @@ relics:
     bramble-heart: { enabled: true, weight: 8, reflect-percent: 25 }
     emberheart:    { enabled: true, weight: 8, ignite-seconds: 4 }
     frostbite:     { enabled: true, weight: 8, slow-seconds: 2, amplifier: 1 }
-    stormcaller:   { enabled: true, weight: 6, chance: 10, bonus-damage: 4 }
+    stormcaller:   { enabled: true, weight: 2, chance: 10, bonus-damage: 4 }
     windstep:      { enabled: true, weight: 8, cooldown-seconds: 4, strength: 1.2 }
     hunters-mark:  { enabled: true, weight: 6, reward-chance-bonus: 25, boss-damage-bonus: 10 }
     echo-strike:   { enabled: true, weight: 8, chance: 15, echo-damage-percent: 50 }
@@ -443,7 +492,7 @@ relics:
 #  wakes up.
 # =====================================================================
 last-stand:
-  ranks: [PURPLE, GOLD]
+  ranks: [PURPLE, GOLD, ASCENDANT]
   health-percent: 25
   trait-power-bonus: 50   # % stronger traits
   speed-bonus: 15         # % faster
@@ -521,12 +570,17 @@ escalation:
 # =====================================================================
 trophies:
   enabled: true
+  # Right-click a block with a trophy to place a tiny frozen copy of the
+  # boss (scale 0.125 = 1/8 size). Sneak + right-click it to pick it up.
+  placeable: true
+  scale: 0.125
   chance:
     GRAY: 4
     GREEN: 7
     RED: 12
     PURPLE: 25
     GOLD: 100
+    ASCENDANT: 100
 
 # =====================================================================
 #  NEMESIS - a boss that kills you (or that you flee from after a real
@@ -557,6 +611,99 @@ nemesis:
   size-per-level: 0.02
   max-extra-size: 0.5
   revenge-xp-multiplier: 2        # XP bonus for killing the boss that killed you
+  gear-evolution: true            # chainmail -> iron -> diamond -> netherite (trimmed) as it levels
+
+# =====================================================================
+#  DIFFICULTY - on top of the rank stats. Threat Scaling: the first time a
+#  boss is engaged it sizes up the best-geared player nearby (armor,
+#  enchantments, runes, relics) and gets stronger to match, and pays
+#  better too. A fully kitted player scores about full-gear-score.
+# =====================================================================
+difficulty:
+  health-multiplier: 1.3
+  damage-multiplier: 1.2
+  threat-scaling:
+    enabled: true
+    max-health-bonus: 60     # %
+    max-damage-bonus: 30     # %
+    max-reward-bonus: 25     # % better reward odds
+    full-gear-score: 110
+    radius: 32
+
+# =====================================================================
+#  REWARD FLOOR - from this rank up, a boss always drops at least one
+#  item (gear or a rune). Below it, a player who gets nothing several
+#  kills in a row is guaranteed a drop on the next one.
+# =====================================================================
+reward-floor:
+  guaranteed-from: RED       # NONE to turn off
+  pity-after-empty-kills: 3  # 0 to turn off
+
+# =====================================================================
+#  PROMOTION - right-click a boss with a trophy, or throw (drop) the
+#  trophy at it, and the boss rises. Ranks can be skipped. Promoting past
+#  Legendary makes it Ascendant.
+#  ranks-gained: [min, max] by the rank of the boss the trophy came from.
+# =====================================================================
+promotion:
+  enabled: true
+  gray-trophy-chance: 25     # % that a Gray trophy works at all
+  ranks-gained:
+    GRAY: [1, 1]
+    GREEN: [1, 1]
+    RED: [1, 2]
+    PURPLE: [1, 3]
+    GOLD: [2, 4]
+    ASCENDANT: [3, 5]
+
+# =====================================================================
+#  ASCENDANT - the top rank. At each health mark it breaks into a new
+#  phase: a shockwave throws players back and it gains another trait.
+# =====================================================================
+ascendant:
+  phases:
+    enabled: true
+    at-health-percent: [66, 33]
+    shockwave-radius: 7
+    shockwave-damage: 6
+
+# =====================================================================
+#  WAYSTONES - Ascendant bosses drop them. Place one and it joins a
+#  single public network: every waystone, from every player, can reach
+#  every other one, for free. Rename the item in an anvil to name it (or
+#  use a name tag on the placed stone). Sneak + right-click the stone
+#  with any item to set its menu icon. Only its owner (or an admin) can
+#  break it; explosions and pistons can't.
+# =====================================================================
+waystones:
+  enabled: true
+  ascendant-drops: 2
+  drop-chance:               # extra % chance per kill, by rank
+    GOLD: 3
+  warmup-seconds: 3          # stand still; taking damage cancels it
+  cooldown-seconds: 5
+  cross-dimension: true
+  blocked-during-boss-fights: true
+
+# =====================================================================
+#  BOSS ARMOR - zombies, skeletons and piglins wear a matching set: one
+#  material, one trim colour and one random trim pattern for every piece.
+#  Purely cosmetic (no armor points) and never drops.
+#  Palette entries: "<ARMOR MATERIAL> <trim colour>". Trim colours:
+#  quartz, iron, netherite, redstone, copper, gold, emerald, diamond,
+#  lapis, amethyst, resin.
+# =====================================================================
+boss-armor:
+  enabled: true
+  palettes:
+    GRAY: ["CHAINMAIL iron", "CHAINMAIL quartz", "CHAINMAIL copper"]
+    GREEN: ["COPPER emerald", "IRON emerald", "IRON copper"]
+    RED: ["IRON redstone", "DIAMOND redstone", "IRON netherite"]
+    PURPLE: ["DIAMOND amethyst", "NETHERITE amethyst", "DIAMOND lapis"]
+    GOLD: ["GOLDEN redstone", "NETHERITE gold", "DIAMOND gold"]
+    ASCENDANT: ["NETHERITE quartz", "DIAMOND quartz", "NETHERITE diamond"]
+  trim-patterns: [sentry, dune, coast, wild, ward, eye, vex, tide, snout, rib, spire, wayfinder,
+                  shaper, silence, raiser, host, flow, bolt]
 
 # =====================================================================
 #  ITEMS - what the special drops look like.
@@ -574,7 +721,7 @@ guide:
 # =====================================================================
 #  MESSAGES (MiniMessage format: <red>, <bold>, <gradient:...>, etc.)
 #  Placeholders: <boss> <player> <rank> <items> <item> <stat> <relic>
-#                <curse> <count> <fits>
+#                <curse> <count> <fits> <name> <owner>
 # =====================================================================
 messages:
   prefix: "<dark_gray>[<gold>Bosses</gold>]</dark_gray> "
@@ -619,3 +766,18 @@ messages:
   totem-ritual: "<dark_purple>The totem shudders... something answers.</dark_purple>"
   totem-blocked: "<red>The totem stays silent here.</red>"
   compass-upgraded: "<gold>Your Hunter's Compass sharpens!</gold> <gray>Now tier <count>.</gray>"
+  promoted-subtitle: "<boss> <gray>rises!</gray>"
+  ascended: "<player> <gray>has raised</gray> <boss> <gray>to Ascendance!</gray>"
+  ascendant-phase: "<boss> <white><bold>breaks into a new phase!</bold></white>"
+  promote-fail: "<gray>The trophy crumbles to dust... nothing answers.</gray>"
+  promote-blocked: "<red>That boss can't rise any higher.</red>"
+  waystone-placed: "<aqua>Waystone</aqua> <white><name></white> <aqua>joins the network.</aqua>"
+  waystone-removed: "<gray>Waystone</gray> <white><name></white> <gray>was taken down.</gray>"
+  waystone-not-owner: "<red>Only <owner> can take this waystone down.</red>"
+  waystone-renamed: "<aqua>Waystone renamed to</aqua> <white><name></white><aqua>.</aqua>"
+  waystone-warmup: "<aqua>Travelling to</aqua> <white><name></white><aqua>... hold still.</aqua>"
+  waystone-cancelled: "<red>Travel cancelled.</red>"
+  waystone-arrived: "<aqua>Arrived at</aqua> <white><name></white><aqua>.</aqua>"
+  waystone-combat: "<red>The waystones won't answer while a boss is hunting you.</red>"
+  waystone-cooldown: "<red>The waystone is still recharging (<count>s).</red>"
+  waystone-blocked: "<red>That waystone is blocked or in a world you can't reach.</red>"

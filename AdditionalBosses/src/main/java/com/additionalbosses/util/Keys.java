@@ -24,6 +24,12 @@ public final class Keys {
     public static NamespacedKey NEMESIS;         // string, nemesis record id
     public static NamespacedKey STATUE;          // string, statue data (on statue entities and statue items)
     public static NamespacedKey STATUE_LORE;     // list<string>, MiniMessage lore lines kept on a placed statue
+    public static NamespacedKey BOSS_THREAT;     // double 0..1, Threat Scaling already applied
+    public static NamespacedKey BOSS_PHASE;      // int, Ascendant phases already passed
+    public static NamespacedKey STATUE_ITEM;     // string, base64 of the exact item a placed statue/trophy came from
+    public static NamespacedKey WAYSTONE;        // string, waystone id (on waystone items)
+    public static NamespacedKey WAYSTONE_LABEL;  // string, waystone id (on its floating name)
+    public static NamespacedKey PLAYER_DRY_KILLS; // int, boss kills in a row without a reward (pity counter)
     public static NamespacedKey COMPASS_TIER;    // int
     public static NamespacedKey TOTEM_RANK;      // string, rank a Boss Totem summons ("" = random)
 
@@ -61,6 +67,8 @@ public final class Keys {
     public static NamespacedKey MOD_NEMESIS_HEALTH;
     public static NamespacedKey MOD_NEMESIS_SIZE;
     public static NamespacedKey MOD_FOLLOW;
+    public static NamespacedKey MOD_DIFFICULTY;
+    public static NamespacedKey MOD_THREAT;
 
     private Keys() {
     }
@@ -78,6 +86,14 @@ public final class Keys {
         STATUE = new NamespacedKey(plugin, "statue");
         STATUE_LORE = new NamespacedKey(plugin, "statue_lore");
         COMPASS_TIER = new NamespacedKey(plugin, "compass_tier");
+        BOSS_THREAT = new NamespacedKey(plugin, "boss_threat");
+        BOSS_PHASE = new NamespacedKey(plugin, "boss_phase");
+        STATUE_ITEM = new NamespacedKey(plugin, "statue_item");
+        WAYSTONE = new NamespacedKey(plugin, "waystone");
+        WAYSTONE_LABEL = new NamespacedKey(plugin, "waystone_label");
+        PLAYER_DRY_KILLS = new NamespacedKey(plugin, "dry_kills");
+        MOD_DIFFICULTY = new NamespacedKey(plugin, "boss_difficulty");
+        MOD_THREAT = new NamespacedKey(plugin, "boss_threat");
         TOTEM_RANK = new NamespacedKey(plugin, "totem_rank");
         MOD_LAST_STAND = new NamespacedKey(plugin, "last_stand_speed");
         MOD_NEMESIS_HEALTH = new NamespacedKey(plugin, "nemesis_health");

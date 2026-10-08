@@ -81,7 +81,7 @@ public final class GuideBook {
         w.text("You'll know one when you see it:", INK);
         w.add(Component.text("★★★★★ Legendary Undying Zombie", BossRank.GOLD.bookColor()).decorate(TextDecoration.BOLD), true);
         w.blank();
-        w.text("Bosses are bigger" + (s.displayGear ? ", wear armor dyed in their rank colour" : "")
+        w.text("Bosses are bigger" + (s.features.armorSets ? ", wear matching trimmed armor" : "")
             + " and shimmer faintly. Fight one and its health bar appears at the top of your screen.", INK);
         w.blank();
         w.text("At most " + s.maxActive + " bosses can be loaded at once.", SOFT);
@@ -94,6 +94,9 @@ public final class GuideBook {
             RankSettings rs = s.rank(rank);
             w.reserve(4);
             w.add(Component.text(rs.title(), rank.bookColor()).decorate(TextDecoration.BOLD), true);
+            if (!rank.natural()) {
+                w.text("Only reached by promoting a boss with trophies.", SOFT);
+            }
             w.text("Health x" + Text.num(rs.stats().health()) + ", damage x" + Text.num(rs.stats().damage()), INK);
             String traits = rs.traits().min() == rs.traits().max() ? String.valueOf(rs.traits().min())
                 : rs.traits().min() + "-" + rs.traits().max();
@@ -107,6 +110,9 @@ public final class GuideBook {
         w.heading("Rank Odds by Mob", TITLE);
         Component legend = Component.empty();
         for (BossRank rank : BossRank.values()) {
+            if (!rank.natural()) {
+                continue;
+            }
             if (rank.ordinal() > 0) {
                 legend = legend.append(Component.text("/", SOFT));
             }
@@ -120,6 +126,9 @@ public final class GuideBook {
                 .decorate(TextDecoration.BOLD), true);
             TextComponent.Builder odds = Component.text();
             for (BossRank rank : BossRank.values()) {
+                if (!rank.natural()) {
+                    continue;
+                }
                 if (rank.ordinal() > 0) {
                     odds.append(Component.text("/", SOFT));
                 }
@@ -234,6 +243,13 @@ public final class GuideBook {
             w.text(line, INK);
             w.blank();
         }
+        FeatureSettings fs = s.features;
+        if (fs.rewardFloorFrom != null) {
+            w.text(s.rank(fs.rewardFloorFrom).name() + " bosses and up always drop at least one item.", INK);
+        }
+        if (fs.pityAfter > 0) {
+            w.text("Below that, after " + fs.pityAfter + " empty kills in a row the next one is guaranteed.", INK);
+        }
         w.text("Reward drops glow, float their name, and can't burn or despawn.", SOFT);
         w.newPage();
 
@@ -267,7 +283,8 @@ public final class GuideBook {
             w.text(weights(g.materials()), INK);
             w.blank();
         }
-        if (s.displayGear) {
+        w.text("Pickaxes, shovels and hoes drop too, and can carry a weapon enchant like Sharpness.", INK);
+        if (s.features.armorSets) {
             w.text("The armor a boss wears is just for show and never drops.", SOFT);
         }
         w.newPage();
@@ -389,9 +406,75 @@ public final class GuideBook {
             w.reserve(5);
             w.add(Component.text("Trophies", TITLE).decorate(TextDecoration.BOLD), true);
             w.text("Bosses sometimes leave a trophy: a Blaze Core, a Ravager Horn, a Withered Skull... Gold"
-                + " bosses always do.", INK);
+                + " bosses always do." + (f.trophyPlacing ? " Place it to get a tiny copy of the boss." : ""), INK);
         }
         w.newPage();
+
+        // ---------------- Difficulty ----------------
+        sections.put("Threat & Difficulty", w.currentPage());
+        w.heading("Threat", TITLE);
+        w.text("Bosses are " + Math.round((f.difficultyHealth - 1) * 100) + "% tougher and hit "
+            + Math.round((f.difficultyDamage - 1) * 100) + "% harder than their rank alone.", INK);
+        if (f.threatEnabled) {
+            w.blank();
+            w.text("When a fight starts, the boss sizes up the best-geared player nearby. Strong gear means up to +"
+                + Math.round(f.threatMaxHealth) + "% health and +" + Math.round(f.threatMaxDamage)
+                + "% damage, but also up to +" + Math.round(f.threatRewardBonus) + "% better reward odds.", INK);
+        }
+        w.newPage();
+
+        // ---------------- Promotion + Ascendant ----------------
+        if (f.promotionEnabled) {
+            sections.put("Promotion & Ascendant", w.currentPage());
+            w.heading("Promotion", TITLE);
+            w.text("Right-click a boss with a trophy, or throw (drop) the trophy at it, and the boss rises."
+                + " Ranks can be skipped:", INK);
+            w.blank();
+            for (BossRank rank : BossRank.values()) {
+                int[] r = f.promotionSteps.get(rank);
+                if (r == null) {
+                    continue;
+                }
+                String text = r[0] == r[1] ? "+" + r[0] : "+" + r[0] + " to +" + r[1];
+                if (rank == BossRank.GRAY) {
+                    text += " (" + Text.num(f.grayPromotionChance) + "% chance)";
+                }
+                w.add(Component.text(s.rank(rank).name() + " trophy: ", rank.bookColor()).append(Component.text(text, INK)), false);
+            }
+            w.blank();
+            w.text("It heals fully and gains traits for its new rank. Nemeses can't be promoted.", SOFT);
+            w.newPage();
+            w.heading("Ascendant", BossRank.ASCENDANT.bookColor());
+            w.text("Promote a boss past Legendary and it becomes Ascendant (6 stars): the strongest rank,"
+                + " with top-tier loot.", INK);
+            if (f.ascendantPhases) {
+                w.blank();
+                w.text("At " + phases(f) + "% health it breaks into a new phase: a shockwave and a new trait.", INK);
+            }
+            if (f.waystonesEnabled && f.waystoneAscendantDrops > 0) {
+                w.blank();
+                w.text("It drops " + f.waystoneAscendantDrops + " Waystones.", INK);
+            }
+            w.newPage();
+        }
+
+        // ---------------- Waystones ----------------
+        if (f.waystonesEnabled) {
+            sections.put("Waystones", w.currentPage());
+            w.heading("Waystones", TITLE);
+            w.text("Place one and it joins the network. Every waystone, from every player, links to every other."
+                + " Right-click one to travel, free.", INK);
+            w.blank();
+            w.text("- rename it in an anvil before placing (or use a name tag on it)", INK);
+            w.text("- sneak + right-click it with an item to set its icon", INK);
+            w.text("- stand still " + Text.num(f.waystoneWarmupSeconds) + "s; damage cancels", INK);
+            if (f.waystoneBlockInCombat) {
+                w.text("- no escaping mid boss fight", INK);
+            }
+            w.blank();
+            w.text("Only the owner can take it down. Explosions and pistons can't.", SOFT);
+            w.newPage();
+        }
 
         // ---------------- Nemesis ----------------
         if (f.nemesisEnabled) {
@@ -435,9 +518,11 @@ public final class GuideBook {
             w.newPage();
             w.heading("Admin", TITLE);
             command(w, "/bosses spawn <mob> [rank] [traits]", "Spawn a boss.");
-            command(w, "/bosses give <player> <gear|rune|relic|catalyst|compass|totem|guide>", "Create items.");
+            command(w, "/bosses give <player> <gear|rune|relic|catalyst|compass|totem|waystone|guide>", "Create items.");
             command(w, "/bosses nemesis list|summon|clear <player>", "Manage Nemeses.");
             command(w, "/bosses escalate <player>", "Trigger an Escalation.");
+            command(w, "/bosses promote [ranks]", "Promote the boss you look at.");
+            command(w, "/bosses give <player> waystone [amount]", "Give waystones.");
             command(w, "/bosses list", "Active bosses.");
             command(w, "/bosses killall", "Remove all bosses.");
             command(w, "/bosses reload", "Reload config.yml.");
@@ -530,6 +615,14 @@ public final class GuideBook {
         w.add(Component.text(command, NamedTextColor.DARK_BLUE), false);
         w.text(description, SOFT);
         w.blank();
+    }
+
+    private static String phases(FeatureSettings f) {
+        StringJoiner out = new StringJoiner(" and ");
+        for (double d : f.ascendantPhaseThresholds) {
+            out.add(Text.num(d));
+        }
+        return out.toString();
     }
 
     private static <T extends Enum<T>> String weights(Map<T, Integer> weights) {

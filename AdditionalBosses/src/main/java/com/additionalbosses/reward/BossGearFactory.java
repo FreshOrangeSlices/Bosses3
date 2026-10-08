@@ -7,7 +7,9 @@ import com.additionalbosses.config.RankSettings;
 import com.additionalbosses.util.Rng;
 import io.papermc.paper.registry.RegistryAccess;
 import io.papermc.paper.registry.RegistryKey;
+import com.additionalbosses.item.EquipmentType;
 import org.bukkit.Material;
+import org.bukkit.NamespacedKey;
 import org.bukkit.enchantments.Enchantment;
 import org.bukkit.entity.EntityType;
 import org.bukkit.inventory.ItemStack;
@@ -116,6 +118,39 @@ public final class BossGearFactory {
                 level = max + Rng.between(1, overLevels);
             }
             item.addUnsafeEnchantment(e, level);
+        }
+        // Boss tools can carry a weapon enchantment too (Sharpness on a pickaxe hits like it would on a sword).
+        if (EquipmentType.of(item.getType()) == EquipmentType.TOOL && Rng.chance(s.features.toolOffensiveChance)) {
+            addOffensive(item, gear, quality, chosen);
+        }
+    }
+
+    private static final String[] OFFENSIVE = {"sharpness", "sharpness", "sharpness", "smite", "bane_of_arthropods",
+        "fire_aspect", "fire_aspect", "knockback"};
+
+    private void addOffensive(ItemStack item, RankSettings.Gear gear, GearQuality quality, List<Enchantment> chosen) {
+        var registry = RegistryAccess.registryAccess().getRegistry(RegistryKey.ENCHANTMENT);
+        for (int attempt = 0; attempt < 6; attempt++) {
+            String id = OFFENSIVE[Rng.between(0, OFFENSIVE.length - 1)];
+            Enchantment e = registry.get(NamespacedKey.minecraft(id));
+            if (e == null || plugin.settings().excludedEnchantments.contains(id)) {
+                continue;
+            }
+            boolean clash = false;
+            for (Enchantment c : chosen) {
+                if (c.equals(e) || c.conflictsWith(e) || e.conflictsWith(c)) {
+                    clash = true;
+                    break;
+                }
+            }
+            if (clash) {
+                continue;
+            }
+            int max = e.getMaxLevel();
+            int min = Math.max(1, (int) Math.ceil(max * gear.minLevelPercent() / 100.0));
+            int level = Math.max(1, Math.min(max, Rng.between(Math.min(min, max), max) + quality.levelShift()));
+            item.addUnsafeEnchantment(e, level);
+            return;
         }
     }
 }

@@ -19,10 +19,7 @@ import com.additionalbosses.util.Keys;
 import com.additionalbosses.util.PlayerData;
 import com.additionalbosses.util.Rng;
 import com.additionalbosses.util.Text;
-import io.papermc.paper.datacomponent.DataComponentTypes;
-import io.papermc.paper.datacomponent.item.ItemAttributeModifiers;
 import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.TextComponent;
 import net.kyori.adventure.text.format.TextDecoration;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import org.bukkit.Bukkit;
@@ -47,7 +44,6 @@ import org.bukkit.event.entity.EntityDeathEvent;
 import org.bukkit.inventory.EntityEquipment;
 import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemStack;
-import org.bukkit.inventory.meta.LeatherArmorMeta;
 import org.bukkit.persistence.PersistentDataContainer;
 import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.scheduler.BukkitTask;
@@ -57,6 +53,8 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -206,6 +204,12 @@ public final class BossManager {
      */
     public Boss createBoss(LivingEntity entity, BossRank rank, String categoryId, @Nullable List<BossTrait> traits,
                            boolean announce) {
+        return createBoss(entity, rank, categoryId, traits, announce, Set.of());
+    }
+
+    /** {@code alreadyApplied}: trait ids the mob already carries (a promotion), so their one-time setup isn't repeated. */
+    private Boss createBoss(LivingEntity entity, BossRank rank, String categoryId, @Nullable List<BossTrait> traits,
+                            boolean announce, Set<String> alreadyApplied) {
         PluginSettings s = settings();
         RankSettings rs = s.rank(rank);
         MobProfile profile = s.profileFor(entity.getType());
@@ -233,11 +237,11 @@ public final class BossManager {
         entity.setCustomNameVisible(s.alwaysShowName);
         entity.setCanPickupItems(false);
         clearDropChances(entity);
-        if (s.displayGear) {
-            applyDisplayGear(entity, rank);
+        if (s.features.armorSets && !entity.getPersistentDataContainer().has(Keys.NEMESIS, PersistentDataType.STRING)) {
+            BossArmor.applyRankSet(s.features, entity, rank);
         }
         for (BossTrait t : traits) {
-            t.onApply(boss, true);
+            t.onApply(boss, !alreadyApplied.contains(t.id()));
         }
         register(boss);
         if (announce) {
@@ -333,9 +337,10 @@ public final class BossManager {
         String adjective = synergy != null ? synergy.title() + " "
             : traits.isEmpty() ? "" : traits.get(0).adjective() + " ";
         String plain = rank.starText() + " " + rs.name() + " " + adjective + Text.pretty(entity.getType().name());
-        TextComponent name = Component.text(plain, rank.color());
-        Component styled = rank == BossRank.GOLD ? name.decorate(TextDecoration.BOLD) : name;
-        double damage = MobProfile.scaleMultiplier(rs.stats().damage(), profile.damage());
+        Component styled = rank.styled(plain);
+        double damage = MobProfile.scaleMultiplier(rs.stats().damage(), profile.damage())
+            * settings().features.difficultyDamage
+            * (1.0 + threat(entity) * settings().features.threatMaxDamage / 100.0);
         double power = rs.traits().power() * (synergy != null ? Synergies.POWER_BONUS : 1.0);
         return new Boss(entity, rank, categoryId, traits, styled, plain, damage, power);
     }
@@ -353,6 +358,8 @@ public final class BossManager {
         setModifier(e, Attribute.MOVEMENT_SPEED, Keys.MOD_SPEED,
             MobProfile.scaleMultiplier(st.speed(), p.speed()) - 1.0, AttributeModifier.Operation.MULTIPLY_SCALAR_1);
         setModifier(e, Attribute.SCALE, Keys.MOD_SIZE, st.size() * p.size(), AttributeModifier.Operation.ADD_NUMBER);
+        setModifier(e, Attribute.MAX_HEALTH, Keys.MOD_DIFFICULTY, settings().features.difficultyHealth - 1.0,
+            AttributeModifier.Operation.MULTIPLY_SCALAR_1);
         AttributeInstance max = e.getAttribute(Attribute.MAX_HEALTH);
         if (max != null) {
             e.setHealth(max.getValue());
@@ -383,42 +390,6 @@ public final class BossManager {
                 // this mob can't use that slot
             }
         }
-    }
-
-    /**
-     * Cosmetic armour dyed in the rank colour. It is unbreakable, gives no armour points, and never drops:
-     * the real reward is generated separately when the boss dies.
-     */
-    private static void applyDisplayGear(LivingEntity e, BossRank rank) {
-        if (!(e instanceof Zombie || e instanceof AbstractSkeleton || e instanceof PiglinAbstract)) {
-            return;
-        }
-        EntityEquipment eq = e.getEquipment();
-        if (eq == null) {
-            return;
-        }
-        eq.setHelmet(cosmetic(Material.LEATHER_HELMET, rank));
-        if (rank.atLeast(BossRank.RED)) {
-            eq.setBoots(cosmetic(Material.LEATHER_BOOTS, rank));
-        }
-        if (rank.atLeast(BossRank.PURPLE)) {
-            eq.setChestplate(cosmetic(Material.LEATHER_CHESTPLATE, rank));
-        }
-        if (rank == BossRank.GOLD) {
-            eq.setLeggings(cosmetic(Material.LEATHER_LEGGINGS, rank));
-        }
-        clearDropChances(e);
-    }
-
-    private static ItemStack cosmetic(Material material, BossRank rank) {
-        ItemStack item = ItemStack.of(material);
-        item.editMeta(LeatherArmorMeta.class, meta -> meta.setColor(rank.bukkitColor()));
-        item.setData(DataComponentTypes.ATTRIBUTE_MODIFIERS, ItemAttributeModifiers.itemAttributes().build());
-        item.setData(DataComponentTypes.UNBREAKABLE);
-        if (rank.atLeast(BossRank.PURPLE)) {
-            item.setData(DataComponentTypes.ENCHANTMENT_GLINT_OVERRIDE, true);
-        }
-        return item;
     }
 
     // =====================================================================
@@ -503,6 +474,7 @@ public final class BossManager {
         boolean first = !boss.engaged().containsKey(player.getUniqueId());
         boss.engage(player, Bukkit.getCurrentTick());
         if (first) {
+            applyThreat(boss);
             // Once a fight has started, ranks marked persistent stop despawning, so a boss never vanishes
             // just because the player stepped back to heal. Bosses nobody has fought still despawn normally.
             if (settings().rank(boss.rank()).persistent()) {
@@ -511,6 +483,159 @@ public final class BossManager {
             plugin.presentation().reveal(boss, player);
             plugin.bossBars().refreshViewers(boss);
         }
+    }
+
+    // =====================================================================
+    // Threat Scaling
+    // =====================================================================
+
+    /** The Threat Scaling value already applied to this boss (0 = none, 1 = full). */
+    public static double threat(LivingEntity e) {
+        return e.getPersistentDataContainer().getOrDefault(Keys.BOSS_THREAT, PersistentDataType.DOUBLE, 0.0);
+    }
+
+    /**
+     * The first time a boss is engaged it sizes up the best-geared player nearby: the stronger their gear
+     * (armor, enchantments, runes, relics), the more health and damage it gains. Applied once per boss.
+     */
+    private void applyThreat(Boss boss) {
+        FeatureSettings f = settings().features;
+        LivingEntity e = boss.entity();
+        if (!f.threatEnabled || e.getPersistentDataContainer().has(Keys.BOSS_THREAT, PersistentDataType.DOUBLE)) {
+            return;
+        }
+        double best = 0;
+        for (Player p : boss.nearbyPlayers(f.threatRadius)) {
+            best = Math.max(best, gearScore(p));
+        }
+        double threat = Math.max(0, Math.min(1, best / f.threatReferenceScore));
+        e.getPersistentDataContainer().set(Keys.BOSS_THREAT, PersistentDataType.DOUBLE, threat);
+        if (threat <= 0.01) {
+            return;
+        }
+        double ratio = boss.healthRatio();
+        setModifier(e, Attribute.MAX_HEALTH, Keys.MOD_THREAT, threat * f.threatMaxHealth / 100.0,
+            AttributeModifier.Operation.MULTIPLY_SCALAR_1);
+        e.setHealth(Math.max(1, boss.maxHealth() * ratio));
+        boss.setDamageMultiplier(boss.damageMultiplier() * (1.0 + threat * f.threatMaxDamage / 100.0));
+        plugin.bossBars().updateHealth(boss, e.getHealth());
+    }
+
+    /** Rough gear score: material tier, enchantment levels, runes and relics on armor and the main hand. */
+    public double gearScore(Player p) {
+        double score = 0;
+        org.bukkit.inventory.PlayerInventory inv = p.getInventory();
+        ItemStack[] items = {inv.getHelmet(), inv.getChestplate(), inv.getLeggings(), inv.getBoots(), inv.getItemInMainHand()};
+        for (ItemStack item : items) {
+            if (item == null || item.isEmpty()) {
+                continue;
+            }
+            String n = item.getType().name();
+            score += n.startsWith("NETHERITE") ? 5 : n.startsWith("DIAMOND") ? 4
+                : n.startsWith("IRON") || n.startsWith("CHAINMAIL") || n.startsWith("COPPER") ? 3
+                : n.startsWith("GOLDEN") || n.startsWith("LEATHER") || n.startsWith("STONE") ? 1.5
+                : n.equals("MACE") || n.equals("TRIDENT") || n.equals("BOW") || n.equals("CROSSBOW") ? 4 : 0;
+            int levels = 0;
+            for (int lvl : item.getEnchantments().values()) {
+                levels += lvl;
+            }
+            score += Math.min(18, levels);
+            score += 3 * com.additionalbosses.item.ItemService.list(item, Keys.EMPOWERMENTS).size();
+            score += 4 * com.additionalbosses.item.ItemService.list(item, Keys.RELICS).size();
+        }
+        return score;
+    }
+
+    // =====================================================================
+    // Promotion (trophies) + Ascendant phases
+    // =====================================================================
+
+    /**
+     * Raises a living boss by some ranks (it heals to full at the new rank and gains traits to match).
+     * Returns the new boss, or null if it can't be promoted (Nemesis, already Ascendant).
+     */
+    public @Nullable Boss promote(Boss boss, int steps, @Nullable Player by) {
+        BossRank target = boss.rank().up(steps);
+        if (boss.isNemesis() || target == boss.rank() || !boss.entity().isValid()) {
+            return null;
+        }
+        LivingEntity e = boss.entity();
+        List<BossTrait> traits = new ArrayList<>(boss.traits());
+        RankSettings rs = settings().rank(target);
+        int want = Rng.between(rs.traits().min(), rs.traits().max());
+        while (traits.size() < want) {
+            BossTrait extra = plugin.traits().rollExtra(e, traits);
+            if (extra == null) {
+                break;
+            }
+            traits.add(extra);
+        }
+        List<UUID> fighters = new ArrayList<>(boss.engaged().keySet());
+        Set<UUID> minions = new HashSet<>(boss.minions());
+        boolean undying = boss.undyingUsed();
+        unregister(boss);
+        e.getPersistentDataContainer().remove(Keys.BOSS_LAST_STAND);
+        e.getPersistentDataContainer().remove(Keys.BOSS_PHASE);
+        setModifier(e, Attribute.MOVEMENT_SPEED, Keys.MOD_LAST_STAND, 0, AttributeModifier.Operation.MULTIPLY_SCALAR_1);
+        double threat = threat(e);
+        Boss promoted = createBoss(e, target, boss.categoryId(), traits, false, new HashSet<>(boss.traitIds()));
+        if (threat > 0.01) {
+            setModifier(e, Attribute.MAX_HEALTH, Keys.MOD_THREAT, threat * settings().features.threatMaxHealth / 100.0,
+                AttributeModifier.Operation.MULTIPLY_SCALAR_1);
+            e.setHealth(promoted.maxHealth());
+        }
+        promoted.minions().addAll(minions);
+        promoted.setUndyingUsed(undying);
+        for (UUID id : fighters) {
+            Player p = Bukkit.getPlayer(id);
+            if (p != null) {
+                engage(promoted, p);
+            }
+        }
+        if (by != null) {
+            engage(promoted, by);
+        }
+        e.getWorld().strikeLightningEffect(e.getLocation());
+        Fx.dust(Fx.center(e), target.bukkitColor(), 2.2f, 60, 1.0);
+        Fx.particle(Fx.center(e), Particle.END_ROD, 40, 0.8, 0.1);
+        Fx.play(e.getLocation(), "block.beacon.power_select", 1.0f, 0.7f);
+        plugin.presentation().announcePromotion(promoted, by);
+        return promoted;
+    }
+
+    /** Ascendant bosses break into a new phase at set health marks: a shockwave and a new trait. */
+    public void checkPhases(Boss boss, double healthAfter) {
+        FeatureSettings f = settings().features;
+        if (boss.rank() != BossRank.ASCENDANT || !f.ascendantPhases || healthAfter <= 0) {
+            return;
+        }
+        LivingEntity e = boss.entity();
+        int passed = e.getPersistentDataContainer().getOrDefault(Keys.BOSS_PHASE, PersistentDataType.INTEGER, 0);
+        if (passed >= f.ascendantPhaseThresholds.size()
+            || healthAfter / boss.maxHealth() * 100.0 > f.ascendantPhaseThresholds.get(passed)) {
+            return;
+        }
+        e.getPersistentDataContainer().set(Keys.BOSS_PHASE, PersistentDataType.INTEGER, passed + 1);
+        e.addPotionEffect(new PotionEffect(PotionEffectType.RESISTANCE, 50, 3, false, false));
+        double radius = f.ascendantShockwaveRadius;
+        for (Player p : boss.nearbyPlayers(radius)) {
+            p.damage(f.ascendantShockwaveDamage * boss.power(), e);
+            org.bukkit.util.Vector away = p.getLocation().toVector().subtract(e.getLocation().toVector()).setY(0);
+            if (away.lengthSquared() < 0.01) {
+                away = new org.bukkit.util.Vector(0.1, 0, 0);
+            }
+            p.setVelocity(away.normalize().multiply(1.4).setY(0.6));
+        }
+        BossTrait extra = plugin.traits().rollExtra(e, boss.traits());
+        if (extra != null) {
+            boss.addTrait(extra);
+            extra.onApply(boss, true);
+            saveTraits(boss);
+        }
+        Fx.play(e.getLocation(), "entity.warden.sonic_boom", 1.0f, 0.8f);
+        Fx.particle(Fx.center(e), Particle.SONIC_BOOM, 1, 0, 0);
+        Fx.particle(e.getLocation().add(0, 0.2, 0), Particle.END_ROD, 80, radius / 2.0, 0.05);
+        plugin.presentation().messageNearby(boss, "ascendant-phase", 48);
     }
 
     // =====================================================================
@@ -529,7 +654,7 @@ public final class BossManager {
 
         if (eligible) {
             event.setDroppedExp((int) Math.round(event.getDroppedExp() * rs.xpMultiplier()) + rs.xpBonus());
-            List<ItemStack> rewards = new ArrayList<>(plugin.rewards().roll(boss, killer));
+            List<ItemStack> rewards = new ArrayList<>(plugin.rewards().rollWithFloor(boss, killer));
 
             // Revenge: this boss killed the player who finally brought it down.
             boolean revenge = killer != null && boss.killed(killer.getUniqueId());
@@ -543,6 +668,15 @@ public final class BossManager {
             }
             if (f.trophiesEnabled && (boss.isNemesis() || Rng.chance(f.trophyChance.getOrDefault(boss.rank(), 0.0)))) {
                 rewards.add(plugin.trophies().createTrophy(boss, killer));
+            }
+            if (f.waystonesEnabled) {
+                int stones = boss.rank() == BossRank.ASCENDANT ? f.waystoneAscendantDrops : 0;
+                if (Rng.chance(f.waystoneDropChance.getOrDefault(boss.rank(), 0.0))) {
+                    stones++;
+                }
+                for (int i = 0; i < stones; i++) {
+                    rewards.add(plugin.waystones().createItem(null));
+                }
             }
             if (f.totemEnabled && Rng.chance(f.totemDropChance.getOrDefault(boss.rank(), 0.0))) {
                 rewards.add(plugin.items().createTotem(null)); // dropped totems call a random rank

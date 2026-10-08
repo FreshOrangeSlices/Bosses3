@@ -59,6 +59,21 @@ public final class Messages {
         DEFAULTS.put("totem-ritual", "<dark_purple>The totem shudders... something answers.</dark_purple>");
         DEFAULTS.put("totem-blocked", "<red>The totem stays silent here.</red>");
         DEFAULTS.put("compass-upgraded", "<gold>Your Hunter's Compass sharpens!</gold> <gray>Now tier <count>.</gray>");
+        DEFAULTS.put("promoted-subtitle", "<boss> <gray>rises!</gray>");
+        DEFAULTS.put("ascended", "<player> <gray>has raised</gray> <boss> <gray>to Ascendance!</gray>");
+        DEFAULTS.put("ascendant-phase", "<boss> <white><bold>breaks into a new phase!</bold></white>");
+        DEFAULTS.put("promote-fail", "<gray>The trophy crumbles to dust... nothing answers.</gray>");
+        DEFAULTS.put("promote-blocked", "<red>That boss can't rise any higher.</red>");
+        DEFAULTS.put("waystone-placed", "<aqua>Waystone</aqua> <white><name></white> <aqua>joins the network.</aqua>");
+        DEFAULTS.put("waystone-removed", "<gray>Waystone</gray> <white><name></white> <gray>was taken down.</gray>");
+        DEFAULTS.put("waystone-not-owner", "<red>Only <owner> can take this waystone down.</red>");
+        DEFAULTS.put("waystone-renamed", "<aqua>Waystone renamed to</aqua> <white><name></white><aqua>.</aqua>");
+        DEFAULTS.put("waystone-warmup", "<aqua>Travelling to</aqua> <white><name></white><aqua>... hold still.</aqua>");
+        DEFAULTS.put("waystone-cancelled", "<red>Travel cancelled.</red>");
+        DEFAULTS.put("waystone-arrived", "<aqua>Arrived at</aqua> <white><name></white><aqua>.</aqua>");
+        DEFAULTS.put("waystone-combat", "<red>The waystones won't answer while a boss is hunting you.</red>");
+        DEFAULTS.put("waystone-cooldown", "<red>The waystone is still recharging (<count>s).</red>");
+        DEFAULTS.put("waystone-blocked", "<red>That waystone is blocked or in a world you can't reach.</red>");
         DEFAULTS.put("guide-received", "<gold>You received the</gold> <yellow>Boss Hunter's Compendium</yellow><gold>. Read it to learn about bosses!</gold>");
     }
 

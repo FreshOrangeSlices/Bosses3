@@ -48,7 +48,7 @@ public final class BossesCommand implements BasicCommand {
     private static final String USE = "additionalbosses.use";
     private static final String ADMIN = "additionalbosses.admin";
     private static final List<String> PLAYER_SUBS = List.of("help", "guide", "apply", "inspect", "stats", "nemesis");
-    private static final List<String> ADMIN_SUBS = List.of("spawn", "give", "list", "killall", "reload", "escalate");
+    private static final List<String> ADMIN_SUBS = List.of("spawn", "give", "list", "killall", "reload", "escalate", "promote");
 
     private final AdditionalBosses plugin;
 
@@ -80,6 +80,7 @@ public final class BossesCommand implements BasicCommand {
             case "stats" -> stats(sender);
             case "nemesis" -> nemesis(sender, args);
             case "escalate" -> escalate(sender, args);
+            case "promote" -> promote(sender, args);
             case "spawn" -> spawn(sender, args);
             case "give" -> give(sender, args);
             case "list" -> list(sender);
@@ -108,6 +109,8 @@ public final class BossesCommand implements BasicCommand {
             line(sender, "/bosses give <player> compass [tier] | totem [rank]", "give a Hunter's Compass or Boss Totem");
             line(sender, "/bosses nemesis list|summon|clear <player>", "manage Nemeses");
             line(sender, "/bosses escalate <player>", "trigger an Escalation on a player");
+            line(sender, "/bosses promote [ranks]", "promote the boss you are looking at");
+            line(sender, "/bosses give <player> waystone [amount]", "give Waystones");
             line(sender, "/bosses list | killall | reload", "admin tools");
         }
     }
@@ -318,6 +321,33 @@ public final class BossesCommand implements BasicCommand {
         return cached == null ? null : cached.getUniqueId();
     }
 
+    private void promote(CommandSender sender, String[] args) {
+        if (!(sender instanceof Player player)) {
+            error(sender, "Only players can do that.");
+            return;
+        }
+        Boss boss = plugin.bosses().get(player.getTargetEntity(24));
+        if (boss == null) {
+            error(sender, "Look at a boss first.");
+            return;
+        }
+        int steps = 1;
+        if (args.length >= 2) {
+            try {
+                steps = Math.max(1, Integer.parseInt(args[1]));
+            } catch (NumberFormatException ex) {
+                error(sender, "Not a number: " + args[1]);
+                return;
+            }
+        }
+        Boss promoted = plugin.bosses().promote(boss, steps, player);
+        if (promoted == null) {
+            error(sender, "That boss can't be promoted (Nemesis, or already Ascendant).");
+            return;
+        }
+        sender.sendMessage(Component.text("Promoted to ", NamedTextColor.GRAY).append(promoted.name()));
+    }
+
     private void escalate(CommandSender sender, String[] args) {
         Player target = args.length >= 2 ? Bukkit.getPlayerExact(args[1]) : sender instanceof Player p ? p : null;
         if (target == null) {
@@ -399,7 +429,7 @@ public final class BossesCommand implements BasicCommand {
 
     private void give(CommandSender sender, String[] args) {
         if (args.length < 3) {
-            error(sender, "Usage: /bosses give <player> <gear|rune|relic|catalyst|compass|totem|guide> ...");
+            error(sender, "Usage: /bosses give <player> <gear|rune|relic|catalyst|compass|totem|waystone|guide> ...");
             return;
         }
         Player target = Bukkit.getPlayerExact(args[1]);
@@ -499,13 +529,25 @@ public final class BossesCommand implements BasicCommand {
                 }
                 item = items.createTotem(rank);
             }
+            case "waystone" -> {
+                int amount = 1;
+                if (args.length >= 4) {
+                    try {
+                        amount = Math.max(1, Math.min(64, Integer.parseInt(args[3])));
+                    } catch (NumberFormatException ex) {
+                        error(sender, "Not a number: " + args[3]);
+                        return;
+                    }
+                }
+                item = plugin.waystones().createItem(null).asQuantity(amount);
+            }
             case "guide" -> {
                 plugin.guide().give(target);
                 info(sender, "Gave the guide to " + target.getName() + ".");
                 return;
             }
             default -> {
-                error(sender, "Unknown item: " + args[2] + " (gear, rune, relic, catalyst, compass, totem, guide)");
+                error(sender, "Unknown item: " + args[2] + " (gear, rune, relic, catalyst, compass, totem, waystone, guide)");
                 return;
             }
         }
@@ -558,6 +600,9 @@ public final class BossesCommand implements BasicCommand {
             }
             return List.of();
         }
+        if (sub.equals("promote") && args.length == 2) {
+            return filter(List.of("1", "2", "3", "4", "5"), last);
+        }
         if (sub.equals("escalate") && args.length == 2) {
             return filter(onlineNames(), last);
         }
@@ -588,7 +633,7 @@ public final class BossesCommand implements BasicCommand {
                 return filter(onlineNames(), last);
             }
             if (args.length == 3) {
-                return filter(List.of("gear", "rune", "relic", "catalyst", "compass", "totem", "guide"), last);
+                return filter(List.of("gear", "rune", "relic", "catalyst", "compass", "totem", "waystone", "guide"), last);
             }
             String what = args[2].toLowerCase(Locale.ROOT);
             if (args.length == 4) {

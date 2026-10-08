@@ -44,8 +44,7 @@ public final class Presentation {
     }
 
     public Component rankTitle(BossRank rank) {
-        Component c = Component.text(plugin.settings().rank(rank).title(), rank.color());
-        return rank == BossRank.GOLD ? c.decorate(TextDecoration.BOLD) : c;
+        return rank.styled(plugin.settings().rank(rank).title());
     }
 
     /** Shown to players near a boss right after it appears naturally. */
@@ -87,8 +86,8 @@ public final class Presentation {
             LivingEntity e = boss.entity();
             int burst = 6 + boss.rank().stars() * 6;
             Fx.dust(Fx.center(e), boss.rank().bukkitColor(), 1.6f, burst, 0.7);
-            if (boss.rank() == BossRank.GOLD) {
-                Fx.particle(Fx.center(e), Particle.END_ROD, 20, 0.6, 0.05);
+            if (boss.rank().top()) {
+                Fx.particle(Fx.center(e), Particle.END_ROD, boss.rank() == BossRank.ASCENDANT ? 50 : 20, 0.6, 0.05);
             }
         }
     }
@@ -102,6 +101,9 @@ public final class Presentation {
             Fx.dust(at, boss.rank().bukkitColor(), 1.1f, count, Math.max(0.3, e.getWidth() * 0.6));
             if (boss.rank() == BossRank.GOLD) {
                 Fx.particle(at, Particle.WAX_ON, 1, 0.5, 0);
+            } else if (boss.rank() == BossRank.ASCENDANT) {
+                Fx.particle(at, Particle.END_ROD, 2, 0.6, 0.01);
+                Fx.particle(at.clone().add(0, e.getHeight() * 0.6, 0), Particle.ELECTRIC_SPARK, 2, 0.5, 0.05);
             }
         }
         if (plugin.settings().environmentalParticles) {
@@ -164,7 +166,11 @@ public final class Presentation {
         LivingEntity e = boss.entity();
         Location at = Fx.center(e);
         Fx.dust(at, boss.rank().bukkitColor(), 1.8f, 10 + boss.rank().stars() * 8, 0.8);
-        if (boss.rank() == BossRank.GOLD) {
+        if (boss.rank() == BossRank.ASCENDANT) {
+            Fx.particle(at, Particle.END_ROD, 120, 1.0, 0.3);
+            Fx.particle(at, Particle.TOTEM_OF_UNDYING, 120, 1.0, 0.5);
+            e.getWorld().strikeLightningEffect(e.getLocation());
+        } else if (boss.rank() == BossRank.GOLD) {
             Fx.particle(at, Particle.TOTEM_OF_UNDYING, 80, 0.8, 0.4);
         } else if (boss.rank() == BossRank.PURPLE) {
             Fx.particle(at, Particle.WITCH, 40, 0.8, 0.1);
@@ -187,6 +193,25 @@ public final class Presentation {
                     player.sendMessage(msg);
                 }
             }
+        }
+    }
+
+    /** Everyone nearby sees a promoted boss's new rank; Ascendant promotions are told to the whole server. */
+    public void announcePromotion(Boss boss, @Nullable Player by) {
+        Messages m = plugin.settings().messages;
+        LivingEntity e = boss.entity();
+        Component title = rankTitle(boss.rank());
+        for (Player player : e.getWorld().getPlayers()) {
+            if (player.getLocation().distanceSquared(e.getLocation()) > 64 * 64) {
+                continue;
+            }
+            player.showTitle(Title.title(title, m.get("promoted-subtitle", Placeholder.component("boss", boss.name())),
+                Title.Times.times(Duration.ofMillis(200), Duration.ofMillis(2200), Duration.ofMillis(700))));
+            Fx.playTo(player, of(boss).sound());
+        }
+        if (boss.rank() == BossRank.ASCENDANT) {
+            Bukkit.getServer().sendMessage(m.prefixed("ascended", Placeholder.component("boss", boss.name()),
+                Placeholder.component("player", by == null ? Component.text("Someone") : by.displayName())));
         }
     }
 
