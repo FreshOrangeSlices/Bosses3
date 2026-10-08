@@ -1,6 +1,14 @@
 package com.additionalbosses.boss;
 
 import com.additionalbosses.AdditionalBosses;
+import com.additionalbosses.config.FeatureSettings;
+import com.additionalbosses.trait.BaseTrait;
+import com.additionalbosses.trait.Synergies;
+import com.additionalbosses.util.SafeSpots;
+import com.destroystokyo.paper.entity.RangedEntity;
+import org.bukkit.entity.EntityType;
+import org.bukkit.potion.PotionEffect;
+import org.bukkit.potion.PotionEffectType;
 import com.additionalbosses.config.MobCategory;
 import com.additionalbosses.config.MobProfile;
 import com.additionalbosses.config.PluginSettings;
@@ -98,7 +106,8 @@ public final class BossManager {
 
     public void handleSpawn(LivingEntity entity, SpawnReason reason) {
         PluginSettings s = settings();
-        if (!s.enabled || !Bukkit.isPrimaryThread() || isBoss(entity) || isMinion(entity)) {
+        if (!s.enabled || !Bukkit.isPrimaryThread() || isBoss(entity) || isMinion(entity)
+            || entity.getPersistentDataContainer().has(Keys.STATUE, PersistentDataType.STRING)) {
             return;
         }
         MobCategory category = s.categoryFor(entity.getType());
@@ -122,12 +131,42 @@ public final class BossManager {
         if (!Rng.chance(s.spawnChance * category.spawnChanceMultiplier())) {
             return;
         }
-        if (active.size() >= s.maxActive || tooCloseToAnotherBoss(entity.getLocation())) {
+        if (regularCount() >= s.maxActive || tooCloseToAnotherBoss(entity.getLocation())) {
             return;
         }
         // Roll #2: which rank? (weighted by the mob's category)
         BossRank rank = category.rollRank();
         createBoss(entity, rank, category.id(), null, true);
+    }
+
+    /** Active bosses that count toward the cap (Nemeses ignore it). */
+    public int regularCount() {
+        int n = 0;
+        for (Boss b : active.values()) {
+            if (!b.isNemesis()) {
+                n++;
+            }
+        }
+        return n;
+    }
+
+    /**
+     * Spawns a brand-new boss of the given type at a location (totems, escalation, nemesis returns, admin).
+     * Ignores the boss cap. Returns null if the type isn't a mob.
+     */
+    public @Nullable Boss summon(EntityType type, Location at, BossRank rank, @Nullable List<BossTrait> traits,
+                                 boolean announce, String category) {
+        Class<? extends Entity> cls = type.getEntityClass();
+        if (cls == null || !Mob.class.isAssignableFrom(cls)) {
+            return null;
+        }
+        Boss[] out = new Boss[1];
+        at.getWorld().spawn(at, cls, SpawnReason.CUSTOM, e -> {
+            if (e instanceof LivingEntity living) {
+                out[0] = createBoss(living, rank, category, traits, announce);
+            }
+        });
+        return out[0];
     }
 
     /** Paper gives mobs placed by structures/world generation the DEFAULT spawn reason. */
@@ -168,7 +207,7 @@ public final class BossManager {
             traits = plugin.traits().roll(entity, count);
         }
 
-        applyStats(entity, rs.stats(), profile);
+        applyStats(entity, rank, rs.stats(), profile);
 
         PersistentDataContainer pdc = entity.getPersistentDataContainer();
         pdc.set(Keys.BOSS, PersistentDataType.BYTE, (byte) 1);
@@ -224,8 +263,17 @@ public final class BossManager {
                 traits.add(t);
             }
         }
+        if (pdc.has(Keys.NEMESIS, PersistentDataType.STRING)) {
+            // A Nemesis left over from a plugin reload: its saved record brings it back properly later.
+            entity.remove();
+            return null;
+        }
         Boss boss = build(entity, rank, category, traits);
         boss.setUndyingUsed(pdc.has(Keys.BOSS_UNDYING, PersistentDataType.BYTE));
+        if (pdc.has(Keys.BOSS_LAST_STAND, PersistentDataType.BYTE)) {
+            boss.setLastStand(true);
+            boss.setPower(boss.power() * (1.0 + settings().features.lastStandPowerBonus / 100.0));
+        }
         for (BossTrait t : traits) {
             t.onApply(boss, false);
         }
@@ -256,15 +304,20 @@ public final class BossManager {
     private Boss build(LivingEntity entity, BossRank rank, String categoryId, List<BossTrait> traits) {
         RankSettings rs = settings().rank(rank);
         MobProfile profile = settings().profileFor(entity.getType());
-        String adjective = traits.isEmpty() ? "" : traits.get(0).adjective() + " ";
+        Synergies.Synergy synergy = Synergies.find(traits);
+        String adjective = synergy != null ? synergy.title() + " "
+            : traits.isEmpty() ? "" : traits.get(0).adjective() + " ";
         String plain = rank.starText() + " " + rs.name() + " " + adjective + Text.pretty(entity.getType().name());
         TextComponent name = Component.text(plain, rank.color());
         Component styled = rank == BossRank.GOLD ? name.decorate(TextDecoration.BOLD) : name;
         double damage = MobProfile.scaleMultiplier(rs.stats().damage(), profile.damage());
-        return new Boss(entity, rank, categoryId, traits, styled, plain, damage, rs.traits().power());
+        double power = rs.traits().power() * (synergy != null ? Synergies.POWER_BONUS : 1.0);
+        return new Boss(entity, rank, categoryId, traits, styled, plain, damage, power);
     }
 
-    private void applyStats(LivingEntity e, RankSettings.Stats st, MobProfile p) {
+    private void applyStats(LivingEntity e, BossRank rank, RankSettings.Stats st, MobProfile p) {
+        // Higher ranks notice players from further away (more aggressive encounters).
+        setModifier(e, Attribute.FOLLOW_RANGE, Keys.MOD_FOLLOW, rank.ordinal() * 6.0, AttributeModifier.Operation.ADD_NUMBER);
         setModifier(e, Attribute.MAX_HEALTH, Keys.MOD_HEALTH,
             MobProfile.scaleMultiplier(st.health(), p.health()) - 1.0, AttributeModifier.Operation.MULTIPLY_SCALAR_1);
         setModifier(e, Attribute.ARMOR, Keys.MOD_ARMOR, st.armor() * p.defense(), AttributeModifier.Operation.ADD_NUMBER);
@@ -389,7 +442,21 @@ public final class BossManager {
                 <= settings().bossbarViewDistance * settings().bossbarViewDistance) {
                 engage(boss, chased);
             }
-            boss.expireEngagements(now, timeout);
+            if (plugin.nemesis().tickActive(boss)) {
+                continue; // the Nemesis withdrew (its prey fled or logged off)
+            }
+            boolean gone = false;
+            for (UUID fled : boss.expireEngagements(now, timeout)) {
+                if (plugin.nemesis().onPlayerFled(boss, fled)) {
+                    gone = true;
+                    break;
+                }
+            }
+            if (gone) {
+                continue;
+            }
+            checkStuck(boss, now);
+            pursue(boss, now);
             plugin.bossBars().refreshViewers(boss);
             for (BossTrait trait : boss.traits()) {
                 try {
@@ -432,14 +499,33 @@ public final class BossManager {
             killer = boss.lastEngagedPlayer();
         }
         RankSettings rs = settings().rank(boss.rank());
+        FeatureSettings f = settings().features;
         boolean eligible = !settings().requirePlayerForRewards || killer != null;
 
         if (eligible) {
             event.setDroppedExp((int) Math.round(event.getDroppedExp() * rs.xpMultiplier()) + rs.xpBonus());
-            List<ItemStack> rewards = plugin.rewards().roll(boss, killer);
+            List<ItemStack> rewards = new ArrayList<>(plugin.rewards().roll(boss, killer));
+
+            // Revenge: this boss killed the player who finally brought it down.
+            boolean revenge = killer != null && boss.killed(killer.getUniqueId());
+            if (revenge) {
+                event.setDroppedExp((int) Math.round(event.getDroppedExp() * f.nemesisRevengeXpMultiplier));
+                rewards.addAll(plugin.rewards().roll(boss, killer));
+                killer.sendMessage(settings().messages.prefixed("revenge"));
+            }
+            if (boss.isNemesis()) {
+                plugin.nemesis().onSlain(boss, killer, event, rewards);
+            }
+            if (f.trophiesEnabled && (boss.isNemesis() || Rng.chance(f.trophyChance.getOrDefault(boss.rank(), 0.0)))) {
+                rewards.add(plugin.trophies().createTrophy(boss, killer));
+            }
+            if (f.totemEnabled && Rng.chance(f.totemDropChance.getOrDefault(boss.rank(), 0.0))) {
+                rewards.add(plugin.items().createTotem(boss.rank()));
+            }
             dropRewards(boss, rewards);
             if (killer != null) {
                 PlayerData.addKill(killer, boss.rank());
+                plugin.escalation().recordKill(killer);
                 if (!rewards.isEmpty()) {
                     Component list = Component.empty();
                     for (int i = 0; i < rewards.size(); i++) {
@@ -451,6 +537,8 @@ public final class BossManager {
                     killer.sendMessage(settings().messages.prefixed("rewards", Placeholder.component("items", list)));
                 }
             }
+        } else if (boss.isNemesis()) {
+            plugin.nemesis().onSlain(boss, null, event, new ArrayList<>());
         }
 
         for (BossTrait trait : boss.traits()) {
@@ -459,6 +547,110 @@ public final class BossManager {
         plugin.presentation().death(boss, killer);
         removeMinions(boss);
         plugin.bossBars().remove(boss);
+    }
+
+    // =====================================================================
+    // Anti-trap + Last Stand
+    // =====================================================================
+
+    /** Pulls bosses out of vehicles and frees them if they can't reach their target for a while. */
+    private void checkStuck(Boss boss, int now) {
+        FeatureSettings f = settings().features;
+        LivingEntity e = boss.entity();
+        if (f.blockVehicles && e.isInsideVehicle()) {
+            e.leaveVehicle();
+        }
+        if (!f.unstuckEnabled || !BaseTrait.walks(e)) {
+            return;
+        }
+        Player target = boss.target();
+        boolean wantsToMove = false;
+        if (target != null) {
+            double dist = target.getLocation().distance(e.getLocation());
+            boolean ranged = e instanceof RangedEntity;
+            // Archers standing still and shooting are fine; only count them stuck when they can't see you.
+            wantsToMove = dist > 3.5 && dist < 48 && (!ranged || !e.hasLineOfSight(target));
+        }
+        if (boss.stuckTicks(now, wantsToMove) < f.unstuckTicks || target == null) {
+            return;
+        }
+        boss.resetStuck();
+        Location spot = SafeSpots.behind(target, 2.5);
+        if (spot != null) {
+            Fx.particle(Fx.center(e), Particle.PORTAL, 30, 0.5, 0.4);
+            e.teleport(spot);
+            Fx.particle(Fx.center(e), Particle.PORTAL, 30, 0.5, 0.4);
+            Fx.play(spot, "entity.enderman.teleport", 1.0f, 0.7f);
+        } else {
+            // Nowhere to stand near the player (e.g. a 1x1 pillar): drag the player down instead.
+            org.bukkit.util.Vector pull = e.getLocation().toVector().subtract(target.getLocation().toVector());
+            if (pull.lengthSquared() > 0.01) {
+                target.setVelocity(pull.normalize().multiply(1.1).setY(0.2));
+            }
+            Fx.play(target.getLocation(), "entity.warden.sonic_charge", 0.8f, 1.2f);
+        }
+        plugin.presentation().messageNearby(boss, "unstuck", 32);
+    }
+
+    /**
+     * Rank personality: Red and higher bosses don't let you simply walk away. When their target backs off they
+     * surge after it (Purple, Gold and Nemesis bosses harder), while Gray and Green bosses stay sluggish.
+     */
+    private void pursue(Boss boss, int now) {
+        if (!settings().features.pursuit || !boss.rank().atLeast(BossRank.RED) || !boss.ready("pursuit", now)) {
+            return;
+        }
+        LivingEntity e = boss.entity();
+        Player target = boss.target();
+        if (target == null || !BaseTrait.walks(e) || e instanceof RangedEntity) {
+            return;
+        }
+        double dist = target.getLocation().distance(e.getLocation());
+        if (dist < 8 || dist > 32) {
+            return;
+        }
+        boolean strong = boss.isNemesis() || boss.rank().atLeast(BossRank.PURPLE);
+        e.addPotionEffect(new PotionEffect(PotionEffectType.SPEED, strong ? 50 : 30, strong ? 1 : 0, false, false));
+        boss.cooldown("pursuit", now, strong ? 140 : 200);
+        Fx.particle(e.getLocation().add(0, 0.1, 0), Particle.CLOUD, 6, 0.3, 0.02);
+    }
+
+    /** Purple/Gold bosses (and every Nemesis) make a Last Stand once at low health. */
+    public void checkLastStand(Boss boss, double healthAfter) {
+        FeatureSettings f = settings().features;
+        if (boss.lastStand() || healthAfter <= 0) {
+            return;
+        }
+        if (!boss.isNemesis() && !f.lastStandRanks.contains(boss.rank())) {
+            return;
+        }
+        if (healthAfter / boss.maxHealth() * 100.0 > f.lastStandHealthPercent) {
+            return;
+        }
+        LivingEntity e = boss.entity();
+        boss.setLastStand(true);
+        e.getPersistentDataContainer().set(Keys.BOSS_LAST_STAND, PersistentDataType.BYTE, (byte) 1);
+        boss.setPower(boss.power() * (1.0 + f.lastStandPowerBonus / 100.0));
+        setModifier(e, Attribute.MOVEMENT_SPEED, Keys.MOD_LAST_STAND, f.lastStandSpeedBonus / 100.0,
+            AttributeModifier.Operation.MULTIPLY_SCALAR_1);
+        if (f.lastStandDormantTrait) {
+            BossTrait extra = plugin.traits().rollExtra(e, boss.traits());
+            if (extra != null) {
+                boss.addTrait(extra);
+                extra.onApply(boss, true);
+                saveTraits(boss);
+            }
+        }
+        e.addPotionEffect(new PotionEffect(PotionEffectType.RESISTANCE, 40, 1, false, false));
+        Fx.play(e.getLocation(), "entity.ender_dragon.growl", 0.9f, 0.8f);
+        Fx.dust(Fx.center(e), boss.rank().bukkitColor(), 2.0f, 40, 1.0);
+        Fx.particle(Fx.center(e), Particle.SOUL_FIRE_FLAME, 40, 0.8, 0.05);
+        plugin.presentation().messageNearby(boss, "last-stand", 40);
+    }
+
+    public void saveTraits(Boss boss) {
+        boss.entity().getPersistentDataContainer().set(Keys.BOSS_TRAITS, PersistentDataType.STRING,
+            String.join(",", boss.traitIds()));
     }
 
     private void dropRewards(Boss boss, List<ItemStack> rewards) {

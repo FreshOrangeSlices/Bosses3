@@ -45,6 +45,20 @@ public final class Messages {
         DEFAULTS.put("second-dawn", "<gold>Second Dawn</gold> <yellow>pulls you back from the brink!</yellow>");
         DEFAULTS.put("insomnia", "<dark_purple>Your Insomnia curse won't let you sleep.</dark_purple>");
         DEFAULTS.put("butterfingers", "<red>Butterfingers!</red> <gray>You fumbled your item.</gray>");
+        DEFAULTS.put("last-stand", "<boss> <dark_red><bold>makes its Last Stand!</bold></dark_red>");
+        DEFAULTS.put("unstuck", "<boss> <gray>tears itself free!</gray>");
+        DEFAULTS.put("nemesis-born", "<dark_red>☠</dark_red> <boss> <red>has marked you. It will return.</red>");
+        DEFAULTS.put("nemesis-grows", "<dark_red>☠</dark_red> <boss> <red>grows stronger from your defeat...</red>");
+        DEFAULTS.put("nemesis-flee", "<dark_red>☠</dark_red> <boss> <gray>loses your trail... for now.</gray>");
+        DEFAULTS.put("nemesis-return-title", "<dark_red>☠ NEMESIS ☠</dark_red>");
+        DEFAULTS.put("nemesis-return-subtitle", "<boss> <gray>has returned for you</gray>");
+        DEFAULTS.put("nemesis-slain", "<player> <gray>has slain their Nemesis</gray> <boss><gray>!</gray>");
+        DEFAULTS.put("revenge", "<gold><bold>REVENGE!</bold></gold> <yellow>Bonus rewards for avenging your death.</yellow>");
+        DEFAULTS.put("escalation-title", "<dark_red><bold>⚠ ESCALATION ⚠</bold></dark_red>");
+        DEFAULTS.put("escalation-subtitle", "<red>Your hunting has drawn something worse...</red>");
+        DEFAULTS.put("totem-ritual", "<dark_purple>The totem shudders... something answers.</dark_purple>");
+        DEFAULTS.put("totem-blocked", "<red>The totem stays silent here.</red>");
+        DEFAULTS.put("compass-upgraded", "<gold>Your Hunter's Compass sharpens!</gold> <gray>Now tier <count>.</gray>");
         DEFAULTS.put("guide-received", "<gold>You received the</gold> <yellow>Boss Hunter's Compendium</yellow><gold>. Read it to learn about bosses!</gold>");
     }
 

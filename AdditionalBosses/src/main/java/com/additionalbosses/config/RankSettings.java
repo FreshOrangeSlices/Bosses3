@@ -1,6 +1,7 @@
 package com.additionalbosses.config;
 
 import com.additionalbosses.boss.BossRank;
+import com.additionalbosses.reward.GearQuality;
 import com.additionalbosses.reward.GearTier;
 import net.kyori.adventure.sound.Sound;
 import org.jetbrains.annotations.Nullable;
@@ -35,8 +36,8 @@ public record RankSettings(
     public record Rewards(double bossGear, double empowerment, double relic, double relicCatalyst) {
     }
 
-    public record Gear(Map<GearTier, Integer> materials, int enchantMin, int enchantMax,
-                       double minLevelPercent, double overMaxChance, int overMaxLevels) {
+    public record Gear(Map<GearTier, Integer> materials, Map<GearQuality, Integer> quality, int enchantMin,
+                       int enchantMax, double minLevelPercent, double overMaxChance, int overMaxLevels) {
     }
 
     public enum Announce { NONE, ACTIONBAR, CHAT, TITLE }

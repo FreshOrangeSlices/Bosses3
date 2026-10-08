@@ -33,10 +33,14 @@ public final class Boss {
     private final BossRank rank;
     private final String categoryId;
     private final List<BossTrait> traits;
-    private final Component name;
-    private final String plainName;
-    private final double damageMultiplier;
-    private final double traitPower;
+    private Component name;
+    private String plainName;
+    private double damageMultiplier;
+    private double traitPower;
+    private @Nullable String nemesisId;
+    private boolean lastStand;
+    private @Nullable org.bukkit.Location lastPosition;
+    private int stuckSince = -1;
 
     /** Player UUID -> server tick of their last interaction with this boss. */
     private final Map<UUID, Integer> engaged = new HashMap<>();
@@ -56,7 +60,7 @@ public final class Boss {
         this.entity = entity;
         this.rank = rank;
         this.categoryId = categoryId;
-        this.traits = List.copyOf(traits);
+        this.traits = new ArrayList<>(traits);
         this.name = name;
         this.plainName = plainName;
         this.damageMultiplier = damageMultiplier;
@@ -80,7 +84,14 @@ public final class Boss {
     }
 
     public List<BossTrait> traits() {
-        return traits;
+        return Collections.unmodifiableList(traits);
+    }
+
+    /** Adds a trait mid-fight (Last Stand, Nemesis adaptation). */
+    public void addTrait(BossTrait trait) {
+        if (!hasTrait(trait.id())) {
+            traits.add(trait);
+        }
     }
 
     public boolean hasTrait(String id) {
@@ -94,6 +105,68 @@ public final class Boss {
 
     public Component name() {
         return name;
+    }
+
+    public void rename(Component name, String plainName) {
+        this.name = name;
+        this.plainName = plainName;
+        entity.customName(name);
+    }
+
+    public void setDamageMultiplier(double damageMultiplier) {
+        this.damageMultiplier = damageMultiplier;
+    }
+
+    public void setPower(double power) {
+        this.traitPower = power;
+    }
+
+    public @Nullable String nemesisId() {
+        return nemesisId;
+    }
+
+    public void setNemesisId(@Nullable String nemesisId) {
+        this.nemesisId = nemesisId;
+    }
+
+    public boolean isNemesis() {
+        return nemesisId != null;
+    }
+
+    public boolean lastStand() {
+        return lastStand;
+    }
+
+    public void setLastStand(boolean lastStand) {
+        this.lastStand = lastStand;
+    }
+
+    /**
+     * Stuck detection, called every ticker run: returns how many ticks the boss has barely moved while it had a
+     * reason to move, or -1 when it is moving fine.
+     */
+    public int stuckTicks(int now, boolean wantsToMove) {
+        org.bukkit.Location here = entity.getLocation();
+        if (!wantsToMove) {
+            stuckSince = -1;
+            lastPosition = here;
+            return -1;
+        }
+        if (lastPosition == null || !lastPosition.getWorld().equals(here.getWorld())
+            || lastPosition.distanceSquared(here) > 1.0) {
+            lastPosition = here;
+            stuckSince = now;
+            return 0;
+        }
+        if (stuckSince < 0) {
+            stuckSince = now;
+        }
+        return now - stuckSince;
+    }
+
+    public void resetStuck() {
+        stuckSince = -1;
+        lastPosition = null;
     }
 
     public String plainName() {
@@ -140,13 +213,52 @@ public final class Boss {
         return engaged;
     }
 
-    public void expireEngagements(int now, int timeoutTicks) {
+    /** Removes players who left combat and returns them (used to detect players fleeing a boss). */
+    public List<UUID> expireEngagements(int now, int timeoutTicks) {
+        List<UUID> expired = new ArrayList<>();
         Iterator<Map.Entry<UUID, Integer>> it = engaged.entrySet().iterator();
         while (it.hasNext()) {
-            if (now - it.next().getValue() > timeoutTicks) {
+            Map.Entry<UUID, Integer> e = it.next();
+            if (now - e.getValue() > timeoutTicks) {
+                expired.add(e.getKey());
                 it.remove();
             }
         }
+        return expired;
+    }
+
+    // ---------------- per-player fight history (Nemesis escape + adaptation) ----------------
+
+    private final Map<UUID, double[]> fightLog = new HashMap<>(); // [total damage, melee hits, ranged hits]
+    private final Set<UUID> victims = new HashSet<>();
+
+    public void recordPlayerHit(UUID player, double damage, boolean projectile) {
+        double[] log = fightLog.computeIfAbsent(player, k -> new double[3]);
+        log[0] += damage;
+        log[projectile ? 2 : 1]++;
+    }
+
+    public double damageBy(UUID player) {
+        double[] log = fightLog.get(player);
+        return log == null ? 0 : log[0];
+    }
+
+    /** {melee hits, ranged hits} this player landed on the boss. */
+    public int[] hitStyle(UUID player) {
+        double[] log = fightLog.get(player);
+        return log == null ? new int[2] : new int[]{(int) log[1], (int) log[2]};
+    }
+
+    public void forgetFight(UUID player) {
+        fightLog.remove(player);
+    }
+
+    public void addVictim(UUID player) {
+        victims.add(player);
+    }
+
+    public boolean killed(UUID player) {
+        return victims.contains(player);
     }
 
     public boolean inCombat() {

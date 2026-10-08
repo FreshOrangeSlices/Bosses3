@@ -8,6 +8,7 @@ import java.util.Locale;
  * Material tier of a Boss Gear item. Weights per rank are set in config.yml (ranks.X.gear.materials).
  */
 public enum GearTier {
+    CHAINMAIL("IRON", "CHAINMAIL"), // chainmail only exists as armor; weapons fall back to iron
     COPPER("COPPER", "COPPER"),
     IRON("IRON", "IRON"),
     GOLD("GOLDEN", "GOLDEN"),

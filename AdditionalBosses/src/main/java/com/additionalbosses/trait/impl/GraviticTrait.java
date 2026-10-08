@@ -5,6 +5,7 @@ import com.additionalbosses.trait.BaseTrait;
 import com.additionalbosses.trait.TraitCategory;
 import com.additionalbosses.util.Fx;
 import com.additionalbosses.util.Text;
+import org.bukkit.Color;
 import org.bukkit.Particle;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.entity.LivingEntity;
@@ -33,7 +34,8 @@ public final class GraviticTrait extends BaseTrait {
 
     @Override
     public String description() {
-        return "Every " + Text.num(cooldown) + "s it pulls players within " + Text.num(radius) + " blocks toward itself.";
+        return "Every " + Text.num(cooldown) + "s it hums and a violet ring appears, then it pulls players within "
+            + Text.num(radius) + " blocks toward itself.";
     }
 
     @Override
@@ -42,8 +44,30 @@ public final class GraviticTrait extends BaseTrait {
             return;
         }
         LivingEntity e = boss.entity();
+        if (!telling(boss, "gravity", now)) {
+            // Tell: a violet ring draws inward and the air hums before the pull.
+            boolean someoneFar = false;
+            for (Player p : boss.nearbyPlayers(radius)) {
+                if (p.getLocation().distanceSquared(e.getLocation()) >= 9) {
+                    someoneFar = true;
+                    break;
+                }
+            }
+            if (!someoneFar) {
+                return;
+            }
+            startTell(boss, "gravity", now, 20);
+            Fx.play(e.getLocation(), "block.beacon.deactivate", 1.0f, 0.5f);
+            ring(e.getLocation(), radius, Color.fromRGB(0x8A2BE2), 1.3f);
+            Fx.particle(Fx.center(e), Particle.REVERSE_PORTAL, 30, 0.6, 0.02);
+            return;
+        }
+        if (!tellDone(boss, "gravity", now)) {
+            ring(e.getLocation(), radius * 0.6, Color.fromRGB(0xB060FF), 1.3f);
+            return;
+        }
+        boss.cooldown("gravity", now, (int) Math.round(cooldown * 20));
         List<Player> players = boss.nearbyPlayers(radius);
-        boolean pulled = false;
         for (Player p : players) {
             Vector diff = e.getLocation().toVector().subtract(p.getLocation().toVector());
             double distance = diff.length();
@@ -54,12 +78,8 @@ public final class GraviticTrait extends BaseTrait {
             pull.setY(Math.max(0.25, pull.getY()));
             p.setVelocity(pull);
             Fx.particle(Fx.center(p), Particle.REVERSE_PORTAL, 15, 0.3, 0.05);
-            pulled = true;
         }
-        if (pulled) {
-            Fx.play(e.getLocation(), "block.respawn_anchor.deplete", 1.0f, 0.6f);
-            Fx.particle(Fx.center(e), Particle.REVERSE_PORTAL, 40, 1.2, 0.1);
-            boss.cooldown("gravity", now, (int) Math.round(cooldown * 20));
-        }
+        Fx.play(e.getLocation(), "block.respawn_anchor.deplete", 1.0f, 0.6f);
+        Fx.particle(Fx.center(e), Particle.REVERSE_PORTAL, 40, 1.2, 0.1);
     }
 }

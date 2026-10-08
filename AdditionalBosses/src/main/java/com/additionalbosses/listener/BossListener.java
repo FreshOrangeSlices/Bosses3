@@ -24,6 +24,10 @@ import org.bukkit.event.entity.EntityTargetLivingEntityEvent;
 import org.bukkit.event.entity.EntityTransformEvent;
 import org.bukkit.event.entity.ProjectileLaunchEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
+import org.bukkit.event.entity.EntityMountEvent;
+import org.bukkit.event.entity.PlayerDeathEvent;
+import org.bukkit.event.entity.PlayerLeashEntityEvent;
+import org.bukkit.event.vehicle.VehicleEnterEvent;
 
 import java.util.List;
 
@@ -176,6 +180,50 @@ public final class BossListener implements Listener {
         }
         for (BossTrait trait : boss.traits()) {
             trait.afterProjectileLaunch(boss, projectile);
+        }
+    }
+
+    /** A boss that kills a player remembers it (revenge bonus) and may become that player's Nemesis. */
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onPlayerDeath(PlayerDeathEvent event) {
+        Entity causing = event.getDamageSource().getCausingEntity();
+        Boss boss = bosses().get(causing);
+        if (boss == null && causing != null && BossManager.isMinion(causing)) {
+            // Killed by a boss's minion: the boss gets the credit.
+            String owner = causing.getPersistentDataContainer().get(Keys.MINION, PersistentDataType.STRING);
+            try {
+                boss = owner == null ? null : bosses().get(Bukkit.getEntity(java.util.UUID.fromString(owner)));
+            } catch (IllegalArgumentException ignored) {
+                boss = null;
+            }
+        }
+        if (boss == null) {
+            return;
+        }
+        boss.addVictim(event.getEntity().getUniqueId());
+        plugin.nemesis().onKilledPlayer(boss, event.getEntity());
+    }
+
+    // ---------------- anti-trap ----------------
+
+    @EventHandler(ignoreCancelled = true)
+    public void onMount(EntityMountEvent event) {
+        if (plugin.settings().features.blockVehicles && bosses().get(event.getEntity()) != null) {
+            event.setCancelled(true);
+        }
+    }
+
+    @EventHandler(ignoreCancelled = true)
+    public void onVehicleEnter(VehicleEnterEvent event) {
+        if (plugin.settings().features.blockVehicles && bosses().get(event.getEntered()) != null) {
+            event.setCancelled(true);
+        }
+    }
+
+    @EventHandler(ignoreCancelled = true)
+    public void onLeash(PlayerLeashEntityEvent event) {
+        if (plugin.settings().features.blockVehicles && bosses().get(event.getEntity()) != null) {
+            event.setCancelled(true);
         }
     }
 

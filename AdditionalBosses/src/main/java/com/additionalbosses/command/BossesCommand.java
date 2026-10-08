@@ -7,6 +7,8 @@ import com.additionalbosses.config.EmpowermentStat;
 import com.additionalbosses.config.MobCategory;
 import com.additionalbosses.config.PluginSettings;
 import com.additionalbosses.item.ItemService;
+import com.additionalbosses.nemesis.NemesisManager;
+import com.additionalbosses.nemesis.NemesisRecord;
 import com.additionalbosses.relic.RelicEffect;
 import com.additionalbosses.reward.GearKind;
 import com.additionalbosses.trait.BossTrait;
@@ -45,8 +47,8 @@ public final class BossesCommand implements BasicCommand {
 
     private static final String USE = "additionalbosses.use";
     private static final String ADMIN = "additionalbosses.admin";
-    private static final List<String> PLAYER_SUBS = List.of("help", "guide", "apply", "inspect", "stats");
-    private static final List<String> ADMIN_SUBS = List.of("spawn", "give", "list", "killall", "reload");
+    private static final List<String> PLAYER_SUBS = List.of("help", "guide", "apply", "inspect", "stats", "nemesis");
+    private static final List<String> ADMIN_SUBS = List.of("spawn", "give", "list", "killall", "reload", "escalate");
 
     private final AdditionalBosses plugin;
 
@@ -76,6 +78,8 @@ public final class BossesCommand implements BasicCommand {
             case "apply" -> apply(sender);
             case "inspect" -> inspect(sender);
             case "stats" -> stats(sender);
+            case "nemesis" -> nemesis(sender, args);
+            case "escalate" -> escalate(sender, args);
             case "spawn" -> spawn(sender, args);
             case "give" -> give(sender, args);
             case "list" -> list(sender);
@@ -94,12 +98,16 @@ public final class BossesCommand implements BasicCommand {
         line(sender, "/bosses apply", "use the rune/relic in your off hand on your main-hand item");
         line(sender, "/bosses inspect", "look at a boss, or inspect your held item");
         line(sender, "/bosses stats", "your boss-hunting record");
+        line(sender, "/bosses nemesis", "your Nemeses and when they return");
         if (sender.hasPermission(ADMIN)) {
             line(sender, "/bosses spawn <mob> [rank] [trait,trait]", "spawn a boss where you look");
             line(sender, "/bosses give <player> gear [rank] [kind]", "give Boss Gear");
             line(sender, "/bosses give <player> rune [rank] [stat]", "give an Empowerment Rune");
             line(sender, "/bosses give <player> relic [relic|random] [curse|none|random]", "give a Relic");
             line(sender, "/bosses give <player> catalyst|guide", "give a Catalyst or guide");
+            line(sender, "/bosses give <player> compass [tier] | totem [rank]", "give a Hunter's Compass or Boss Totem");
+            line(sender, "/bosses nemesis list|summon|clear <player>", "manage Nemeses");
+            line(sender, "/bosses escalate <player>", "trigger an Escalation on a player");
             line(sender, "/bosses list | killall | reload", "admin tools");
         }
     }
@@ -228,6 +236,98 @@ public final class BossesCommand implements BasicCommand {
         info(player, "Total: " + PlayerData.totalKills(player) + "   Relics bound: " + PlayerData.relicsBound(player));
     }
 
+    private void nemesis(CommandSender sender, String[] args) {
+        NemesisManager nm = plugin.nemesis();
+        String action = args.length >= 2 ? args[1].toLowerCase(Locale.ROOT) : "mine";
+        if (!action.equals("mine") && sender.hasPermission(ADMIN)) {
+            switch (action) {
+                case "list" -> {
+                    List<NemesisRecord> all = args.length >= 3 ? nemesesOf(sender, args[2]) : nm.all();
+                    if (all == null) {
+                        return;
+                    }
+                    info(sender, all.size() + " Nemes" + (all.size() == 1 ? "is" : "es") + ":");
+                    for (NemesisRecord r : all) {
+                        sender.sendMessage(Component.text(" • ", NamedTextColor.DARK_GRAY).append(nm.displayName(r))
+                            .append(Component.text("  hunts " + r.ownerName + ", " + nm.describeReturn(r),
+                                NamedTextColor.GRAY)));
+                    }
+                }
+                case "summon" -> {
+                    Player target = args.length >= 3 ? Bukkit.getPlayerExact(args[2]) : null;
+                    if (target == null) {
+                        error(sender, "Usage: /bosses nemesis summon <online player>");
+                        return;
+                    }
+                    info(sender, "Called " + nm.summonNow(target.getUniqueId()) + " Nemes(es) to " + target.getName() + ".");
+                }
+                case "clear" -> {
+                    if (args.length < 3) {
+                        error(sender, "Usage: /bosses nemesis clear <player>");
+                        return;
+                    }
+                    java.util.UUID owner = ownerId(args[2]);
+                    if (owner == null) {
+                        error(sender, "Unknown player: " + args[2]);
+                        return;
+                    }
+                    info(sender, "Removed " + nm.clear(owner) + " Nemes(es) of " + args[2] + ".");
+                }
+                default -> error(sender, "Usage: /bosses nemesis [list|summon|clear] [player]");
+            }
+            return;
+        }
+        if (!(sender instanceof Player player)) {
+            error(sender, "Usage: /bosses nemesis list|summon|clear <player>");
+            return;
+        }
+        List<NemesisRecord> mine = nm.forOwner(player.getUniqueId());
+        if (mine.isEmpty()) {
+            info(player, "Nothing is hunting you... yet.");
+            return;
+        }
+        player.sendMessage(Component.text("Your Nemeses", NamedTextColor.DARK_RED).decorate(TextDecoration.BOLD));
+        for (NemesisRecord r : mine) {
+            player.sendMessage(Component.text(" ", NamedTextColor.GRAY).append(nm.displayName(r)));
+            info(player, "   killed you " + r.kills + "x, you fled " + r.escapes + "x, " + r.traits.size()
+                + " traits - " + nm.describeReturn(r));
+        }
+    }
+
+    private @Nullable List<NemesisRecord> nemesesOf(CommandSender sender, String name) {
+        java.util.UUID owner = ownerId(name);
+        if (owner == null) {
+            error(sender, "Unknown player: " + name);
+            return null;
+        }
+        return plugin.nemesis().forOwner(owner);
+    }
+
+    /** Online player, cached offline player, or the name stored on a Nemesis record. */
+    private java.util.@Nullable UUID ownerId(String name) {
+        Player online = Bukkit.getPlayerExact(name);
+        if (online != null) {
+            return online.getUniqueId();
+        }
+        for (NemesisRecord r : plugin.nemesis().all()) {
+            if (r.ownerName.equalsIgnoreCase(name)) {
+                return r.owner;
+            }
+        }
+        org.bukkit.OfflinePlayer cached = Bukkit.getOfflinePlayerIfCached(name);
+        return cached == null ? null : cached.getUniqueId();
+    }
+
+    private void escalate(CommandSender sender, String[] args) {
+        Player target = args.length >= 2 ? Bukkit.getPlayerExact(args[1]) : sender instanceof Player p ? p : null;
+        if (target == null) {
+            error(sender, "Usage: /bosses escalate <player>");
+            return;
+        }
+        plugin.escalation().trigger(target);
+        info(sender, "Escalation triggered on " + target.getName() + ".");
+    }
+
     private void list(CommandSender sender) {
         Collection<Boss> active = plugin.bosses().active();
         info(sender, active.size() + " active boss(es) (max " + plugin.settings().maxActive + "):");
@@ -299,7 +399,7 @@ public final class BossesCommand implements BasicCommand {
 
     private void give(CommandSender sender, String[] args) {
         if (args.length < 3) {
-            error(sender, "Usage: /bosses give <player> <gear|rune|relic|catalyst|guide> ...");
+            error(sender, "Usage: /bosses give <player> <gear|rune|relic|catalyst|compass|totem|guide> ...");
             return;
         }
         Player target = Bukkit.getPlayerExact(args[1]);
@@ -376,13 +476,36 @@ public final class BossesCommand implements BasicCommand {
                 }
                 item = items.createCatalyst().asQuantity(amount);
             }
+            case "compass" -> {
+                int tier = 1;
+                if (args.length >= 4) {
+                    try {
+                        tier = Integer.parseInt(args[3]);
+                    } catch (NumberFormatException ex) {
+                        error(sender, "Not a number: " + args[3]);
+                        return;
+                    }
+                }
+                item = items.createCompass(tier);
+            }
+            case "totem" -> {
+                BossRank rank = null;
+                if (args.length >= 4 && !args[3].equalsIgnoreCase("random")) {
+                    rank = BossRank.parse(args[3]);
+                    if (rank == null) {
+                        error(sender, "Unknown rank: " + args[3]);
+                        return;
+                    }
+                }
+                item = items.createTotem(rank);
+            }
             case "guide" -> {
                 plugin.guide().give(target);
                 info(sender, "Gave the guide to " + target.getName() + ".");
                 return;
             }
             default -> {
-                error(sender, "Unknown item: " + args[2] + " (gear, rune, relic, catalyst, guide)");
+                error(sender, "Unknown item: " + args[2] + " (gear, rune, relic, catalyst, compass, totem, guide)");
                 return;
             }
         }
@@ -420,6 +543,24 @@ public final class BossesCommand implements BasicCommand {
         if (!admin) {
             return List.of();
         }
+        if (sub.equals("nemesis")) {
+            if (args.length == 2) {
+                return filter(List.of("list", "summon", "clear"), last);
+            }
+            if (args.length == 3) {
+                List<String> names = new ArrayList<>(onlineNames());
+                for (NemesisRecord r : plugin.nemesis().all()) {
+                    if (!names.contains(r.ownerName)) {
+                        names.add(r.ownerName);
+                    }
+                }
+                return filter(names, last);
+            }
+            return List.of();
+        }
+        if (sub.equals("escalate") && args.length == 2) {
+            return filter(onlineNames(), last);
+        }
         if (sub.equals("spawn")) {
             return switch (args.length) {
                 case 2 -> {
@@ -447,12 +588,20 @@ public final class BossesCommand implements BasicCommand {
                 return filter(onlineNames(), last);
             }
             if (args.length == 3) {
-                return filter(List.of("gear", "rune", "relic", "catalyst", "guide"), last);
+                return filter(List.of("gear", "rune", "relic", "catalyst", "compass", "totem", "guide"), last);
             }
             String what = args[2].toLowerCase(Locale.ROOT);
             if (args.length == 4) {
                 return switch (what) {
                     case "gear", "rune" -> filter(rankNames(false), last);
+                    case "totem" -> filter(rankNames(true), last);
+                    case "compass" -> {
+                        List<String> tiers = new ArrayList<>();
+                        for (int i = 1; i <= plugin.settings().features.compassTiers.size(); i++) {
+                            tiers.add(String.valueOf(i));
+                        }
+                        yield filter(tiers, last);
+                    }
                     case "relic" -> {
                         List<String> ids = new ArrayList<>();
                         ids.add("random");

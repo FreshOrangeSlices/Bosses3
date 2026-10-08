@@ -2,6 +2,7 @@ package com.additionalbosses.config;
 
 import com.additionalbosses.boss.BossRank;
 import com.additionalbosses.reward.GearKind;
+import com.additionalbosses.reward.GearQuality;
 import com.additionalbosses.reward.GearTier;
 import com.additionalbosses.util.Fx;
 import org.bukkit.Material;
@@ -45,6 +46,7 @@ public final class PluginSettings {
     public final double minDistanceBetween;
     public final boolean alwaysShowName;
     public final boolean displayGear;
+    public final boolean environmentalParticles;
     public final int combatTimeoutTicks;
     public final boolean requirePlayerForRewards;
 
@@ -88,6 +90,7 @@ public final class PluginSettings {
     public final boolean guideOnFirstJoin;
 
     public final Messages messages;
+    public final FeatureSettings features;
 
     public PluginSettings(FileConfiguration c, Logger log) {
         // ---------------- bosses ----------------
@@ -106,7 +109,8 @@ public final class PluginSettings {
         maxActive = Math.max(0, c.getInt("bosses.max-active", 15));
         minDistanceBetween = Math.max(0, c.getDouble("bosses.min-distance-between", 32));
         alwaysShowName = c.getBoolean("bosses.always-show-name", true);
-        displayGear = c.getBoolean("bosses.display-gear", true);
+        displayGear = c.getBoolean("bosses.display-gear", false);
+        environmentalParticles = c.getBoolean("bosses.environmental-particles", true);
         combatTimeoutTicks = Math.max(20, (int) Math.round(c.getDouble("bosses.combat-timeout", 15) * 20));
         requirePlayerForRewards = c.getBoolean("bosses.require-player-for-rewards", true);
 
@@ -278,6 +282,7 @@ public final class PluginSettings {
 
         guideOnFirstJoin = c.getBoolean("guide.give-on-first-join", true);
         messages = new Messages(c.getConfigurationSection("messages"));
+        features = new FeatureSettings(c, log);
     }
 
     // =====================================================================
@@ -380,10 +385,25 @@ public final class PluginSettings {
         if (materials.isEmpty()) {
             materials.put(rank.atLeast(BossRank.PURPLE) ? GearTier.NETHERITE : GearTier.IRON, 1);
         }
+        Map<GearQuality, Integer> quality = new LinkedHashMap<>();
+        ConfigurationSection qs = gs == null ? null : gs.getConfigurationSection("quality");
+        if (qs != null) {
+            for (String key : qs.getKeys(false)) {
+                GearQuality q = GearQuality.parse(key);
+                if (q == null) {
+                    log.warning("ranks." + rank.name() + ".gear.quality: unknown quality '" + key + "'");
+                    continue;
+                }
+                quality.put(q, Math.max(0, qs.getInt(key)));
+            }
+        }
+        if (quality.isEmpty()) {
+            quality.put(GearQuality.STANDARD, 1);
+        }
         ConfigurationSection es = gs == null ? null : gs.getConfigurationSection("enchantments");
         int eMin = (int) d(es, "min", 1 + i / 2);
         int eMax = Math.max(eMin, (int) d(es, "max", 2 + i));
-        RankSettings.Gear gearSettings = new RankSettings.Gear(materials, eMin, eMax,
+        RankSettings.Gear gearSettings = new RankSettings.Gear(materials, quality, eMin, eMax,
             d(gs, "min-level-percent", 30 + i * 17), d(gs, "over-max-chance", i >= 3 ? 25 : 0),
             (int) d(gs, "over-max-levels", Math.max(0, i - 2)));
 

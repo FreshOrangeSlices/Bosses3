@@ -34,7 +34,11 @@ bosses:
   always-show-name: true
   # Dress humanoid bosses (zombies, skeletons, piglins) in armor dyed
   # their rank colour. It is cosmetic only: no armor points, never drops.
-  display-gear: true
+  # Off by default: bosses are recognised by their size, name and glow instead.
+  display-gear: false
+  # Mob-themed particles around bosses (Blazes smoulder, Drowned drip,
+  # skeletons shed bone dust, Endermen leak portal sparks...).
+  environmental-particles: true
   # Seconds after the last hit before a player counts as out of combat
   # (their boss bar disappears).
   combat-timeout: 15
@@ -57,7 +61,10 @@ presentation:
 #          knockback-resistance and size are added on top.
 #  traits: how many traits the boss rolls, and how strong they are.
 #  rewards: independent chances, each rolled separately on death.
-#  gear:   what Boss Gear looks like for this rank.
+#  gear:   what Boss Gear looks like for this rank. Material (CHAINMAIL,
+#          IRON, GOLD, DIAMOND, NETHERITE...) and quality (CRUDE, STANDARD,
+#          FINE, MASTERWORK) are separate rolls. Quality changes how many
+#          enchantments the item gets and how high they go.
 #  presentation:
 #    announce:        NONE, ACTIONBAR, CHAT or TITLE (nearby players)
 #    sound:           played on announce and when you first engage it
@@ -66,12 +73,13 @@ presentation:
 ranks:
   GRAY:
     name: Hard
-    stats: { health: 1.6, damage: 1.2, armor: 2, armor-toughness: 0, knockback-resistance: 0.1, speed: 1.0, size: 0.05 }
+    stats: { health: 1.6, damage: 1.2, armor: 2, armor-toughness: 0, knockback-resistance: 0.1, speed: 1.0, size: 0.15 }
     traits: { min: 1, max: 1, power: 1.0 }
     xp: { multiplier: 3, bonus: 10 }
     rewards: { boss-gear: 20, empowerment: 10, relic: 2, relic-catalyst: 0 }
     gear:
-      materials: { COPPER: 30, IRON: 60, DIAMOND: 10 }
+      materials: { CHAINMAIL: 40, IRON: 40, GOLD: 20 }
+      quality: { CRUDE: 35, STANDARD: 50, FINE: 13, MASTERWORK: 2 }
       enchantments: { min: 1, max: 2 }
       min-level-percent: 30     # enchant levels roll from this % of the vanilla max up to the max
       over-max-chance: 0        # chance per enchantment to go above the vanilla max
@@ -81,12 +89,13 @@ ranks:
 
   GREEN:
     name: Very Hard
-    stats: { health: 2.0, damage: 1.35, armor: 4, armor-toughness: 1, knockback-resistance: 0.2, speed: 1.05, size: 0.1 }
+    stats: { health: 2.0, damage: 1.35, armor: 4, armor-toughness: 1, knockback-resistance: 0.2, speed: 1.05, size: 0.22 }
     traits: { min: 1, max: 2, power: 1.15 }
     xp: { multiplier: 4, bonus: 25 }
     rewards: { boss-gear: 30, empowerment: 18, relic: 4, relic-catalyst: 0 }
     gear:
-      materials: { IRON: 55, GOLD: 10, DIAMOND: 35 }
+      materials: { IRON: 55, GOLD: 25, DIAMOND: 20 }
+      quality: { CRUDE: 25, STANDARD: 50, FINE: 20, MASTERWORK: 5 }
       enchantments: { min: 1, max: 3 }
       min-level-percent: 45
       over-max-chance: 0
@@ -96,12 +105,13 @@ ranks:
 
   RED:
     name: Brutal
-    stats: { health: 2.75, damage: 1.55, armor: 6, armor-toughness: 2, knockback-resistance: 0.3, speed: 1.08, size: 0.15 }
+    stats: { health: 2.75, damage: 1.55, armor: 6, armor-toughness: 2, knockback-resistance: 0.3, speed: 1.08, size: 0.3 }
     traits: { min: 2, max: 2, power: 1.3 }
     xp: { multiplier: 6, bonus: 50 }
     rewards: { boss-gear: 45, empowerment: 28, relic: 8, relic-catalyst: 0 }
     gear:
-      materials: { IRON: 25, DIAMOND: 65, NETHERITE: 10 }
+      materials: { IRON: 45, DIAMOND: 55 }
+      quality: { CRUDE: 15, STANDARD: 45, FINE: 30, MASTERWORK: 10 }
       enchantments: { min: 2, max: 3 }
       min-level-percent: 60
       over-max-chance: 0
@@ -111,12 +121,13 @@ ranks:
 
   PURPLE:
     name: Nightmare
-    stats: { health: 3.5, damage: 1.8, armor: 8, armor-toughness: 4, knockback-resistance: 0.45, speed: 1.1, size: 0.2 }
+    stats: { health: 3.5, damage: 1.8, armor: 8, armor-toughness: 4, knockback-resistance: 0.45, speed: 1.1, size: 0.4 }
     traits: { min: 2, max: 3, power: 1.5 }
     xp: { multiplier: 8, bonus: 100 }
     rewards: { boss-gear: 65, empowerment: 40, relic: 15, relic-catalyst: 1.5 }
     gear:
-      materials: { DIAMOND: 70, NETHERITE: 30 }
+      materials: { DIAMOND: 85, NETHERITE: 15 }
+      quality: { CRUDE: 5, STANDARD: 40, FINE: 40, MASTERWORK: 15 }
       enchantments: { min: 2, max: 4 }
       min-level-percent: 80
       over-max-chance: 25
@@ -126,12 +137,13 @@ ranks:
 
   GOLD:
     name: Legendary
-    stats: { health: 5.0, damage: 2.1, armor: 10, armor-toughness: 6, knockback-resistance: 0.6, speed: 1.12, size: 0.3 }
+    stats: { health: 5.0, damage: 2.1, armor: 10, armor-toughness: 6, knockback-resistance: 0.6, speed: 1.12, size: 0.5 }
     traits: { min: 3, max: 4, power: 1.75 }
     xp: { multiplier: 12, bonus: 300 }
     rewards: { boss-gear: 100, empowerment: 60, relic: 30, relic-catalyst: 5 }
     gear:
-      materials: { DIAMOND: 40, NETHERITE: 60 }
+      materials: { DIAMOND: 50, NETHERITE: 50 }
+      quality: { CRUDE: 0, STANDARD: 25, FINE: 45, MASTERWORK: 30 }
       enchantments: { min: 3, max: 5 }
       min-level-percent: 100
       over-max-chance: 40
@@ -426,6 +438,127 @@ relics:
     mother-hen:    { enabled: true, weight: 6, chicks: 5 }
 
 # =====================================================================
+#  LAST STAND - Purple and Gold bosses (and every Nemesis) fight harder
+#  once, when they drop low: stronger traits, faster, and a dormant trait
+#  wakes up.
+# =====================================================================
+last-stand:
+  ranks: [PURPLE, GOLD]
+  health-percent: 25
+  trait-power-bonus: 50   # % stronger traits
+  speed-bonus: 15         # % faster
+  awaken-dormant-trait: true
+
+# =====================================================================
+#  RANK PERSONALITY - Red and higher bosses surge after a target that
+#  backs off (Purple, Gold and Nemesis bosses harder). Higher ranks also
+#  notice players from further away.
+# =====================================================================
+rank-personality:
+  pursuit: true
+
+# =====================================================================
+#  ANTI-TRAP - bosses can't be put in boats/minecarts or leashed, and a
+#  boss that can't reach you for a while tears itself free (teleports
+#  next to you, or drags you off a pillar).
+# =====================================================================
+anti-trap:
+  block-vehicles-and-leads: true
+  unstuck:
+    enabled: true
+    seconds: 6
+
+# =====================================================================
+#  HUNTER'S COMPASS - hold it to track the nearest boss. Shows distance
+#  and which way to turn; the boss's name/rank only shows up close.
+#  Crafted from a Compass + Eye of Ender + Bone. Click an Empowerment
+#  Rune onto it to upgrade (the last tier needs a Red rune or better).
+# =====================================================================
+hunters-compass:
+  enabled: true
+  recipe: true
+  tiers:
+    - {range: 150, reveal-rank-within: 40}
+    - {range: 300, reveal-rank-within: 100}
+    - {range: 600, reveal-rank-within: 600}
+
+# =====================================================================
+#  BOSS TOTEM - a rare drop. Right-click it to summon a boss (3 second
+#  ritual). Totems dropped by bosses call a random rank.
+# =====================================================================
+boss-totem:
+  enabled: true
+  drop-chance:      # % per boss kill
+    GRAY: 1
+    GREEN: 1.5
+    RED: 2.5
+    PURPLE: 4
+    GOLD: 8
+  rank-weights:     # rank of the summoned boss
+    GRAY: 0
+    GREEN: 30
+    RED: 35
+    PURPLE: 25
+    GOLD: 10
+
+# =====================================================================
+#  ESCALATION CHAIN - kill enough bosses within one Minecraft day and
+#  something worse comes looking for you.
+# =====================================================================
+escalation:
+  enabled: true
+  kills: 5
+  within-days: 1
+  bosses: 2
+  delay-seconds: 10
+  rank-weights:
+    PURPLE: 70
+    GOLD: 30
+
+# =====================================================================
+#  TROPHIES - cosmetic collectibles named after the boss (Blaze Core,
+#  Ravager Horn...). Chance per kill; a Nemesis always drops one.
+# =====================================================================
+trophies:
+  enabled: true
+  chance:
+    GRAY: 4
+    GREEN: 7
+    RED: 12
+    PURPLE: 25
+    GOLD: 100
+
+# =====================================================================
+#  NEMESIS - a boss that kills you (or that you flee from after a real
+#  fight) becomes YOUR Nemesis. It withdraws, grows, earns titles and
+#  counter-traits, and comes back for you after a few Minecraft days.
+#  It ignores the boss cap and never despawns while it is out. Killing
+#  it drops guaranteed loot plus a Nemesis Statue of it.
+# =====================================================================
+nemesis:
+  enabled: true
+  become-on-kill-chance: 100      # % when a boss kills you
+  become-on-escape-chance: 50     # % when you flee from a boss
+  escape-min-rank: RED            # fleeing only counts against Red or higher
+  escape-min-damage-percent: 25   # ...after you dealt this % of its health
+  escape-distance: 80             # an active Nemesis loses you past this
+  max-per-player: 5
+  max-level: 50
+  levels-when-it-kills-you: 3
+  levels-when-you-flee: 1
+  levels-per-rank-up: 4           # it climbs one rank every N levels
+  levels-per-new-trait: 3         # and learns a new trait every N levels
+  max-traits: 7
+  returns-after-days: 3
+  health-per-level: 8             # % extra health per level
+  damage-per-level: 4             # % extra damage per level
+  max-damage-multiplier: 5
+  trait-power-per-level: 3        # % stronger traits per level
+  size-per-level: 0.02
+  max-extra-size: 0.5
+  revenge-xp-multiplier: 2        # XP bonus for killing the boss that killed you
+
+# =====================================================================
 #  ITEMS - what the special drops look like.
 #  (They can't be used in crafting recipes.)
 # =====================================================================
@@ -472,3 +605,17 @@ messages:
   insomnia: "<dark_purple>Your Insomnia curse won't let you sleep.</dark_purple>"
   butterfingers: "<red>Butterfingers!</red> <gray>You fumbled your item.</gray>"
   guide-received: "<gold>You received the</gold> <yellow>Boss Hunter's Compendium</yellow><gold>. Read it to learn about bosses!</gold>"
+  last-stand: "<boss> <dark_red><bold>makes its Last Stand!</bold></dark_red>"
+  unstuck: "<boss> <gray>tears itself free!</gray>"
+  nemesis-born: "<dark_red>☠</dark_red> <boss> <red>has marked you. It will return.</red>"
+  nemesis-grows: "<dark_red>☠</dark_red> <boss> <red>grows stronger from your defeat...</red>"
+  nemesis-flee: "<dark_red>☠</dark_red> <boss> <gray>loses your trail... for now.</gray>"
+  nemesis-return-title: "<dark_red>☠ NEMESIS ☠</dark_red>"
+  nemesis-return-subtitle: "<boss> <gray>has returned for you</gray>"
+  nemesis-slain: "<player> <gray>has slain their Nemesis</gray> <boss><gray>!</gray>"
+  revenge: "<gold><bold>REVENGE!</bold></gold> <yellow>Bonus rewards for avenging your death.</yellow>"
+  escalation-title: "<dark_red><bold>⚠ ESCALATION ⚠</bold></dark_red>"
+  escalation-subtitle: "<red>Your hunting has drawn something worse...</red>"
+  totem-ritual: "<dark_purple>The totem shudders... something answers.</dark_purple>"
+  totem-blocked: "<red>The totem stays silent here.</red>"
+  compass-upgraded: "<gold>Your Hunter's Compass sharpens!</gold> <gray>Now tier <count>.</gray>"

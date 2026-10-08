@@ -41,8 +41,12 @@ public final class BossGearFactory {
         Material material = kind.material(tier == null ? GearTier.IRON : tier);
         ItemStack item = ItemStack.of(material);
 
-        enchant(item, gear);
-        plugin.items().markGear(item, rank, sourceName);
+        GearQuality quality = Rng.weighted(gear.quality());
+        if (quality == null) {
+            quality = GearQuality.STANDARD;
+        }
+        enchant(item, gear, quality, 0);
+        plugin.items().markGear(item, rank, sourceName, quality);
         return item;
     }
 
@@ -59,7 +63,18 @@ public final class BossGearFactory {
         return kind == null ? GearKind.SWORD : kind;
     }
 
-    private void enchant(ItemStack item, RankSettings.Gear gear) {
+    /** Nemesis loot calls this with a bonus to break the normal level ceiling a little further. */
+    public ItemStack createBonus(BossRank rank, @Nullable EntityType sourceType, String sourceName, int overMaxBonus) {
+        RankSettings.Gear gear = plugin.settings().rank(rank).gear();
+        GearKind kind = rollKind(sourceType);
+        GearTier tier = Rng.weighted(gear.materials());
+        ItemStack item = ItemStack.of(kind.material(tier == null ? GearTier.DIAMOND : tier));
+        enchant(item, gear, GearQuality.MASTERWORK, overMaxBonus);
+        plugin.items().markGear(item, rank, sourceName, GearQuality.MASTERWORK);
+        return item;
+    }
+
+    private void enchant(ItemStack item, RankSettings.Gear gear, GearQuality quality, int overMaxBonus) {
         PluginSettings s = plugin.settings();
         List<Enchantment> candidates = new ArrayList<>();
         for (Enchantment e : RegistryAccess.registryAccess().getRegistry(RegistryKey.ENCHANTMENT)) {
@@ -75,7 +90,7 @@ public final class BossGearFactory {
             candidates.add(e);
         }
         Collections.shuffle(candidates);
-        int wanted = Rng.between(gear.enchantMin(), gear.enchantMax());
+        int wanted = Math.max(0, Rng.between(gear.enchantMin(), gear.enchantMax()) + quality.extraEnchantments());
         List<Enchantment> chosen = new ArrayList<>();
         for (Enchantment e : candidates) {
             if (chosen.size() >= wanted) {
@@ -94,9 +109,11 @@ public final class BossGearFactory {
             chosen.add(e);
             int max = e.getMaxLevel();
             int min = Math.max(1, (int) Math.ceil(max * gear.minLevelPercent() / 100.0));
-            int level = Rng.between(Math.min(min, max), max);
-            if (max > 1 && gear.overMaxLevels() > 0 && Rng.chance(gear.overMaxChance())) {
-                level = max + Rng.between(1, gear.overMaxLevels());
+            int level = Math.max(1, Math.min(max, Rng.between(Math.min(min, max), max) + quality.levelShift()));
+            int overLevels = gear.overMaxLevels() + overMaxBonus;
+            double overChance = overMaxBonus > 0 ? 100 : gear.overMaxChance() * quality.overMaxFactor();
+            if (max > 1 && overLevels > 0 && Rng.chance(overChance)) {
+                level = max + Rng.between(1, overLevels);
             }
             item.addUnsafeEnchantment(e, level);
         }

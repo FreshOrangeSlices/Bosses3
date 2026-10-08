@@ -9,10 +9,15 @@ import net.kyori.adventure.text.format.TextDecoration;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import net.kyori.adventure.title.Title;
 import org.bukkit.Bukkit;
+import org.bukkit.Color;
 import org.bukkit.Location;
+import org.bukkit.Material;
 import org.bukkit.Particle;
+import org.bukkit.World;
+import org.bukkit.block.data.BlockData;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
+import org.bukkit.inventory.ItemStack;
 import org.jetbrains.annotations.Nullable;
 
 import java.time.Duration;
@@ -22,6 +27,11 @@ import java.time.Duration;
  * Higher ranks get stronger cues, but nothing runs every tick and nothing is spammed.
  */
 public final class Presentation {
+
+    private static final ItemStack BONE = ItemStack.of(Material.BONE);
+    private static final ItemStack FLESH = ItemStack.of(Material.ROTTEN_FLESH);
+    private static final BlockData SAND = Material.SAND.createBlockData();
+    private static final BlockData STONE = Material.STONE.createBlockData();
 
     private final AdditionalBosses plugin;
 
@@ -85,15 +95,67 @@ public final class Presentation {
 
     /** Called about once per second for every loaded boss. Subtle by design. */
     public void ambient(Boss boss) {
-        int count = of(boss).particles();
-        if (count <= 0) {
-            return;
-        }
         LivingEntity e = boss.entity();
         Location at = Fx.center(e);
-        Fx.dust(at, boss.rank().bukkitColor(), 1.1f, count, Math.max(0.3, e.getWidth() * 0.6));
-        if (boss.rank() == BossRank.GOLD) {
-            Fx.particle(at, Particle.WAX_ON, 1, 0.5, 0);
+        int count = of(boss).particles();
+        if (count > 0) {
+            Fx.dust(at, boss.rank().bukkitColor(), 1.1f, count, Math.max(0.3, e.getWidth() * 0.6));
+            if (boss.rank() == BossRank.GOLD) {
+                Fx.particle(at, Particle.WAX_ON, 1, 0.5, 0);
+            }
+        }
+        if (plugin.settings().environmentalParticles) {
+            environment(e, at);
+        }
+        // Battle scars: a Nemesis trails smoke that thickens with every fight it has survived.
+        int scars = boss.isNemesis() ? plugin.nemesis().scarLevel(boss) : 0;
+        if (scars > 0) {
+            Fx.particle(at, Particle.LARGE_SMOKE, scars, 0.3, 0.01);
+            e.getWorld().spawnParticle(Particle.DUST, at.clone().add(0, e.getHeight() * 0.4, 0), 2 + scars, 0.25, 0.3, 0.25, 0,
+                new Particle.DustOptions(Color.WHITE, 1.0f));
+            if (scars >= 4) {
+                Fx.particle(at, Particle.SOUL, 1, 0.4, 0.01);
+            }
+        }
+        if (boss.lastStand()) {
+            Fx.particle(at, Particle.SOUL_FIRE_FLAME, 3, 0.4, 0.02);
+        }
+    }
+
+    /** Flavour that fits the mob: Blazes smoulder, Drowned drip, skeletons shed bone dust... */
+    private static void environment(LivingEntity e, Location at) {
+        World w = e.getWorld();
+        double spread = Math.max(0.25, e.getWidth() * 0.5);
+        switch (e.getType()) {
+            case BLAZE -> w.spawnParticle(Particle.FLAME, at, 3, spread, 0.4, spread, 0.01);
+            case MAGMA_CUBE -> w.spawnParticle(Particle.DRIPPING_LAVA, at, 2, spread, 0.2, spread, 0);
+            case DROWNED, GUARDIAN, ELDER_GUARDIAN -> {
+                w.spawnParticle(Particle.BUBBLE_POP, at, 3, spread, 0.4, spread, 0.02);
+                w.spawnParticle(Particle.DRIPPING_WATER, at, 2, spread, 0.3, spread, 0);
+            }
+            case SKELETON, PARCHED -> w.spawnParticle(Particle.ITEM, at, 2, spread, 0.4, spread, 0.02, BONE);
+            case STRAY -> w.spawnParticle(Particle.SNOWFLAKE, at, 2, spread, 0.4, spread, 0.01);
+            case BOGGED -> w.spawnParticle(Particle.FALLING_SPORE_BLOSSOM, at, 1, spread, 0.4, spread, 0);
+            case WITHER_SKELETON -> {
+                w.spawnParticle(Particle.SMOKE, at, 2, spread, 0.5, spread, 0.01);
+                w.spawnParticle(Particle.SOUL, at, 1, spread, 0.5, spread, 0.01);
+            }
+            case ZOMBIE, ZOMBIE_VILLAGER -> w.spawnParticle(Particle.ITEM, at, 1, spread, 0.4, spread, 0.02, FLESH);
+            case HUSK -> w.spawnParticle(Particle.FALLING_DUST, at, 2, spread, 0.4, spread, 0, SAND);
+            case SPIDER, CAVE_SPIDER -> w.spawnParticle(Particle.ITEM_COBWEB, at, 1, spread, 0.2, spread, 0);
+            case CREEPER -> w.spawnParticle(Particle.SMOKE, at, 1, spread, 0.3, spread, 0.01);
+            case ENDERMAN, ENDERMITE -> w.spawnParticle(Particle.PORTAL, at, 4, spread, 0.8, spread, 0.2);
+            case WITCH, EVOKER, ILLUSIONER -> w.spawnParticle(Particle.WITCH, at, 2, spread, 0.4, spread, 0);
+            case PIGLIN, PIGLIN_BRUTE, ZOMBIFIED_PIGLIN, HOGLIN, ZOGLIN ->
+                w.spawnParticle(Particle.ASH, at, 3, spread, 0.4, spread, 0);
+            case GHAST -> w.spawnParticle(Particle.WHITE_ASH, at, 4, spread, 0.6, spread, 0);
+            case PHANTOM -> w.spawnParticle(Particle.MYCELIUM, at, 3, spread, 0.3, spread, 0);
+            case BREEZE -> w.spawnParticle(Particle.SMALL_GUST, at, 1, spread, 0.3, spread, 0);
+            case SLIME -> w.spawnParticle(Particle.ITEM_SLIME, at, 2, spread, 0.3, spread, 0);
+            case SILVERFISH -> w.spawnParticle(Particle.FALLING_DUST, at, 1, spread, 0.2, spread, 0, STONE);
+            case VINDICATOR, PILLAGER, RAVAGER -> w.spawnParticle(Particle.CRIT, at, 1, spread, 0.4, spread, 0.05);
+            default -> {
+            }
         }
     }
 

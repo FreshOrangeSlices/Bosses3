@@ -55,6 +55,16 @@ public final class LeapingTrait extends BaseTrait {
         if (distance < minDistance || distance > maxDistance) {
             return;
         }
+        if (!telling(boss, "leap", now)) {
+            // Tell: it crouches and scrapes the ground for half a second before it jumps.
+            startTell(boss, "leap", now, 10);
+            Fx.play(e.getLocation(), "entity.goat.prepare_ram", 1.0f, 0.7f);
+            Fx.particle(e.getLocation().add(0, 0.1, 0), Particle.DUST_PLUME, 8, 0.4, 0.02);
+            return;
+        }
+        if (!tellDone(boss, "leap", now)) {
+            return;
+        }
         Vector horizontal = diff.clone().setY(0);
         if (horizontal.lengthSquared() < 0.01) {
             return;
