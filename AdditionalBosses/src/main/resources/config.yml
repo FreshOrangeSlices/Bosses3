@@ -1,4 +1,4 @@
-config-version: 5   # used by the plugin to update this file; don't change
+config-version: 6   # used by the plugin to update this file; don't change
 # =====================================================================
 #  Additional Bosses - configuration
 # ---------------------------------------------------------------------
@@ -573,12 +573,12 @@ escalation:
 # =====================================================================
 trophies:
   enabled: true
-  # Right-click a block with a trophy to place a tiny frozen copy of the
-  # boss. scale: 0.125 = 1/8 of a normal mob (0.0625, 1/16, is the
-  # smallest Minecraft allows). To pick it up, sneak + right-click it, or
-  # sneak + right-click the block under it with an empty hand.
+  # Right-click a block with a trophy to place a small frozen copy of the
+  # boss. size: how big it is in blocks (its height or width, whichever is
+  # larger), the same for every mob. To pick it up, sneak + right-click it,
+  # or sneak + right-click the block under it with an empty hand.
   placeable: true
-  scale: 0.125
+  size: 0.5
   chance:
     GRAY: 4
     GREEN: 7
@@ -618,7 +618,7 @@ nemesis:
   max-extra-size: 0.5
   revenge-xp-multiplier: 2        # XP bonus for killing the boss that killed you
   gear-evolution: true            # chainmail -> iron -> diamond -> netherite (trimmed) as it levels
-  statue-scale: 0.125             # placed Nemesis Statues are this fraction of the Nemesis's size (1/8)
+  statue-scale: 1.0               # placed Nemesis Statues: 1.0 = the Nemesis's full size
   prowl-minutes: 3                # after it lets you go, it roams nearby hunting other mobs before vanishing
   levels-from-kills-per-outing: 5 # each mob it kills is +1 level, up to this many per outing
 
