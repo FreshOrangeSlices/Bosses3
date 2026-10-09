@@ -37,6 +37,9 @@ public class NotificationManager {
     public static final String HEX_BEIGE_COLOR = "#c2a66e";
     public static final String HEX_LIME_GREEN_COLOR = "#8ec26e";
 
+    /** How long other action bar messages stay up before the ability charge bar returns. */
+    private static final long CHARGE_BAR_HOLD_MILLIS = 2000L;
+
     /**
      * Sends players notifications from mcMMO Does so by sending out an event so other plugins can
      * cancel it
@@ -131,6 +134,7 @@ public class NotificationManager {
         Component notificationTextComponent = customEvent.getNotificationTextComponent();
         if (customEvent.getChatMessageType() == McMMOMessageType.ACTION_BAR) {
             audience.sendActionBar(notificationTextComponent);
+            holdChargeBar(player, customEvent.getEventNotificationType());
 
             // If the message is being sent to the action bar we need to check if a copy is also sent to the chat system
             if (customEvent.isMessageAlsoBeingSentToChat()) {
@@ -139,6 +143,25 @@ public class NotificationManager {
             }
         } else {
             audience.sendMessage(notificationTextComponent);
+        }
+    }
+
+    /**
+     * Server-specific: gives an action bar message a moment to be read before the ability charge
+     * bar paints over it. Ready, too-tired and activation messages are skipped, because the charge
+     * bar shows the same thing, live.
+     */
+    private static void holdChargeBar(@NotNull Player player,
+            @Nullable NotificationType notificationType) {
+        if (notificationType == NotificationType.TOOL
+                || notificationType == NotificationType.ABILITY_COOLDOWN
+                || notificationType == NotificationType.SUPER_ABILITY) {
+            return;
+        }
+
+        final McMMOPlayer mmoPlayer = UserManager.getPlayer(player);
+        if (mmoPlayer != null) {
+            mmoPlayer.holdChargeBar(CHARGE_BAR_HOLD_MILLIS);
         }
     }
 

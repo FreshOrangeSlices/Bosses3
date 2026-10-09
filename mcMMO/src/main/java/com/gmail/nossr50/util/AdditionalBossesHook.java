@@ -4,6 +4,7 @@ import com.gmail.nossr50.config.experience.ExperienceConfig;
 import java.util.Locale;
 import org.bukkit.NamespacedKey;
 import org.bukkit.entity.Entity;
+import org.bukkit.entity.Player;
 import org.bukkit.persistence.PersistentDataContainer;
 import org.bukkit.persistence.PersistentDataType;
 import org.jetbrains.annotations.NotNull;
@@ -17,6 +18,7 @@ import org.jetbrains.annotations.NotNull;
  *     <li>Mobs a boss summoned (minions) give reduced XP, so they can't be farmed.</li>
  *     <li>Bosses and their statues keep their own names (they already have a boss bar), so mcMMO's
  *     mob health bar leaves them alone.</li>
+ *     <li>The ability charge bar waits while Additional Bosses has a message above the hotbar.</li>
  * </ul>
  */
 public final class AdditionalBossesHook {
@@ -26,6 +28,8 @@ public final class AdditionalBossesHook {
     private static final NamespacedKey NEMESIS = key("nemesis");
     private static final NamespacedKey MINION = key("minion_of");
     private static final NamespacedKey STATUE = key("statue");
+    /** On a player: epoch millis until which Additional Bosses is using the action bar. */
+    private static final NamespacedKey ACTION_BAR_BUSY = key("actionbar_busy_until");
 
     private AdditionalBossesHook() {
     }
@@ -43,6 +47,16 @@ public final class AdditionalBossesHook {
     public static boolean hasOwnName(@NotNull Entity entity) {
         final PersistentDataContainer pdc = entity.getPersistentDataContainer();
         return pdc.has(BOSS, PersistentDataType.BYTE) || pdc.has(STATUE, PersistentDataType.STRING);
+    }
+
+    /**
+     * True while Additional Bosses has a message on this player's action bar (a boss warning, the boss
+     * compass...), so mcMMO's ability charge bar doesn't paint over it.
+     */
+    public static boolean actionBarBusy(@NotNull Player player) {
+        final Long busyUntil = player.getPersistentDataContainer()
+                .get(ACTION_BAR_BUSY, PersistentDataType.LONG);
+        return busyUntil != null && busyUntil > System.currentTimeMillis();
     }
 
     /** Combat XP multiplier for this mob (1.0 for anything that isn't a boss or a boss's minion). */

@@ -2,11 +2,13 @@ package com.additionalbosses.util;
 
 import net.kyori.adventure.key.Key;
 import net.kyori.adventure.sound.Sound;
+import net.kyori.adventure.text.Component;
 import org.bukkit.Color;
 import org.bukkit.Location;
 import org.bukkit.Particle;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
+import org.bukkit.persistence.PersistentDataType;
 import org.jetbrains.annotations.Nullable;
 
 /**
@@ -15,7 +17,20 @@ import org.jetbrains.annotations.Nullable;
  */
 public final class Fx {
 
+    private static final long ACTION_BAR_BUSY_MILLIS = 2500;
+
     private Fx() {
+    }
+
+    /**
+     * Shows a message above the hotbar and marks the action bar as in use for a moment ({@link Keys#ACTION_BAR_BUSY}),
+     * so plugins that keep a live action bar (our mcMMO build's ability bar) wait instead of painting over boss
+     * warnings or the compass.
+     */
+    public static void actionBar(Player player, Component message) {
+        player.sendActionBar(message);
+        player.getPersistentDataContainer().set(Keys.ACTION_BAR_BUSY, PersistentDataType.LONG,
+            System.currentTimeMillis() + ACTION_BAR_BUSY_MILLIS);
     }
 
     public static Sound sound(String key, float volume, float pitch) {

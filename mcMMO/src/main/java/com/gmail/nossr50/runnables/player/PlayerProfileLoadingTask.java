@@ -108,6 +108,7 @@ public class PlayerProfileLoadingTask extends CancellableRunnable {
             mmoPlayer.setupPartyData();
             UserManager.track(mmoPlayer);
             mmoPlayer.actualizeRespawnATS();
+            mmoPlayer.startChargeBar(); // Server-specific: live ability line above the hotbar
 
             if (mcMMO.p.getGeneralConfig().getScoreboardsEnabled()) {
                 ScoreboardManager.setupPlayer(player);

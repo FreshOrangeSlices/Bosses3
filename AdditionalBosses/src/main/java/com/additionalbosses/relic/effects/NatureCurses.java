@@ -152,7 +152,7 @@ public final class NatureCurses {
             }
         }
         if (changed) {
-            p.sendActionBar(Component.text("Your meat withers away...", NamedTextColor.DARK_GREEN));
+            Fx.actionBar(p, Component.text("Your meat withers away...", NamedTextColor.DARK_GREEN));
             Fx.playTo(p, Fx.sound("block.composter.fill_success", 0.8f, 0.8f));
         }
     }
@@ -215,7 +215,7 @@ public final class NatureCurses {
         public void onEat(PlayerItemConsumeEvent event) {
             if (MEAT.contains(event.getItem().getType()) && has(event.getPlayer(), "herbivore")) {
                 event.setCancelled(true);
-                event.getPlayer().sendActionBar(Component.text("You can't bring yourself to eat that.", NamedTextColor.DARK_GREEN));
+                Fx.actionBar(event.getPlayer(), Component.text("You can't bring yourself to eat that.", NamedTextColor.DARK_GREEN));
             }
         }
 

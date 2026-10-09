@@ -181,7 +181,7 @@ public final class WaystoneListener implements Listener {
         if (player.isSneaking() && !hand.isEmpty() && isOwnerOrAdmin(player, w)) {
             ways().setIcon(w, hand.getType());
             Fx.play(block.getLocation(), "entity.item_frame.add_item", 1.0f, 1.0f);
-            player.sendActionBar(Component.text("Icon set for " + w.name));
+            Fx.actionBar(player, Component.text("Icon set for " + w.name));
             return;
         }
         ways().openMenu(player, w, 0);
