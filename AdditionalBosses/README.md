@@ -15,8 +15,8 @@ A Paper plugin for **Minecraft 26.3** that makes normal survival occasionally pr
 | System | What it does |
 |---|---|
 | **Bosses** | Any eligible hostile mob can rise as a boss when it spawns (roll #1), then gets a rank (roll #2), weighted by mob type. Zombies and Skeletons are suspiciously likely to be Legendary. Rideable mobs (skeleton/zombie horses, camel husks...) are never bosses. |
-| **6 ranks** | ★ Hard (Gray) · ★★ Very Hard (Green) · ★★★ Brutal (Red) · ★★★★ Nightmare (Purple) · ★★★★★ Legendary (Gold) · ★★★★★★ Ascendant (pearl white, only by promotion). Rank scales health, damage, armor, size, XP, traits and reward odds. |
-| **Promotion** | Right-click a boss with a trophy, or throw the trophy at it, and it rises: Green +1, Red +1–2, Purple +1–3, Gold +2–4 (Gray trophies 25% for +1). Ranks can be skipped; past Legendary it becomes **Ascendant**, which breaks into new phases at 66% and 33% health. |
+| **6 ranks** | ★ Hard (Gray) · ★★ Very Hard (Green) · ★★★ Brutal (Red) · ★★★★ Nightmare (Purple) · ★★★★★ Legendary (Gold) · ★★★★★★ Ascendant (pearl white, only by promotion). Rank scales health, damage, armor, size, XP, traits and reward odds. Legendary and Ascendant use the Warden as their yardstick: at least 500 / 800 health and melee hits of 20 / 30+. |
+| **Promotion** | Right-click a boss with a **Boss Soul**, or throw the soul at it, and it rises: Green +1, Red +1–2, Purple +1–3, Gold +2–4 (Gray souls 25% for +1). Ranks can be skipped; past Legendary it becomes **Ascendant**, which breaks into new phases at 66% and 33% health. |
 | **Waystones** | Ascendant bosses drop 2 (Gold bosses 3% for 1). Place one and it joins a single public network: every waystone from every player links to every other, free travel after a 3-second warm-up. Name them in an anvil or with a name tag, set a menu icon, and only the owner can break them. |
 | **Difficulty + Threat Scaling** | Bosses are 30% tougher and hit 20% harder, and when a fight starts they size up the best-geared nearby player and get up to +60% health / +30% damage, with up to +25% better reward odds. |
 | **Reward floor** | Red bosses and up always drop at least one item; below that, 3 empty kills in a row guarantees the next drop. |
@@ -28,18 +28,18 @@ A Paper plugin for **Minecraft 26.3** that makes normal survival occasionally pr
 | **Anti-trap** | Bosses can't be put in boats or minecarts or leashed, and a boss that can't reach you for 6 seconds tears itself free. |
 | **Boss bars** | Shown only to players actually fighting the boss, with rank colour and live health. They hide when combat ends. |
 | **Boss armor** | Zombies, skeletons and piglins wear a matching cosmetic set: one material, one trim colour and one trim pattern, from their rank's palette. Nemeses' gear and weapons visibly upgrade as they level. |
-| **Presentation** | Rank-coloured names, bigger bodies, subtle particles, sounds and announcements that scale with rank, plus mob-themed flavour (Blazes smoulder, Drowned drip, skeletons shed bone dust). Legendary kills are announced to the whole server. |
-| **Rewards** | Extra XP plus *independent* rolls for Boss Gear, Empowerment Runes, Relics and Relic Catalysts. Drops glow, show their name and can't burn or despawn. |
-| **Boss Gear** | One rank-branded equipment piece (e.g. `★★★★ Nightmare Diamond Sword`) with enchantments. Includes pickaxes, shovels and hoes, which can roll a weapon enchant like Sharpness. Material (Chainmail → Netherite) and quality (Crude, Standard, Fine, Masterwork) are rolled separately per rank. High ranks can go above vanilla enchantment limits. |
-| **Empowerment** | Runes that add a permanent stat (Attack Damage, Max Health, Armor, Speed, Reach...) to any item you choose. **Loot** and **Fortune** runes are multipliers (x1.05–x1.5) on mob drops and ore drops, capped at x3 and exploit-safe. |
-| **Relics** | 27 unique abilities you bind permanently to equipment: combat relics (Blood Pact, Second Dawn, Windstep, Stormcaller...), auras (Iron Will, Skybound, Nightstalker, Sunblessed...) and risky "Burdened" relics (Greed, Heavy Crown). 10% are corrupted and also carry one of 16 curses (Terror, Echoes, Reduction, Mother Hen, Matador, Butterfingers, Pariah, Herbivore...). |
-| **Relic Catalyst** | Extremely rare Nightmare/Legendary drop that gives an item a second Relic slot. |
+| **Presentation** | Rank-coloured names (shown when you look at the boss), bigger bodies, subtle particles, sounds and title/action-bar announcements that scale with rank, plus mob-themed flavour (Blazes smoulder, Drowned drip, skeletons shed bone dust). No boss chat spam by default (`presentation.boss-chat`). |
+| **Rewards** | Extra XP plus *independent* rolls for Boss Gear, Empowerment Runes, Relics and Relic Catalysts. Drops glow and can't burn or despawn. |
+| **Boss Gear** | One rank-branded equipment piece (e.g. `★★★★ Nightmare Diamond Sword`) with enchantments. Includes pickaxes, shovels and hoes, which can roll a weapon enchant like Sharpness. Material (Chainmail → Netherite) and quality (Crude, Standard, Fine, Masterwork) are rolled separately per rank. High ranks can go above vanilla enchantment limits, and Legendary/Ascendant gear can mix enchantments that normally exclude each other (Sharpness + Smite, Protection + Blast Protection). |
+| **Empowerment** | Runes that add a permanent stat (Attack Damage, Max Health, Armor, Speed, Reach...) to any item you choose. Each rank gives one fixed amount (Attack Damage: 1 / 1.5 / 2 / 3 / 4 / 5), so identical runes stack. **Loot** and **Fortune** runes are multipliers (x1.1–x1.5) on mob drops and ore drops, capped at x3 and exploit-safe. |
+| **Relics** | 27 unique abilities you bind permanently to equipment: combat relics (Blood Pact, Second Dawn, Windstep, Stormcaller...), auras (Iron Will, Skybound, Nightstalker, Sunblessed...) and risky "Burdened" relics (Greed, Heavy Crown). 10% are corrupted and also carry one of 22 curses (Terror, Echoes, Withering Waters, Uninvited Guest, Don't Blink, Poltergeist, Restless Dead, Hiccups, Pariah, Herbivore, Mother Hen...). Cursed armor also gets Curse of Binding: only death takes it off. |
+| **Relic Catalyst** | Extremely rare Nightmare/Legendary drop that gives an item a second Relic slot. It draws corruption: relics bound to that item carry a curse 50% of the time. |
 | **Hunter's Compass** | Craft a Compass + Eye of Ender + Bone. Hold it to track the nearest boss: distance and an arrow on the action bar, rank only revealed up close, a heartbeat near Purple/Gold/Nemesis bosses. Click Empowerment Runes onto it to upgrade (3 tiers). |
 | **Boss Totem** | Rare drop. Right-click for a 3-second ritual and a boss arrives to fight you. |
 | **Escalation Chain** | Kill 5 bosses within one Minecraft day and 2 Purple/Gold bosses come hunting you. |
-| **Nemesis** | A boss that kills you (or that you flee from after a real fight) becomes *your* Nemesis, with a unique name of its own: `☆ Returned Scrawl the Bulwark [Lv 7]` (history title, name, what it was known for). It prowls off for a few minutes hunting other mobs (+1 level per kill), then returns for you after 3 Minecraft days. It levels up to 50, never drops below its starting rank, earns titles (Returned, Twice-Fled, Relentless, Unbroken...), learns counter-traits against how you fight, keeps its look (baby or adult) every time, and its gear and weapon visibly upgrade. Ignores the boss cap, never despawns, up to 5 per player. Killing it drops Masterwork gear, a rune, boosted relic odds and a **Nemesis Statue** you can place in your base. |
+| **Nemesis** | A boss that kills you (or that you flee from after a real fight) becomes *your* Nemesis, with a unique name of its own: `☆ Returned Scrawl the Bulwark [Lv 7]` (history title, name, what it was known for). It prowls off for a minute hunting other mobs (+1 level per kill), then returns for you after 3 Minecraft days. It levels up to 50, never drops below its starting rank, earns titles (Returned, Twice-Fled, Relentless, Unbroken...), learns counter-traits against how you fight, keeps its look (baby or adult) every time, and its gear and weapon visibly upgrade. Ignores the boss cap, never despawns, up to 5 per player. Killing it drops Masterwork gear, a rune, boosted relic odds and a **Nemesis Statue** (half a block tall) you can place in your base. |
 | **Revenge** | Killing a boss that killed you gives double XP and an extra reward roll. |
-| **Trophies** | Collectibles named after the boss (Blaze Core, Ravager Horn, Withered Skull...). Gold bosses always drop one. Place one to get a tiny frozen copy of the boss (a tenth of normal size), or use it to promote a boss. |
+| **Boss Souls** | A stackable soul of the boss's rank. Gold bosses and every Nemesis always drop one. Offer it to a boss to promote it. (Trophies from older versions turn into souls.) |
 | **Guide book** | `/bosses guide` gives the *Boss Hunter's Compendium*: a clickable in-game book with a multi-page contents list, generated from your config, explaining everything plus your personal boss record. New players get it automatically. |
 
 A finished item can stack every layer:
@@ -90,6 +90,7 @@ Build locally instead (needs Java 25): `./gradlew build` → `build/libs/Additio
 | `/bosses give <player> relic [relic\|random] [curse\|none\|random]` | admin | Relic |
 | `/bosses give <player> catalyst [amount]` / `guide` | admin | Catalyst or guide book |
 | `/bosses give <player> compass [tier]` / `totem [rank]` | admin | Hunter's Compass or Boss Totem |
+| `/bosses give <player> soul [rank] [amount]` | admin | Boss Souls |
 | `/bosses nemesis list\|summon\|clear <player>` | admin | See, call back early, or remove a player's Nemeses |
 | `/bosses escalate <player>` | admin | Trigger an Escalation Chain |
 | `/bosses promote [ranks]` | admin | Promote the boss you are looking at |
@@ -116,9 +117,9 @@ Everything balance-related is in `config.yml`, with comments. Highlights:
 - `mob-categories`: which mobs can become bosses and their rank weights (roll #2). The Warden/Wither category exists but is off by default.
 - `mob-profiles`: how strongly rank stats apply to creepers, small, large and flying mobs.
 - `traits`: enable/disable, weights, numbers, and incompatible pairs.
-- `boss-gear`, `empowerment`, `relics`: item weights, stat ranges, how many runes per item, corruption chance, catalyst slots, and every relic and curse.
+- `boss-gear`, `empowerment`, `relics`: item weights, rune values, how many runes per item, corruption chance, catalyst slots, and every relic and curse.
 - `last-stand`, `rank-personality`, `anti-trap`: how bosses behave in a fight.
-- `hunters-compass`, `boss-totem`, `escalation`, `trophies`: the hunting features.
+- `hunters-compass`, `boss-totem`, `escalation`, `souls`: the hunting features.
 - `nemesis`: every number of the Nemesis system (chances, levels, return time, scaling, gear evolution).
 - `difficulty`, `reward-floor`, `promotion`, `ascendant`, `waystones`, `boss-armor`: the newer systems.
 - `messages`: all player-facing text (MiniMessage).
@@ -139,13 +140,13 @@ src/main/java/com/additionalbosses/
   boss/       BossManager (spawning, ranks, stats, lifecycle, ticker, Last Stand, anti-trap, Threat,
               promotion, Ascendant phases), Boss, BossRank, BossBarManager, Presentation, BossMobs, BossArmor
   nemesis/    NemesisManager (becoming, growing, returning, loot), NemesisRecord
-  feature/    CompassManager, EscalationManager, FeatureListener (totems, statues, trophies, promotion,
+  feature/    CompassManager, EscalationManager, FeatureListener (totems, statues, souls, promotion,
               compass recipe), LootListener (Loot/Fortune runes)
   waystone/   WaystoneManager (network, menu, travel, floating names), WaystoneListener, Waystone
   trait/      BossTrait interface, TraitManager (registry + rolling), Synergies, impl/ (one class per trait)
   reward/     RewardManager (independent rolls), BossGearFactory, GearKind, GearTier, GearQuality
-  item/       ItemService (runes, relics, catalysts, compass, totem, applying, lore), Trophies, EquipmentType
-  relic/      RelicEffect interface, RelicManager (registry + activation), effects/Relics, effects/Curses
+  item/       ItemService (runes, relics, catalysts, souls, compass, totem, applying, lore), Trophies (statues), EquipmentType
+  relic/      RelicEffect interface, RelicManager (registry + activation), effects/Relics, effects/*Curses
   listener/   BossListener, CombatListener (one damage pipeline), ItemListener, PlayerListener
   command/    BossesCommand (/bosses)
   guide/      GuideBook, BookWriter (page layout)

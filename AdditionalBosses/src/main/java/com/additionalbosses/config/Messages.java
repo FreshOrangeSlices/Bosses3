@@ -33,6 +33,8 @@ public final class Messages {
         DEFAULTS.put("relic-corrupted", "<dark_red><bold>CORRUPTED!</bold></dark_red> <red>The relic carried a curse:</red> <dark_red><curse></dark_red>");
         DEFAULTS.put("catalyst-applied", "<gold>Relic Catalyst absorbed!</gold> <gray>Your</gray> <item> <gray>now has</gray> <gold><count></gold> <gray>Relic slots.</gray>");
         DEFAULTS.put("confirm-relic", "<yellow>Binding is permanent.</yellow> <gray>Do it again within 10 seconds to bind</gray> <light_purple><relic></light_purple> <gray>to your</gray> <item><gray>.</gray>");
+        DEFAULTS.put("confirm-relic-catalyst", "<dark_red>This item holds a Relic Catalyst:</dark_red> <red><count>% chance the relic brings a curse with it.</red>");
+        DEFAULTS.put("cursed-armor-locked", "<dark_red>It won't come off. Only death will part you.</dark_red>");
         DEFAULTS.put("confirm-catalyst", "<yellow>This is permanent.</yellow> <gray>Do it again within 10 seconds to use the Catalyst on your</gray> <item><gray>.</gray>");
         DEFAULTS.put("apply-not-equipment", "<red>That item can't be upgraded. Use weapons, armor, shields or tools.</red>");
         DEFAULTS.put("apply-wrong-type", "<red>This rune only fits: <fits>.</red>");
@@ -63,7 +65,7 @@ public final class Messages {
         DEFAULTS.put("promoted-subtitle", "<boss> <gray>rises!</gray>");
         DEFAULTS.put("ascended", "<player> <gray>has raised</gray> <boss> <gray>to Ascendance!</gray>");
         DEFAULTS.put("ascendant-phase", "<boss> <white><bold>breaks into a new phase!</bold></white>");
-        DEFAULTS.put("promote-fail", "<gray>The trophy crumbles to dust... nothing answers.</gray>");
+        DEFAULTS.put("promote-fail", "<gray>The soul fades away... nothing answers.</gray>");
         DEFAULTS.put("promote-blocked", "<red>That boss can't rise any higher.</red>");
         DEFAULTS.put("waystone-placed", "<aqua>Waystone</aqua> <white><name></white> <aqua>joins the network.</aqua>");
         DEFAULTS.put("waystone-removed", "<gray>Waystone</gray> <white><name></white> <gray>was taken down.</gray>");

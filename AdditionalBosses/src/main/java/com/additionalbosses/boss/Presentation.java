@@ -7,6 +7,7 @@ import com.additionalbosses.util.Fx;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.TextDecoration;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
+import net.kyori.adventure.text.minimessage.tag.resolver.TagResolver;
 import net.kyori.adventure.title.Title;
 import org.bukkit.Bukkit;
 import org.bukkit.Color;
@@ -62,13 +63,21 @@ public final class Presentation {
             }
             switch (p.announce()) {
                 case ACTIONBAR -> Fx.actionBar(player, m.get("spawn-actionbar", Placeholder.component("boss", boss.name())));
-                case CHAT -> player.sendMessage(m.prefixed("spawn-chat", Placeholder.component("boss", boss.name())));
+                case CHAT -> {
+                    if (plugin.settings().bossChat) {
+                        player.sendMessage(m.prefixed("spawn-chat", Placeholder.component("boss", boss.name())));
+                    } else {
+                        Fx.actionBar(player, m.get("spawn-actionbar", Placeholder.component("boss", boss.name())));
+                    }
+                }
                 case TITLE -> {
                     player.showTitle(Title.title(
                         m.get("spawn-title", Placeholder.component("rank", rankTitle(boss.rank())), Placeholder.component("boss", boss.name())),
                         m.get("spawn-subtitle", Placeholder.component("rank", rankTitle(boss.rank())), Placeholder.component("boss", boss.name())),
                         Title.Times.times(Duration.ofMillis(300), Duration.ofMillis(2800), Duration.ofMillis(900))));
-                    player.sendMessage(m.prefixed("spawn-chat", Placeholder.component("boss", boss.name())));
+                    if (plugin.settings().bossChat) {
+                        player.sendMessage(m.prefixed("spawn-chat", Placeholder.component("boss", boss.name())));
+                    }
                 }
                 default -> {
                 }
@@ -177,7 +186,7 @@ public final class Presentation {
         }
         Fx.play(e.getLocation(), p.deathSound());
 
-        if (p.deathBroadcast() == RankSettings.Broadcast.NONE) {
+        if (p.deathBroadcast() == RankSettings.Broadcast.NONE || !plugin.settings().bossChat) {
             return;
         }
         Messages m = plugin.settings().messages;
@@ -210,8 +219,28 @@ public final class Presentation {
             Fx.playTo(player, of(boss).sound());
         }
         if (boss.rank() == BossRank.ASCENDANT) {
-            Bukkit.getServer().sendMessage(m.prefixed("ascended", Placeholder.component("boss", boss.name()),
+            broadcast(m.prefixed("ascended", Placeholder.component("boss", boss.name()),
                 Placeholder.component("player", by == null ? Component.text("Someone") : by.displayName())));
+        }
+    }
+
+    /**
+     * A boss message for one player: in chat if boss chat is on (presentation.boss-chat), otherwise above their
+     * hotbar, so chat stays clear.
+     */
+    public void tell(Player player, String key, TagResolver... resolvers) {
+        Messages m = plugin.settings().messages;
+        if (plugin.settings().bossChat) {
+            player.sendMessage(m.prefixed(key, resolvers));
+        } else {
+            Fx.actionBar(player, m.get(key, resolvers));
+        }
+    }
+
+    /** Server-wide boss news. Only sent when boss chat is on. */
+    public void broadcast(Component message) {
+        if (plugin.settings().bossChat) {
+            Bukkit.getServer().sendMessage(message);
         }
     }
 

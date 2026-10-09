@@ -5,6 +5,7 @@ import com.additionalbosses.combat.DamageContext;
 import com.additionalbosses.relic.effects.Auras;
 import com.additionalbosses.relic.effects.Burdened;
 import com.additionalbosses.relic.effects.Curses;
+import com.additionalbosses.relic.effects.HauntCurses;
 import com.additionalbosses.relic.effects.MoreCurses;
 import com.additionalbosses.relic.effects.NatureCurses;
 import com.additionalbosses.relic.effects.Relics;
@@ -115,6 +116,12 @@ public final class RelicManager {
         register(new MoreCurses.MotherHen());
         register(new NatureCurses.Pariah());
         register(new NatureCurses.Herbivore());
+        register(new HauntCurses.WitheringWaters());
+        register(new HauntCurses.UninvitedGuest());
+        register(new HauntCurses.DontBlink());
+        register(new HauntCurses.Poltergeist());
+        register(new HauntCurses.RestlessDead());
+        register(new HauntCurses.Hiccups());
     }
 
     public void register(RelicEffect effect) {
@@ -147,6 +154,10 @@ public final class RelicManager {
                     log.warning("relics." + group + "." + key + " does not match any relic (ignored)");
                 }
             }
+        }
+        // Let relics that just got disabled clean up (Don't Blink's Creaking, Mother Hen's chicks...).
+        for (Player p : Bukkit.getOnlinePlayers()) {
+            deactivateMissing(p, cache.get(p.getUniqueId()), List.of());
         }
         cache.clear();
         for (Player p : Bukkit.getOnlinePlayers()) {
@@ -201,6 +212,7 @@ public final class RelicManager {
     public List<Active> refresh(Player player) {
         Map<String, Active> found = new LinkedHashMap<>();
         PlayerInventory inv = player.getInventory();
+        bindWornCursedArmor(inv);
         collect(inv.getItemInMainHand(), RelicContext.Slot.HAND, found);
         for (ItemStack armor : inv.getArmorContents()) {
             collect(armor, RelicContext.Slot.ARMOR, found);
@@ -230,6 +242,20 @@ public final class RelicManager {
             passivePlayers.remove(player.getUniqueId());
         }
         return list;
+    }
+
+    private static final org.bukkit.inventory.EquipmentSlot[] ARMOR_SLOTS = {org.bukkit.inventory.EquipmentSlot.HEAD,
+        org.bukkit.inventory.EquipmentSlot.CHEST, org.bukkit.inventory.EquipmentSlot.LEGS, org.bukkit.inventory.EquipmentSlot.FEET};
+
+    /** Cursed armor that was bound before Curse of Binding was added gets it as soon as it is worn. */
+    private void bindWornCursedArmor(PlayerInventory inv) {
+        for (org.bukkit.inventory.EquipmentSlot slot : ARMOR_SLOTS) {
+            ItemStack worn = inv.getItem(slot);
+            if (!worn.isEmpty() && worn.getEnchantmentLevel(org.bukkit.enchantments.Enchantment.BINDING_CURSE) <= 0
+                && plugin.items().bindCursedArmor(worn)) {
+                inv.setItem(slot, worn);
+            }
+        }
     }
 
     private void collect(@Nullable ItemStack item, RelicContext.Slot slot, Map<String, Active> out) {
@@ -334,8 +360,10 @@ public final class RelicManager {
             if (p.isDead()) {
                 continue;
             }
+            Set<String> ran = new HashSet<>();
             for (Active a : active(p)) {
-                if (a.effect().passive()) {
+                // The same relic on a held item and on armor ticks once, not twice.
+                if (a.effect().passive() && ran.add(a.effect().id())) {
                     a.effect().onPassive(context(p, a));
                 }
             }

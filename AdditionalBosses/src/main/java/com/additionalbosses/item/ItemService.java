@@ -47,7 +47,13 @@ import java.util.UUID;
  */
 public final class ItemService {
 
-    public enum Kind { GEAR, RUNE, RELIC, CATALYST, GUIDE, COMPASS, TOTEM, TROPHY, STATUE, WAYSTONE }
+    public enum Kind { GEAR, RUNE, RELIC, CATALYST, GUIDE, COMPASS, TOTEM, TROPHY, STATUE, WAYSTONE, SOUL }
+
+    /** Lore lines are wrapped to about this many characters so tooltips stay on screen. */
+    private static final int LORE_WIDTH = 38;
+
+    /** What the game says when a curse takes hold. */
+    private static final String[] CURSE_NOTICES = {"So be it.", "As you wish.", "It is done.", "You asked for this."};
 
     private record Pending(String token, int expiresAt) {
     }
@@ -153,7 +159,7 @@ public final class ItemService {
 
     public @Nullable ItemStack createRandomRune(BossRank rank) {
         EmpowermentStat stat = Rng.weighted(settings().empowermentStats, EmpowermentStat::weight);
-        return stat == null ? null : createRune(rank, stat, stat.roll(rank));
+        return stat == null ? null : createRune(rank, stat, stat.roll(rank, settings().fixedRuneValues));
     }
 
     public ItemStack createRune(BossRank rank, EmpowermentStat stat, double amount) {
@@ -200,10 +206,10 @@ public final class ItemService {
         item.setData(DataComponentTypes.MAX_STACK_SIZE, 1);
         List<Component> lore = new ArrayList<>();
         lore.add(Text.line("✦ " + effect.displayName(), RELIC));
-        lore.add(Text.line("  " + effect.description(), NamedTextColor.GRAY));
+        describe(lore, "  ", effect.description(), NamedTextColor.GRAY);
         if (showCurse) {
             lore.add(Text.line("☠ Curse: " + curse.displayName(), CURSE));
-            lore.add(Text.line("  " + curse.description(), NamedTextColor.DARK_RED));
+            describe(lore, "  ", curse.description(), NamedTextColor.DARK_RED);
         } else if (!settings().revealCorruption) {
             lore.add(Text.line("Its aura can't be read until it is bound...", NamedTextColor.DARK_GRAY));
         }
@@ -332,7 +338,7 @@ public final class ItemService {
         }
         EquipmentType type = EquipmentType.of(target.getType());
         Kind targetKind = kind(target);
-        if (targetKind == Kind.COMPASS || targetKind == Kind.TOTEM || targetKind == Kind.TROPHY
+        if (targetKind == Kind.COMPASS || targetKind == Kind.TOTEM || targetKind == Kind.TROPHY || targetKind == Kind.SOUL
             || targetKind == Kind.STATUE || targetKind == Kind.GUIDE || targetKind == Kind.WAYSTONE) {
             return m.prefixed("apply-not-equipment");
         }
@@ -400,8 +406,13 @@ public final class ItemService {
             return m.prefixed("confirm-catalyst", Placeholder.component("item", target.effectiveName()));
         }
         RelicEffect effect = plugin.relics().get(consumable.getPersistentDataContainer().get(Keys.RELIC_ID, PersistentDataType.STRING));
-        return m.prefixed("confirm-relic", Placeholder.unparsed("relic", effect == null ? "?" : effect.displayName()),
+        Component prompt = m.prefixed("confirm-relic", Placeholder.unparsed("relic", effect == null ? "?" : effect.displayName()),
             Placeholder.component("item", target.effectiveName()));
+        if (hasCatalyst(target) && catalystCorruptionChance() > settings().corruptionChance) {
+            prompt = prompt.appendNewline().append(m.prefixed("confirm-relic-catalyst",
+                Placeholder.unparsed("count", Text.num(catalystCorruptionChance()))));
+        }
+        return prompt;
     }
 
     /** Applies the consumable to the target (call {@link #validate} first). Returns the message to show. */
@@ -446,6 +457,10 @@ public final class ItemService {
             if (effect == null) {
                 return m.prefixed("apply-not-equipment");
             }
+            if (curse == null && hasCatalyst(target) && Rng.chance(extraCatalystCurseChance())) {
+                // A Catalyst draws corruption: relics bound to its item are far more likely to carry a curse.
+                curse = plugin.relics().rollCurse();
+            }
             List<String> relics = list(target, Keys.RELICS);
             relics.add(effect.id());
             List<String> curses = list(target, Keys.CURSES);
@@ -466,9 +481,11 @@ public final class ItemService {
             Component msg = m.prefixed("relic-bound", Placeholder.component("item", itemName),
                 Placeholder.unparsed("relic", effect.displayName()));
             if (curse != null) {
+                boolean bound = bindCursedArmor(target);
                 Fx.play(player.getLocation(), "entity.wither.ambient", 0.7f, 0.6f);
                 msg = msg.appendNewline().append(m.prefixed("relic-corrupted",
                     Placeholder.unparsed("curse", curse.displayName() + " - " + curse.description())));
+                curseNotice(player, curse, bound);
             }
             return msg;
         }
@@ -483,6 +500,65 @@ public final class ItemService {
                 Placeholder.unparsed("count", String.valueOf(slots)));
         }
         return m.prefixed("apply-not-equipment");
+    }
+
+    /** True once a Relic Catalyst has given this item an extra slot. */
+    public boolean hasCatalyst(ItemStack item) {
+        return relicSlots(item) > settings().relicBaseSlots;
+    }
+
+    private double catalystCorruptionChance() {
+        return settings().catalystCorruptionChance;
+    }
+
+    /** The extra roll that lifts the total curse chance from the normal one to the Catalyst one. */
+    private double extraCatalystCurseChance() {
+        double base = Math.max(0, Math.min(100, settings().corruptionChance));
+        double total = Math.max(0, Math.min(100, catalystCorruptionChance()));
+        return total <= base || base >= 100 ? 0 : (total - base) / (100 - base) * 100.0;
+    }
+
+    /**
+     * Cursed armor can't be taken off: it gets Curse of Binding, so only death removes it. Returns true if the
+     * item is armor that is (now) bound.
+     */
+    public boolean bindCursedArmor(@Nullable ItemStack item) {
+        if (item == null || item.isEmpty() || !EquipmentType.of(item.getType()).isArmor() || list(item, Keys.CURSES).isEmpty()) {
+            return false;
+        }
+        if (item.getEnchantmentLevel(org.bukkit.enchantments.Enchantment.BINDING_CURSE) <= 0) {
+            item.addUnsafeEnchantment(org.bukkit.enchantments.Enchantment.BINDING_CURSE, 1);
+        }
+        return true;
+    }
+
+    private static void curseNotice(Player player, RelicEffect curse, boolean bound) {
+        String line = CURSE_NOTICES[Rng.between(0, CURSE_NOTICES.length - 1)];
+        Component sub = Component.text(curse.displayName(), CURSE).append(Component.text(bound
+            ? " binds to you. Only death will part you." : " takes hold.", NamedTextColor.GRAY));
+        player.showTitle(net.kyori.adventure.title.Title.title(Component.text(line, NamedTextColor.DARK_RED), sub,
+            net.kyori.adventure.title.Title.Times.times(java.time.Duration.ofMillis(300), java.time.Duration.ofMillis(2500),
+                java.time.Duration.ofMillis(900))));
+        Fx.playTo(player, Fx.sound("entity.elder_guardian.curse", 0.6f, 0.7f));
+    }
+
+    /** A stackable Boss Soul of the given rank: offer it to a boss to make it rise. */
+    public ItemStack createSoul(BossRank rank, int amount) {
+        ItemStack item = ItemStack.of(Material.PAPER, Math.max(1, Math.min(64, amount)));
+        item.setData(DataComponentTypes.ITEM_MODEL, Key.key("echo_shard"));
+        item.setData(DataComponentTypes.ITEM_NAME, rank.styled(rank.starText() + " " + settings().rank(rank).name() + " Boss Soul"));
+        if (rank.atLeast(BossRank.PURPLE)) {
+            item.setData(DataComponentTypes.ENCHANTMENT_GLINT_OVERRIDE, true);
+        }
+        List<Component> lore = new ArrayList<>();
+        lore.add(Text.line("Right-click a boss with it, or throw", NamedTextColor.GRAY));
+        lore.add(Text.line("(drop) it at one, and the boss rises.", NamedTextColor.GRAY));
+        item.lore(lore);
+        item.editPersistentDataContainer(pdc -> {
+            pdc.set(Keys.ITEM_KIND, PersistentDataType.STRING, Kind.SOUL.name());
+            pdc.set(Keys.ITEM_RANK, PersistentDataType.STRING, rank.name());
+        });
+        return item;
     }
 
     /**
@@ -532,6 +608,13 @@ public final class ItemService {
         });
     }
 
+    /** Adds a description as short wrapped lines, each indented the same way. */
+    private static void describe(List<Component> lines, String indent, String text, TextColor color) {
+        for (String part : Text.wrap(text, LORE_WIDTH)) {
+            lines.add(Text.line(indent + part, color));
+        }
+    }
+
     public List<Component> buildLore(ItemStack item) {
         List<Component> lines = new ArrayList<>();
         PersistentDataContainerView view = item.getPersistentDataContainer();
@@ -578,7 +661,7 @@ public final class ItemService {
                 RelicEffect effect = plugin.relics().get(id);
                 lines.add(Text.line("  ✦ " + (effect == null ? Text.pretty(id) : effect.displayName()), RELIC));
                 if (effect != null) {
-                    lines.add(Text.line("     " + effect.description(), NamedTextColor.GRAY));
+                    describe(lines, "     ", effect.description(), NamedTextColor.GRAY);
                 }
             }
             for (int i = relics.size(); i < slots; i++) {
@@ -588,7 +671,7 @@ public final class ItemService {
                 RelicEffect curse = plugin.relics().get(id);
                 lines.add(Text.line("  ☠ Curse: " + (curse == null ? Text.pretty(id) : curse.displayName()), CURSE));
                 if (curse != null) {
-                    lines.add(Text.line("     " + curse.description(), NamedTextColor.DARK_RED));
+                    describe(lines, "     ", curse.description(), NamedTextColor.DARK_RED);
                 }
             }
         }

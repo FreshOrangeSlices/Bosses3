@@ -24,11 +24,14 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityPickupItemEvent;
+import org.bukkit.event.entity.PlayerLeashEntityEvent;
 import org.bukkit.event.player.PlayerFishEvent;
 import org.bukkit.event.player.PlayerInteractEntityEvent;
 import org.bukkit.event.player.PlayerItemConsumeEvent;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.PlayerInventory;
+import org.bukkit.potion.PotionEffect;
+import org.bukkit.potion.PotionEffectType;
 import org.bukkit.util.Vector;
 
 import java.util.EnumSet;
@@ -56,8 +59,10 @@ public final class NatureCurses {
 
     /** Animals flee, villagers charge more, and fish won't bite: only treasure does. */
     public static final class Pariah extends BaseRelic {
-        private double radius = 10;
+        private double radius = 12;
         private int villagerPenalty = 40;
+        private double fleeSpeed = 2.0;
+        private int speedLevel = 3;
 
         public Pariah() {
             super("pariah", "Pariah", true);
@@ -70,14 +75,17 @@ public final class NatureCurses {
 
         @Override
         public void load(ConfigurationSection s) {
-            radius = s.getDouble("radius", 10);
+            radius = s.getDouble("radius", 12);
+            fleeSpeed = Math.max(1.0, s.getDouble("flee-speed", 2.0));
+            speedLevel = Math.max(0, Math.min(5, s.getInt("speed-level", 3)));
             // Iron golems turn on players around -100 reputation, so stay below that.
             villagerPenalty = Math.max(0, Math.min(99, s.getInt("villager-price-penalty", 40)));
         }
 
         @Override
         public String description() {
-            return "Animals flee from you and villagers charge you more. Fish won't bite your hook, but treasure does.";
+            return "Animals bolt from you, far faster than you can run. Villagers charge you more."
+                + " Fish won't bite your hook, but treasure does.";
         }
 
         @Override
@@ -85,23 +93,34 @@ public final class NatureCurses {
             return true;
         }
 
-        /** Once a second: nearby farm animals run from you. */
+        /**
+         * Once a second: nearby animals bolt. They get a burst of speed (faster than a sprinting player) and leap
+         * clear if you get close, so you basically can't catch one.
+         */
         @Override
         public void onPassive(RelicContext ctx) {
             Player p = ctx.player();
             Location from = p.getLocation();
             for (Entity e : p.getNearbyEntities(radius, 4, radius)) {
                 if (!(e instanceof Animals animal) || e instanceof org.bukkit.entity.Enemy
-                    || (e instanceof Tameable t && t.isTamed()) || animal.isLeashed() || !animal.getPassengers().isEmpty()
-                    || animal.getPathfinder().hasPath()) {
+                    || (e instanceof Tameable t && t.isTamed()) || animal.isLeashed() || !animal.getPassengers().isEmpty()) {
                     continue;
                 }
                 Vector away = animal.getLocation().toVector().subtract(from.toVector()).setY(0);
                 if (away.lengthSquared() < 0.01) {
                     away = new Vector(Rng.between(-1.0, 1.0), 0, Rng.between(-1.0, 1.0));
                 }
-                Location flee = animal.getLocation().add(away.normalize().multiply(radius));
-                animal.getPathfinder().moveTo(flee, 1.6);
+                double distance = away.length();
+                away.normalize();
+                if (speedLevel > 0) {
+                    animal.addPotionEffect(new PotionEffect(PotionEffectType.SPEED, 50, speedLevel - 1, false, false));
+                }
+                if (distance < 4 && animal.isOnGround()) {
+                    animal.setVelocity(away.clone().multiply(0.8).setY(0.35));
+                }
+                if (distance < radius * 0.6 || !animal.getPathfinder().hasPath()) {
+                    animal.getPathfinder().moveTo(animal.getLocation().add(away.multiply(radius)), fleeSpeed);
+                }
             }
         }
 
@@ -209,6 +228,16 @@ public final class NatureCurses {
                 villager.setReputation(event.getPlayer().getUniqueId(), rep);
             }
             villager.getWorld().spawnParticle(Particle.ANGRY_VILLAGER, villager.getEyeLocation().add(0, 0.4, 0), 3, 0.3, 0.2, 0.3);
+        }
+
+        /** A Pariah can't put a lead on an animal: it shies away. */
+        @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
+        public void onLeash(PlayerLeashEntityEvent event) {
+            if (event.getEntity() instanceof Animals && !(event.getEntity() instanceof Tameable t && t.isTamed())
+                && has(event.getPlayer(), "pariah")) {
+                event.setCancelled(true);
+                Fx.actionBar(event.getPlayer(), Component.text("It shies away from you.", NamedTextColor.GRAY));
+            }
         }
 
         @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)

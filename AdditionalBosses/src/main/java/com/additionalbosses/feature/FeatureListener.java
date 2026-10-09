@@ -98,6 +98,26 @@ public final class FeatureListener implements Listener {
         if (Bukkit.getRecipe(compassRecipe) != null) {
             event.getPlayer().discoverRecipe(compassRecipe);
         }
+        convertTrophies(event.getPlayer().getInventory());
+        convertTrophies(event.getPlayer().getEnderChest());
+    }
+
+    /** Picking up an old trophy: it turns into a Boss Soul once it's in the inventory. */
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onPickUpOldTrophy(org.bukkit.event.entity.EntityPickupItemEvent event) {
+        if (event.getEntity() instanceof Player player && items().kind(event.getItem().getItemStack()) == ItemService.Kind.TROPHY) {
+            Bukkit.getScheduler().runTask(plugin, () -> convertTrophies(player.getInventory()));
+        }
+    }
+
+    /** Trophies from older versions become Boss Souls of the same rank (and then stack). */
+    private void convertTrophies(org.bukkit.inventory.Inventory inv) {
+        for (int slot = 0; slot < inv.getSize(); slot++) {
+            ItemStack stack = inv.getItem(slot);
+            if (items().kind(stack) == ItemService.Kind.TROPHY && stack != null) {
+                inv.setItem(slot, items().createSoul(Trophies.trophyRank(stack), stack.getAmount()));
+            }
+        }
     }
 
     // =====================================================================
@@ -144,6 +164,13 @@ public final class FeatureListener implements Listener {
                 // Placing it happens in onStatuePlace, after protection plugins had their say.
                 event.setUseItemInHand(Event.Result.DENY);
             }
+            case TROPHY -> {
+                // Trophies are Boss Souls now: one in hand turns into souls of the same rank.
+                EquipmentSlot hand = event.getHand();
+                if (rightClick && hand != null) {
+                    player.getInventory().setItem(hand, items().createSoul(Trophies.trophyRank(item), item.getAmount()));
+                }
+            }
             case TOTEM -> {
                 EquipmentSlot hand = event.getHand();
                 Block clicked = event.getClickedBlock();
@@ -182,12 +209,8 @@ public final class FeatureListener implements Listener {
         Block clicked = event.getClickedBlock();
         ItemService.Kind kind = items().kind(event.getItem());
         if (event.getAction() != Action.RIGHT_CLICK_BLOCK || event.getHand() != EquipmentSlot.HAND || clicked == null
-            || (kind != ItemService.Kind.STATUE && kind != ItemService.Kind.TROPHY)) {
+            || kind != ItemService.Kind.STATUE) {
             return;
-        }
-        if (kind == ItemService.Kind.TROPHY && (!plugin.settings().features.trophyPlacing
-            || !event.getItem().getPersistentDataContainer().has(Keys.STATUE, PersistentDataType.STRING))) {
-            return; // older trophies have no statue data
         }
         event.setUseItemInHand(Event.Result.DENY);
         if (event.useInteractedBlock() == Event.Result.DENY) {
@@ -304,11 +327,11 @@ public final class FeatureListener implements Listener {
             event.setCancelled(true);
         }
         Entity clicked = event.getRightClicked();
-        if (items().kind(hand) == ItemService.Kind.TROPHY) {
+        if (items().kind(hand) == ItemService.Kind.SOUL || items().kind(hand) == ItemService.Kind.TROPHY) {
             event.setCancelled(true);
             Boss boss = plugin.bosses().get(clicked);
             if (boss != null && event.getHand() == EquipmentSlot.HAND) {
-                if (offerTrophy(player, hand, boss)) {
+                if (offerSoul(player, hand, boss)) {
                     consumeOne(player, EquipmentSlot.HAND);
                 }
                 return;
@@ -330,11 +353,12 @@ public final class FeatureListener implements Listener {
         }
     }
 
-    /** Throwing (dropping) a trophy: it flies a little further, and if it touches a boss it is offered to it. */
+    /** Throwing (dropping) a soul: it flies a little further, and if it touches a boss it is offered to it. */
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
-    public void onThrowTrophy(PlayerDropItemEvent event) {
+    public void onThrowSoul(PlayerDropItemEvent event) {
         Item thrown = event.getItemDrop();
-        if (items().kind(thrown.getItemStack()) != ItemService.Kind.TROPHY || !plugin.settings().features.promotionEnabled) {
+        ItemService.Kind kind = items().kind(thrown.getItemStack());
+        if ((kind != ItemService.Kind.SOUL && kind != ItemService.Kind.TROPHY) || !plugin.settings().features.promotionEnabled) {
             return;
         }
         Player player = event.getPlayer();
@@ -356,8 +380,14 @@ public final class FeatureListener implements Listener {
                         continue;
                     }
                     Player p = Bukkit.getPlayer(thrower);
-                    if (offerTrophy(p, thrown.getItemStack(), boss)) {
-                        thrown.remove();
+                    ItemStack stack = thrown.getItemStack();
+                    if (offerSoul(p, stack, boss)) {
+                        // One soul is used; the rest of a thrown stack stays on the ground.
+                        if (stack.getAmount() > 1) {
+                            thrown.setItemStack(stack.asQuantity(stack.getAmount() - 1));
+                        } else {
+                            thrown.remove();
+                        }
                     }
                     cancel();
                     return;
@@ -367,10 +397,10 @@ public final class FeatureListener implements Listener {
     }
 
     /**
-     * Offers a trophy to a boss: it rises by the trophy's strength (Gray trophies only sometimes work).
-     * Returns true if the trophy was used up.
+     * Offers a Boss Soul (or an old trophy) to a boss: it rises by the soul's strength (Gray souls only sometimes
+     * work). Returns true if one soul was used up.
      */
-    private boolean offerTrophy(@Nullable Player player, ItemStack trophy, Boss boss) {
+    private boolean offerSoul(@Nullable Player player, ItemStack trophy, Boss boss) {
         FeatureSettings f = plugin.settings().features;
         if (!f.promotionEnabled) {
             return false;
@@ -399,7 +429,7 @@ public final class FeatureListener implements Listener {
         return true;
     }
 
-    /** Trophies placed before the size changed shrink to the current size when their chunk loads. */
+    /** Statues (and old trophy figures) placed before the size changed get the current size when their chunk loads. */
     @EventHandler
     public void onEntitiesLoad(org.bukkit.event.world.EntitiesLoadEvent event) {
         for (Entity e : event.getEntities()) {

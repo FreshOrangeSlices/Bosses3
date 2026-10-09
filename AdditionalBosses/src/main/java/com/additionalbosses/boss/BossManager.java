@@ -287,6 +287,7 @@ public final class BossManager {
             return null;
         }
         Boss boss = build(entity, rank, category, traits);
+        entity.setCustomNameVisible(settings().alwaysShowName); // bosses saved before the setting changed follow it too
         preventSunburn(entity);
         boss.setUndyingUsed(pdc.has(Keys.BOSS_UNDYING, PersistentDataType.BYTE));
         if (pdc.has(Keys.BOSS_LAST_STAND, PersistentDataType.BYTE)) {
@@ -318,7 +319,7 @@ public final class BossManager {
             }
             for (org.bukkit.NamespacedKey key : new org.bukkit.NamespacedKey[]{Keys.MOD_HEALTH, Keys.MOD_ARMOR,
                 Keys.MOD_TOUGHNESS, Keys.MOD_KNOCKBACK, Keys.MOD_SPEED, Keys.MOD_SIZE, Keys.MOD_FOLLOW,
-                Keys.MOD_DIFFICULTY, Keys.MOD_THREAT, Keys.MOD_TRAIT_SWIFT, Keys.MOD_TRAIT_BERSERK, Keys.MOD_LAST_STAND}) {
+                Keys.MOD_DIFFICULTY, Keys.MOD_HEALTH_FLOOR, Keys.MOD_THREAT, Keys.MOD_TRAIT_SWIFT, Keys.MOD_TRAIT_BERSERK, Keys.MOD_LAST_STAND}) {
                 inst.removeModifier(key);
             }
         }
@@ -391,10 +392,25 @@ public final class BossManager {
         setModifier(e, Attribute.SCALE, Keys.MOD_SIZE, st.size() * p.size(), AttributeModifier.Operation.ADD_NUMBER);
         setModifier(e, Attribute.MAX_HEALTH, Keys.MOD_DIFFICULTY, settings().features.difficultyHealth - 1.0,
             AttributeModifier.Operation.MULTIPLY_SCALAR_1);
+        applyHealthFloor(e, st.minHealth());
         AttributeInstance max = e.getAttribute(Attribute.MAX_HEALTH);
         if (max != null) {
             e.setHealth(max.getValue());
         }
+    }
+
+    /**
+     * Top ranks have a minimum health (Legendary at least a Warden's 500 by default), however small the mob. Threat
+     * Scaling and Nemesis levels still add on top.
+     */
+    private static void applyHealthFloor(LivingEntity e, double minHealth) {
+        setModifier(e, Attribute.MAX_HEALTH, Keys.MOD_HEALTH_FLOOR, 0, AttributeModifier.Operation.MULTIPLY_SCALAR_1);
+        AttributeInstance inst = e.getAttribute(Attribute.MAX_HEALTH);
+        if (inst == null || minHealth <= 0 || inst.getValue() <= 0 || inst.getValue() >= minHealth) {
+            return;
+        }
+        setModifier(e, Attribute.MAX_HEALTH, Keys.MOD_HEALTH_FLOOR, minHealth / inst.getValue() - 1.0,
+            AttributeModifier.Operation.MULTIPLY_SCALAR_1);
     }
 
     private static void setModifier(LivingEntity e, Attribute attribute, org.bukkit.NamespacedKey key, double amount,
@@ -692,13 +708,13 @@ public final class BossManager {
             if (revenge) {
                 event.setDroppedExp((int) Math.round(event.getDroppedExp() * f.nemesisRevengeXpMultiplier));
                 rewards.addAll(plugin.rewards().roll(boss, killer));
-                killer.sendMessage(settings().messages.prefixed("revenge"));
+                plugin.presentation().tell(killer, "revenge");
             }
             if (boss.isNemesis()) {
                 plugin.nemesis().onSlain(boss, killer, event, rewards);
             }
-            if (f.trophiesEnabled && (boss.isNemesis() || Rng.chance(f.trophyChance.getOrDefault(boss.rank(), 0.0)))) {
-                rewards.add(plugin.trophies().createTrophy(boss, killer));
+            if (f.soulsEnabled && (boss.isNemesis() || Rng.chance(f.soulChance.getOrDefault(boss.rank(), 0.0)))) {
+                rewards.add(plugin.items().createSoul(boss.rank(), 1));
             }
             if (f.waystonesEnabled) {
                 int stones = boss.rank() == BossRank.ASCENDANT ? f.waystoneAscendantDrops : 0;
@@ -716,7 +732,7 @@ public final class BossManager {
             if (killer != null) {
                 PlayerData.addKill(killer, boss.rank());
                 plugin.escalation().recordKill(killer);
-                if (!rewards.isEmpty()) {
+                if (!rewards.isEmpty() && settings().bossChat) {
                     Component list = Component.empty();
                     for (int i = 0; i < rewards.size(); i++) {
                         if (i > 0) {
@@ -851,8 +867,6 @@ public final class BossManager {
                 drop.setGlowing(true);
                 drop.setInvulnerable(true);
                 drop.setUnlimitedLifetime(true);
-                drop.customName(reward.effectiveName());
-                drop.setCustomNameVisible(true);
             });
         }
     }

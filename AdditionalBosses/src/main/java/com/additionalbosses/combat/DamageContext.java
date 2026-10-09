@@ -20,6 +20,7 @@ public final class DamageContext {
     private final boolean secondary;
     private double multiplier = 1.0;
     private double flat = 0.0;
+    private double floor = 0.0;
     private boolean cancelled;
 
     private DamageContext(@Nullable LivingEntity attacker, @Nullable Entity direct, boolean melee, boolean projectile, boolean secondary) {
@@ -72,6 +73,11 @@ public final class DamageContext {
         this.flat += amount;
     }
 
+    /** The final damage will be at least this much (a top-rank boss's melee hit). */
+    public void floor(double minimum) {
+        this.floor = Math.max(this.floor, minimum);
+    }
+
     public void cancel() {
         this.cancelled = true;
     }
@@ -81,10 +87,10 @@ public final class DamageContext {
     }
 
     public boolean changed() {
-        return multiplier != 1.0 || flat != 0.0;
+        return multiplier != 1.0 || flat != 0.0 || floor > 0.0;
     }
 
     public double apply(double base) {
-        return Math.max(0.0, base * multiplier + flat);
+        return Math.max(Math.max(0.0, floor), base * multiplier + flat);
     }
 }

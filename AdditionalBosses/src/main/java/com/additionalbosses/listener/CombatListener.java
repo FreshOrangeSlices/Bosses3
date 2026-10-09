@@ -46,6 +46,9 @@ public final class CombatListener implements Listener {
 
         if (attackerBoss != null && !ctx.secondary()) {
             ctx.multiply(attackerBoss.damageMultiplier());
+            if (ctx.melee()) {
+                ctx.floor(plugin.settings().rank(attackerBoss.rank()).stats().minDamage());
+            }
             for (BossTrait trait : attackerBoss.traits()) {
                 trait.onAttack(attackerBoss, victim, event, ctx);
             }

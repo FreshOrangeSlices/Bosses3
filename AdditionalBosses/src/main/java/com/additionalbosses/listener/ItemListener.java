@@ -4,9 +4,11 @@ import com.additionalbosses.AdditionalBosses;
 import com.additionalbosses.item.EquipmentType;
 import com.additionalbosses.item.ItemService;
 import com.additionalbosses.util.Fx;
+import com.additionalbosses.util.Keys;
 import net.kyori.adventure.text.Component;
 import org.bukkit.Bukkit;
 import org.bukkit.GameMode;
+import org.bukkit.enchantments.Enchantment;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
@@ -14,6 +16,7 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.inventory.ClickType;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryCreativeEvent;
+import org.bukkit.event.inventory.InventoryType;
 import org.bukkit.event.inventory.PrepareItemCraftEvent;
 import org.bukkit.inventory.ItemStack;
 
@@ -72,6 +75,20 @@ public final class ItemListener implements Listener {
             player.updateInventory();
             plugin.relics().refresh(player);
         });
+    }
+
+    /** Trying to take off cursed armor: it's bound (Curse of Binding), and says so. */
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onCursedArmorClick(InventoryClickEvent event) {
+        if (!(event.getWhoClicked() instanceof Player player) || event.getSlotType() != InventoryType.SlotType.ARMOR
+            || player.getGameMode() == GameMode.CREATIVE) {
+            return;
+        }
+        ItemStack worn = event.getCurrentItem();
+        if (worn != null && !worn.isEmpty() && worn.getEnchantmentLevel(Enchantment.BINDING_CURSE) > 0
+            && !ItemService.list(worn, Keys.CURSES).isEmpty()) {
+            Fx.actionBar(player, plugin.settings().messages.get("cursed-armor-locked"));
+        }
     }
 
     /** Runes, Relics, Catalysts and Boss Gear can't be used as crafting ingredients. */
