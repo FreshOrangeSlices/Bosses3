@@ -8,6 +8,7 @@ import net.kyori.adventure.title.Title;
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 import org.bukkit.Bukkit;
 import org.bukkit.EntityEffect;
+import org.bukkit.Difficulty;
 import org.bukkit.GameMode;
 import org.bukkit.Location;
 import org.bukkit.Material;
@@ -28,6 +29,7 @@ import org.bukkit.entity.Allay;
 import org.bukkit.entity.Armadillo;
 import org.bukkit.entity.ArmorStand;
 import org.bukkit.entity.Bee;
+import org.bukkit.entity.ChestedHorse;
 import org.bukkit.entity.Creeper;
 import org.bukkit.entity.Enemy;
 import org.bukkit.entity.Entity;
@@ -47,6 +49,7 @@ import org.bukkit.entity.Wolf;
 import org.bukkit.event.entity.CreatureSpawnEvent;
 import org.bukkit.inventory.EntityEquipment;
 import org.bukkit.inventory.EquipmentSlot;
+import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.PlayerInventory;
 import org.bukkit.persistence.PersistentDataContainer;
@@ -169,6 +172,10 @@ public final class PetManager {
             return false;
         }
         if (owner.isDead() || owner.getGameMode() == GameMode.SPECTATOR) {
+            return false;
+        }
+        if (pet.species == Species.VEX && owner.getWorld().getDifficulty() == Difficulty.PEACEFUL) {
+            Msg.error(owner, "Vexes can't come out in Peaceful.");
             return false;
         }
         Active current = byOwner.get(owner.getUniqueId());
@@ -318,6 +325,60 @@ public final class PetManager {
             plugin.getLogger().log(Level.WARNING, "Couldn't spawn a " + pet.species.displayName(), ex);
         }
         return null;
+    }
+
+    /** The pet as saved in its bloom, rebuilt but not placed in the world (to read or change what it wears). */
+    @Nullable LivingEntity restore(Pet pet, World world) {
+        if (pet.snapshot == null) {
+            return null;
+        }
+        try {
+            return Bukkit.getUnsafe().deserializeEntity(pet.snapshot, world, false) instanceof LivingEntity le
+                ? le : null;
+        } catch (RuntimeException ex) {
+            plugin.getLogger().log(Level.WARNING, "Couldn't read the saved " + pet.name, ex);
+            return null;
+        }
+    }
+
+    /** Everything an entity wears or holds. */
+    static List<ItemStack> worn(LivingEntity e) {
+        List<ItemStack> items = new ArrayList<>();
+        EntityEquipment eq = e.getEquipment();
+        if (eq == null) {
+            return items;
+        }
+        for (EquipmentSlot slot : EquipmentSlot.values()) {
+            if (e.canUseEquipmentSlot(slot)) {
+                ItemStack item = eq.getItem(slot);
+                if (!item.isEmpty()) {
+                    items.add(item.clone());
+                }
+            }
+        }
+        return items;
+    }
+
+    /**
+     * The Vex is gone while its gear screen was open: puts the gear from the screen into its saved copy (so it
+     * neither vanishes nor exists twice). False if there is no saved copy to put it in.
+     */
+    boolean writeGear(Pet pet, World world, Map<EquipmentSlot, ItemStack> gear) {
+        LivingEntity body = restore(pet, world);
+        if (body == null || body.getEquipment() == null) {
+            return false;
+        }
+        for (Map.Entry<EquipmentSlot, ItemStack> e : gear.entrySet()) {
+            body.getEquipment().setItem(e.getKey(), e.getValue());
+        }
+        try {
+            pet.snapshot = Bukkit.getUnsafe().serializeEntity(body, EntitySerializationFlag.FORCE);
+            plugin.store().save(pet.owner);
+            return true;
+        } catch (RuntimeException ex) {
+            plugin.getLogger().log(Level.WARNING, "Couldn't save " + pet.name + "'s gear", ex);
+            return false;
+        }
     }
 
     private static void mark(Entity e, Pet pet) {
@@ -544,6 +605,17 @@ public final class PetManager {
             Msg.error(p, "That one already has an owner.");
             return;
         }
+        if (mob.isLeashed() && mob.getLeashHolder() instanceof Player holder && !holder.equals(p)) {
+            Msg.error(p, "Someone else is leading that one.");
+            return;
+        }
+        if (mob instanceof Fox fox && fox.getFirstTrustedPlayer() != null
+            && !p.getUniqueId().equals(fox.getFirstTrustedPlayer().getUniqueId())
+            && (fox.getSecondTrustedPlayer() == null
+                || !p.getUniqueId().equals(fox.getSecondTrustedPlayer().getUniqueId()))) {
+            Msg.error(p, "That fox already trusts someone else.");
+            return;
+        }
         if (!mob.getPassengers().isEmpty() || mob.isInsideVehicle()) {
             Msg.error(p, "Wait until nothing is riding it.");
             return;
@@ -628,13 +700,28 @@ public final class PetManager {
         plugin.menus().refresh(p);
     }
 
-    /** A saddle the animal was wearing goes to its new owner instead of vanishing. */
+    /**
+     * A saddle, or a chest and what's in it, goes to the animal's new owner instead of being locked away (pets
+     * don't use saddles, and their own storage replaces chests).
+     */
     private static void unpack(Player p, Mob mob) {
         if (mob instanceof AbstractHorse horse) {
             ItemStack saddle = horse.getInventory().getSaddle();
             if (saddle != null && !saddle.isEmpty()) {
                 give(p, saddle);
                 horse.getInventory().setSaddle(null);
+            }
+            if (horse instanceof ChestedHorse chested && chested.isCarryingChest()) {
+                Inventory inv = chested.getInventory();
+                for (int slot = 0; slot < inv.getSize(); slot++) {
+                    ItemStack item = inv.getItem(slot);
+                    if (item != null && !item.isEmpty()) {
+                        give(p, item);
+                        inv.setItem(slot, null);
+                    }
+                }
+                chested.setCarryingChest(false);
+                give(p, ItemStack.of(Material.CHEST));
             }
         }
         if (mob instanceof Steerable steerable && steerable.hasSaddle()) {
@@ -689,6 +776,10 @@ public final class PetManager {
     }
 
     static void give(Player p, ItemStack item) {
+        if (p.isDead()) {
+            p.getWorld().dropItemNaturally(p.getLocation(), item); // their inventory is about to be emptied
+            return;
+        }
         for (ItemStack left : p.getInventory().addItem(item).values()) {
             p.getWorld().dropItem(p.getLocation(), left);
         }
@@ -755,17 +846,28 @@ public final class PetManager {
     //  Releasing
     // =====================================================================
 
-    /** Says goodbye to a pet for good: its storage goes to the owner and its blooms wilt. */
+    /**
+     * Says goodbye to a pet for good: everything it carries (storage, plus anything it wears or holds, like the
+     * Vex's gear or a wolf's armor) goes to the owner, and its blooms wilt.
+     */
     public void release(Player owner, Pet pet) {
         Active a = byOwner.get(pet.owner);
         if (a != null && a.pet == pet) {
             stash(a);
         }
         plugin.menus().closeFor(pet);
+        List<ItemStack> carried = new ArrayList<>();
         for (ItemStack item : pet.storage) {
             if (item != null && !item.isEmpty()) {
-                give(owner, item);
+                carried.add(item);
             }
+        }
+        LivingEntity body = restore(pet, owner.getWorld());
+        if (body != null) {
+            carried.addAll(worn(body));
+        }
+        for (ItemStack item : carried) {
+            give(owner, item);
         }
         PlayerInventory inv = owner.getInventory();
         for (int slot = 0; slot < inv.getSize(); slot++) {
@@ -856,8 +958,9 @@ public final class PetManager {
         if (m instanceof IronGolem) {
             m.playEffect(EntityEffect.ENTITY_ATTACK);
         }
+        t.setKiller(owner); // the kill counts as yours (XP, drops), like a tamed wolf's
         t.damage(base * a.pet.power(), DamageSource.builder(DamageType.MOB_ATTACK)
-            .withCausingEntity(owner).withDirectEntity(m).build());
+            .withCausingEntity(m).withDirectEntity(m).build());
         if (sp == Species.GOAT) {
             t.knockback(1.1, -dx, -dz);
         } else if (sp == Species.IRON_GOLEM) {
@@ -899,7 +1002,7 @@ public final class PetManager {
             if (a.ticks % 1200 == 0) {
                 addXp(a.pet, s.xpPerMinute);
             }
-            if (a.ticks % 1200 == 600 && m.getPassengers().isEmpty()) {
+            if (a.ticks % 1200 == 600 && m.getPassengers().isEmpty() && !plugin.menus().gearOpen(a.pet)) {
                 a.pet.health = m.getHealth() / maxHealth(m);
                 snapshot(a); // in case the server stops without warning
                 plugin.store().save(a.owner);
@@ -923,6 +1026,9 @@ public final class PetManager {
             }
             if (a.pet.species.combat()) {
                 updateTarget(a, owner);
+                if (m.getTarget() != a.target) {
+                    m.setTarget(a.target); // also keeps a chasing pet "active" far from players
+                }
             }
             LivingEntity target = a.target;
             if (a.pet.species.flies()) {

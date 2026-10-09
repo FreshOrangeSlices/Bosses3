@@ -9,6 +9,8 @@ import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.block.Block;
+import org.bukkit.block.Crafter;
+import org.bukkit.event.block.CrafterCraftEvent;
 import org.bukkit.damage.DamageSource;
 import org.bukkit.entity.Enemy;
 import org.bukkit.entity.Entity;
@@ -125,18 +127,18 @@ public final class PetListener implements Listener {
                 return;
             }
             ItemStack hand = p.getInventory().getItemInMainHand();
-            if (Blooms.isBloom(hand)) {
-                plugin.rides().tryMount(p, a);
-            } else if (a.pet.species.likes(hand.getType())) {
+            if (a.pet.species.likes(hand.getType())) {
                 pets.feed(p, a, EquipmentSlot.HAND);
+            } else if (p.isSneaking()) {
+                plugin.menus().openPetInventory(p, a.pet);
+            } else if (Blooms.isBloom(hand)) {
+                plugin.rides().tryMount(p, a);
             } else if (hand.getType() == Material.NAME_TAG && hand.getData(DataComponentTypes.CUSTOM_NAME) != null) {
                 String name = PlainTextComponentSerializer.plainText()
                     .serialize(hand.getData(DataComponentTypes.CUSTOM_NAME));
                 if (pets.rename(p, a.pet, name)) {
                     PetManager.consume(p, EquipmentSlot.HAND);
                 }
-            } else if (p.isSneaking()) {
-                plugin.menus().openPetInventory(p, a.pet);
             } else {
                 pets.dismiss(p, true);
             }
@@ -502,6 +504,18 @@ public final class PetListener implements Listener {
             if (Blooms.isBloom(item)) {
                 event.getInventory().setResult(null);
                 return;
+            }
+        }
+    }
+
+    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
+    public void onCrafter(CrafterCraftEvent event) {
+        if (event.getBlock().getState(false) instanceof Crafter crafter) {
+            for (ItemStack item : crafter.getInventory().getContents()) {
+                if (Blooms.isBloom(item)) {
+                    event.setCancelled(true);
+                    return;
+                }
             }
         }
     }

@@ -36,6 +36,7 @@ import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.event.entity.EntityPotionEffectEvent;
 import org.bukkit.event.entity.EntityTargetEvent;
 import org.bukkit.event.entity.EntityTargetLivingEntityEvent;
+import org.bukkit.event.player.PlayerBedEnterEvent;
 import org.bukkit.event.player.PlayerBedLeaveEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.inventory.ItemStack;
@@ -83,6 +84,8 @@ public final class Bonuses implements Listener {
     private final BloomPets plugin;
     private final Map<UUID, Long> cowReady = new HashMap<>();
     private final Map<UUID, Long> llamaReady = new HashMap<>();
+    private final Map<UUID, Long> sniffReady = new HashMap<>();
+    private final Map<UUID, Long> wentToBed = new HashMap<>();
     private final Map<UUID, Location> pandaSpot = new HashMap<>();
     private final Map<UUID, Integer> pandaStill = new HashMap<>();
     private int tick;
@@ -100,7 +103,7 @@ public final class Bonuses implements Listener {
     // =====================================================================
 
     public void apply(Player owner, PetManager.Active a) {
-        remove(owner);
+        clear(owner); // no health clamp here: a Donkey levelling up shouldn't cost you health
         double pw = a.pet.power();
         switch (a.pet.species) {
             case WOLF -> mod(owner, Attribute.ATTACK_DAMAGE, 0.08 * pw, AttributeModifier.Operation.MULTIPLY_SCALAR_1);
@@ -116,15 +119,19 @@ public final class Bonuses implements Listener {
     }
 
     public void remove(Player owner) {
+        clear(owner);
+        double max = PetManager.maxHealth(owner);
+        if (owner.getHealth() > max) {
+            owner.setHealth(max);
+        }
+    }
+
+    private static void clear(Player owner) {
         for (Attribute attribute : OWNER_ATTRIBUTES) {
             AttributeInstance inst = owner.getAttribute(attribute);
             if (inst != null && inst.getModifier(Keys.MOD_BONUS) != null) {
                 inst.removeModifier(Keys.MOD_BONUS);
             }
-        }
-        double max = PetManager.maxHealth(owner);
-        if (owner.getHealth() > max) {
-            owner.setHealth(max);
         }
     }
 
@@ -173,9 +180,6 @@ public final class Bonuses implements Listener {
                 case POLAR_BEAR -> {
                     if (p.getFreezeTicks() > 0) {
                         p.setFreezeTicks(0);
-                    }
-                    if (p.hasPotionEffect(PotionEffectType.SLOWNESS)) {
-                        p.removePotionEffect(PotionEffectType.SLOWNESS);
                     }
                 }
                 case COW -> cow(p, pet, pw, now);
@@ -439,12 +443,15 @@ public final class Bonuses implements Listener {
         }
     }
 
-    /** Polar bear: Slowness can't touch you. */
+    /** Polar bear: Slowness from mobs, arrows and splashes can't touch you (a potion you drink still works). */
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onPotion(EntityPotionEffectEvent event) {
         PetManager.Active a = outFor(event.getEntity());
         if (a != null && a.pet.species == Species.POLAR_BEAR && event.getNewEffect() != null
-            && event.getNewEffect().getType() == PotionEffectType.SLOWNESS) {
+            && event.getNewEffect().getType() == PotionEffectType.SLOWNESS
+            && event.getCause() != EntityPotionEffectEvent.Cause.POTION_DRINK
+            && event.getCause() != EntityPotionEffectEvent.Cause.COMMAND
+            && event.getCause() != EntityPotionEffectEvent.Cause.PLUGIN) {
             event.setCancelled(true);
         }
     }
@@ -459,9 +466,11 @@ public final class Bonuses implements Listener {
             return;
         }
         ThreadLocalRandom r = ThreadLocalRandom.current();
-        if (r.nextDouble() >= 0.04 * a.pet.power()) {
+        long now = System.currentTimeMillis();
+        if (now < sniffReady.getOrDefault(p.getUniqueId(), 0L) || r.nextDouble() >= 0.04 * a.pet.power()) {
             return;
         }
+        sniffReady.put(p.getUniqueId(), now + 60_000); // at most one find a minute, so it can't be farmed
         Material found = sniff(r);
         Location at = event.getBlock().getLocation().add(0.5, 0.5, 0.5);
         at.getWorld().dropItemNaturally(at, ItemStack.of(found));
@@ -488,12 +497,22 @@ public final class Bonuses implements Listener {
         return flowers.isEmpty() ? Material.POPPY : flowers.get(r.nextInt(flowers.size()));
     }
 
-    /** Cat: you often wake up to a little gift. */
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onBed(PlayerBedEnterEvent event) {
+        if (event.getBedEnterResult() == PlayerBedEnterEvent.BedEnterResult.OK) {
+            wentToBed.put(event.getPlayer().getUniqueId(), event.getPlayer().getWorld().getFullTime());
+        }
+    }
+
+    /** Cat: after a night's sleep you often wake up to a little gift. */
     @EventHandler(priority = EventPriority.MONITOR)
     public void onWake(PlayerBedLeaveEvent event) {
         Player p = event.getPlayer();
+        Long since = wentToBed.remove(p.getUniqueId());
         PetManager.Active a = outFor(p);
-        if (a == null || a.pet.species != Species.CAT || p.getWorld().getTime() > 2000) {
+        // the night was actually skipped (the clock jumped ahead), not just in and out of bed
+        if (a == null || a.pet.species != Species.CAT || since == null
+            || p.getWorld().getFullTime() - since < 1000) {
             return;
         }
         ThreadLocalRandom r = ThreadLocalRandom.current();
@@ -518,5 +537,6 @@ public final class Bonuses implements Listener {
         pandaSpot.remove(id);
         pandaStill.remove(id);
         llamaReady.remove(id);
+        wentToBed.remove(id);
     }
 }

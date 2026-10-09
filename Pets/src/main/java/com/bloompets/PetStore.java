@@ -1,12 +1,18 @@
 package com.bloompets;
 
 import org.bukkit.configuration.ConfigurationSection;
+import org.bukkit.configuration.InvalidConfigurationException;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.inventory.ItemStack;
 import org.jetbrains.annotations.Nullable;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.AtomicMoveNotSupportedException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Collection;
@@ -28,6 +34,8 @@ public final class PetStore {
     private final BloomPets plugin;
     private final File folder;
     private final Map<UUID, Map<UUID, Pet>> byOwner = new HashMap<>();
+    /** Entries this version can't read (unknown species...). They are written back untouched, never dropped. */
+    private final Map<UUID, Map<String, ConfigurationSection>> unreadable = new HashMap<>();
 
     public PetStore(BloomPets plugin) {
         this.plugin = plugin;
@@ -77,6 +85,7 @@ public final class PetStore {
     public void unload(UUID owner) {
         save(owner);
         byOwner.remove(owner);
+        unreadable.remove(owner);
     }
 
     public Collection<UUID> loadedOwners() {
@@ -96,16 +105,30 @@ public final class PetStore {
         if (!file.isFile()) {
             return pets;
         }
-        YamlConfiguration yml = YamlConfiguration.loadConfiguration(file);
+        YamlConfiguration yml = new YamlConfiguration();
+        try {
+            yml.load(file);
+        } catch (IOException | InvalidConfigurationException ex) {
+            // keep the damaged file for a human to look at, instead of overwriting it with an empty list
+            File broken = new File(folder, owner + ".yml.broken-" + System.currentTimeMillis());
+            boolean kept = file.renameTo(broken);
+            plugin.getLogger().log(Level.SEVERE, "Could not read the pets of " + owner
+                + (kept ? "; the file was kept as " + broken.getName() : ""), ex);
+            return pets;
+        }
         ConfigurationSection section = yml.getConfigurationSection("pets");
         if (section == null) {
             return pets;
         }
         for (String key : section.getKeys(false)) {
             ConfigurationSection s = section.getConfigurationSection(key);
-            Species species = s == null ? null : Species.parse(s.getString("species"));
+            if (s == null) {
+                continue;
+            }
+            Species species = Species.parse(s.getString("species"));
             if (species == null) {
-                plugin.getLogger().warning("Skipping pet " + key + " of " + owner + ": unknown species");
+                plugin.getLogger().warning("Pet " + key + " of " + owner + " has an unknown species; it is kept as is");
+                unreadable.computeIfAbsent(owner, k -> new LinkedHashMap<>()).put(key, s);
                 continue;
             }
             try {
@@ -130,7 +153,9 @@ public final class PetStore {
                 }
                 pets.put(pet.id, pet);
             } catch (RuntimeException ex) {
-                plugin.getLogger().log(Level.WARNING, "Skipping a broken pet entry " + key + " of " + owner, ex);
+                plugin.getLogger().log(Level.WARNING, "Pet entry " + key + " of " + owner
+                    + " can't be read; it is kept as is", ex);
+                unreadable.computeIfAbsent(owner, k -> new LinkedHashMap<>()).put(key, s);
             }
         }
         return pets;
@@ -160,11 +185,24 @@ public final class PetStore {
             }
             yml.set(path + ".storage", items);
         }
+        for (Map.Entry<String, ConfigurationSection> raw : unreadable.getOrDefault(owner, Map.of()).entrySet()) {
+            for (String key : raw.getValue().getKeys(false)) {
+                yml.set("pets." + raw.getKey() + "." + key, raw.getValue().get(key));
+            }
+        }
         try {
             if (!folder.isDirectory() && !folder.mkdirs()) {
                 throw new IOException("can't create " + folder);
             }
-            yml.save(file(owner));
+            // write a temporary file and swap it in, so a crash mid-save never leaves a half-written file
+            Path target = file(owner).toPath();
+            Path tmp = new File(folder, owner + ".yml.tmp").toPath();
+            Files.writeString(tmp, yml.saveToString(), StandardCharsets.UTF_8);
+            try {
+                Files.move(tmp, target, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+            } catch (AtomicMoveNotSupportedException ex) {
+                Files.move(tmp, target, StandardCopyOption.REPLACE_EXISTING);
+            }
         } catch (IOException ex) {
             plugin.getLogger().log(Level.SEVERE, "Could not save the pets of " + owner, ex);
         }

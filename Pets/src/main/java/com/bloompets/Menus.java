@@ -200,7 +200,11 @@ public final class Menus implements Listener {
             return;
         }
         if (click.isShiftClick()) {
-            openPetInventory(p, pet);
+            Bukkit.getScheduler().runTask(plugin, () -> {
+                if (p.isOnline()) {
+                    openPetInventory(p, pet);
+                }
+            });
         } else if (click.isRightClick()) {
             giveBloom(p, pet);
         } else if (click.isLeftClick()) {
@@ -307,6 +311,16 @@ public final class Menus implements Listener {
         gear.remove(menu.pet.id);
         Inventory inv = menu.inventory;
         List<ItemStack> giveBack = new ArrayList<>();
+        Map<EquipmentSlot, ItemStack> gear = new java.util.EnumMap<>(EquipmentSlot.class);
+        gear.put(EquipmentSlot.HEAD, inv.getItem(0));
+        gear.put(EquipmentSlot.CHEST, inv.getItem(1));
+        gear.put(EquipmentSlot.LEGS, inv.getItem(2));
+        gear.put(EquipmentSlot.FEET, inv.getItem(3));
+        gear.put(EquipmentSlot.HAND, inv.getItem(4));
+        if (!menu.vex.isValid() && plugin.pets().writeGear(menu.pet, menu.vex.getWorld(), gear)) {
+            inv.clear(); // the Vex is gone (fainted, unloaded...): the gear went into its saved copy
+            return;
+        }
         if (menu.vex.isValid()) {
             EntityEquipment eq = menu.vex.getEquipment();
             eq.setHelmet(inv.getItem(0));
@@ -351,6 +365,11 @@ public final class Menus implements Listener {
             eq.setItem(slot, null);
             giveBack.add(item);
         }
+    }
+
+    /** Whether the Vex's gear is in its screen right now (and not on the Vex). */
+    public boolean gearOpen(Pet pet) {
+        return gear.containsKey(pet.id);
     }
 
     /** Closes this pet's storage and gear screens, saving what's in them. */
