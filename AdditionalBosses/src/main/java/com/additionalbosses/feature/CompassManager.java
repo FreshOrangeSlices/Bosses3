@@ -118,7 +118,7 @@ public final class CompassManager {
             bestDist = ownDist;
         }
         if (best == null) {
-            player.sendActionBar(Component.text("No boss within " + Math.round(tier.range()) + " blocks",
+            Fx.actionBar(player, Component.text("No boss within " + Math.round(tier.range()) + " blocks",
                 NamedTextColor.DARK_GRAY));
             if (pointing.remove(player.getUniqueId())) {
                 player.setCompassTarget(player.getWorld().getSpawnLocation());
@@ -133,7 +133,7 @@ public final class CompassManager {
         Component name = revealed ? best.name() : Component.text("☠ Unknown Boss", NamedTextColor.GRAY);
         double dy = at.getY() - here.getY();
         String vertical = dy > 6 ? " ▲" : dy < -6 ? " ▼" : "";
-        player.sendActionBar(Component.empty().append(name)
+        Fx.actionBar(player, Component.empty().append(name)
             .append(Component.text("   " + Math.round(bestDist) + "m ", NamedTextColor.WHITE))
             .append(Component.text(arrow(here, at) + vertical, NamedTextColor.YELLOW)));
 

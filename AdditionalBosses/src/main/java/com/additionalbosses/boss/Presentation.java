@@ -61,7 +61,7 @@ public final class Presentation {
                 continue;
             }
             switch (p.announce()) {
-                case ACTIONBAR -> player.sendActionBar(m.get("spawn-actionbar", Placeholder.component("boss", boss.name())));
+                case ACTIONBAR -> Fx.actionBar(player, m.get("spawn-actionbar", Placeholder.component("boss", boss.name())));
                 case CHAT -> player.sendMessage(m.prefixed("spawn-chat", Placeholder.component("boss", boss.name())));
                 case TITLE -> {
                     player.showTitle(Title.title(
@@ -220,7 +220,7 @@ public final class Presentation {
         Component msg = plugin.settings().messages.get(key, Placeholder.component("boss", boss.name()));
         for (Player player : e.getWorld().getPlayers()) {
             if (player.getLocation().distanceSquared(e.getLocation()) <= radius * radius) {
-                player.sendActionBar(msg);
+                Fx.actionBar(player, msg);
             }
         }
     }

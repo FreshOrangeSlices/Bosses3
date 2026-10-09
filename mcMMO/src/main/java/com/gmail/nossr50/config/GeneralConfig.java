@@ -782,6 +782,25 @@ public class GeneralConfig extends BukkitConfig {
         return abilitiesEnabled;
     }
 
+    /**
+     * Server-specific: whether the live ability line above the hotbar is shown.
+     *
+     * @return true if the ability charge bar is enabled
+     */
+    public boolean getAbilityChargeBarEnabled() {
+        return config.getBoolean("Abilities.Charge_Bar.Enabled", true);
+    }
+
+    /**
+     * Server-specific: whether the ability charge bar shows cooldowns recharging while the
+     * ability's tool is held.
+     *
+     * @return true if recharging cooldowns are shown
+     */
+    public boolean getAbilityChargeBarShowRecharge() {
+        return config.getBoolean("Abilities.Charge_Bar.Show_Recharge", true);
+    }
+
     public boolean getAbilitiesOnlyActivateWhenSneaking() {
         if (abilitiesOnlyActivateWhenSneaking == null) {
             abilitiesOnlyActivateWhenSneaking = config.getBoolean(

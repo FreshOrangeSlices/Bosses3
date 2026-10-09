@@ -69,6 +69,8 @@ public final class Keys {
     public static NamespacedKey MOD_FOLLOW;
     public static NamespacedKey MOD_DIFFICULTY;
     public static NamespacedKey MOD_THREAT;
+    /** On a player: epoch millis until which this plugin is using the action bar (read by our mcMMO build). */
+    public static NamespacedKey ACTION_BAR_BUSY;
 
     private Keys() {
     }
@@ -117,6 +119,7 @@ public final class Keys {
         PLAYER_GUIDE_GIVEN = new NamespacedKey(plugin, "guide_given");
         PLAYER_RELICS_BOUND = new NamespacedKey(plugin, "relics_bound");
         PLAYER_SECOND_DAWN = new NamespacedKey(plugin, "second_dawn_ready_at");
+        ACTION_BAR_BUSY = new NamespacedKey(plugin, "actionbar_busy_until");
         for (BossRank rank : BossRank.values()) {
             KILLS.put(rank, new NamespacedKey(plugin, "kills_" + rank.name().toLowerCase()));
         }

@@ -22,6 +22,7 @@ import com.gmail.nossr50.events.experience.McMMOPlayerPreXpGainEvent;
 import com.gmail.nossr50.locale.LocaleLoader;
 import com.gmail.nossr50.mcMMO;
 import com.gmail.nossr50.party.ShareHandler;
+import com.gmail.nossr50.runnables.skills.AbilityChargeBarTask;
 import com.gmail.nossr50.runnables.skills.AbilityDisableTask;
 import com.gmail.nossr50.runnables.skills.RuptureTask;
 import com.gmail.nossr50.runnables.skills.ToolLowerTask;
@@ -47,6 +48,7 @@ import com.gmail.nossr50.skills.unarmed.UnarmedManager;
 import com.gmail.nossr50.skills.woodcutting.WoodcuttingManager;
 import com.gmail.nossr50.util.BlockUtils;
 import com.gmail.nossr50.util.EventUtils;
+import com.gmail.nossr50.util.LogUtils;
 import com.gmail.nossr50.util.Misc;
 import com.gmail.nossr50.util.Permissions;
 import com.gmail.nossr50.util.experience.ExperienceBarManager;
@@ -114,6 +116,13 @@ public class McMMOPlayer implements Identified {
             SuperAbilityType.class);
 
     private final Map<ToolType, Boolean> toolMode = new EnumMap<>(ToolType.class);
+
+    // Server-specific: state for the live ability line above the hotbar (AbilityChargeBarTask).
+    private final Map<ToolType, Long> toolPreparedAt = new EnumMap<>(ToolType.class);
+    private final Map<SuperAbilityType, Long> abilityLengthMillis = new EnumMap<>(
+            SuperAbilityType.class);
+    private volatile long chargeBarHeldUntil;
+    private @Nullable com.tcoded.folialib.wrapper.task.WrappedTask chargeBarTask;
 
     private int recentlyHurt;
     private int respawnATS;
@@ -469,6 +478,77 @@ public class McMMOPlayer implements Identified {
      */
     public void setToolPreparationMode(ToolType tool, boolean isPrepared) {
         toolMode.put(tool, isPrepared);
+        if (isPrepared) { // Server-specific: for the ability charge bar
+            toolPreparedAt.put(tool, System.currentTimeMillis());
+        }
+    }
+
+    /*
+     * Ability charge bar (server-specific addition)
+     */
+
+    /**
+     * When a tool was last readied, in epoch millis (0 if never).
+     *
+     * @param tool the tool
+     * @return the time the tool was raised
+     */
+    public long getToolPreparedAt(@NotNull ToolType tool) {
+        return toolPreparedAt.getOrDefault(tool, 0L);
+    }
+
+    /**
+     * How long the ability lasted when it was last activated, in millis (0 if unknown).
+     *
+     * @param ability the ability
+     * @return its last activation length
+     */
+    public long getAbilityLengthMillis(@NotNull SuperAbilityType ability) {
+        return abilityLengthMillis.getOrDefault(ability, 0L);
+    }
+
+    /**
+     * Keeps the ability charge bar from painting over the action bar for a while, so another
+     * message there can be read first.
+     *
+     * @param millis how long to hold off
+     */
+    public void holdChargeBar(long millis) {
+        chargeBarHeldUntil = Math.max(chargeBarHeldUntil, System.currentTimeMillis() + millis);
+    }
+
+    /**
+     * @return the time (epoch millis) until which the ability charge bar stays hidden
+     */
+    public long getChargeBarHeldUntil() {
+        return chargeBarHeldUntil;
+    }
+
+    /**
+     * Starts the live ability line above the hotbar, if it is enabled in config.yml.
+     */
+    public void startChargeBar() {
+        if (chargeBarTask != null || !mcMMO.p.getGeneralConfig().getAbilityChargeBarEnabled()) {
+            return;
+        }
+
+        chargeBarTask = mcMMO.p.getFoliaLib().getScheduler()
+                .runAtEntityTimer(player, new AbilityChargeBarTask(this),
+                        AbilityChargeBarTask.PERIOD_TICKS, AbilityChargeBarTask.PERIOD_TICKS);
+    }
+
+    private void stopChargeBar() {
+        if (chargeBarTask == null) {
+            return;
+        }
+
+        try {
+            chargeBarTask.cancel();
+        } catch (Exception e) {
+            LogUtils.debug(mcMMO.p.getLogger(), "Unable to cancel the ability charge bar for "
+                    + playerName + ": " + e.getMessage());
+        }
+        chargeBarTask = null;
     }
 
     /*
@@ -1053,6 +1133,8 @@ public class McMMOPlayer implements Identified {
         // Enable the ability
         profile.setAbilityDATS(superAbilityType,
                 System.currentTimeMillis() + ((long) ticks * Misc.TIME_CONVERSION_FACTOR));
+        // Server-specific: remembered so the ability charge bar can show how much time is left
+        abilityLengthMillis.put(superAbilityType, (long) ticks * Misc.TIME_CONVERSION_FACTOR);
         setAbilityMode(superAbilityType, true);
 
         if (superAbilityType == SuperAbilityType.SUPER_BREAKER
@@ -1299,6 +1381,7 @@ public class McMMOPlayer implements Identified {
             ruptureTask.cancel();
         }
 
+        stopChargeBar(); // Server-specific
         cleanup();
 
         if (syncSave) {

@@ -355,6 +355,12 @@ Abilities:
     Messages: true
     Activation:
         Only_Activate_When_Sneaking: false
+    # Server-specific: a live line above the hotbar for super abilities. It shows how long a readied tool
+    # stays ready, counts down an active ability, and (Show_Recharge) shows the cooldown filling back up
+    # while you hold that ability's tool. Players who turn notifications off with /mcnotify don't see it.
+    Charge_Bar:
+        Enabled: true
+        Show_Recharge: true
     Cooldowns:
         Berserk: 240
         Blast_Mining: 60
