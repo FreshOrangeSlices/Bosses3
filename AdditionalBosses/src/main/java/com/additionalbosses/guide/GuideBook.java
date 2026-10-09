@@ -399,6 +399,7 @@ public final class GuideBook {
                 w.text("Craft: Compass + Eye of Ender + Bone.", SOFT);
             }
             w.text("Upgrade it by clicking an Empowerment Rune onto it.", SOFT);
+            w.text("Click unwanted Boss Gear onto it to break the gear down into a Boss Soul of its rank.", SOFT);
             w.blank();
             for (int i = 1; i <= f.compassTiers.size(); i++) {
                 FeatureSettings.CompassTier t = f.compassTier(i);

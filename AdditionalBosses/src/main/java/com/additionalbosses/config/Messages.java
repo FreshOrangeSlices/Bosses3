@@ -35,6 +35,8 @@ public final class Messages {
         DEFAULTS.put("confirm-relic", "<yellow>Binding is permanent.</yellow> <gray>Do it again within 10 seconds to bind</gray> <light_purple><relic></light_purple> <gray>to your</gray> <item><gray>.</gray>");
         DEFAULTS.put("confirm-relic-catalyst", "<dark_red>This item holds a Relic Catalyst:</dark_red> <red><count>% chance the relic brings a curse with it.</red>");
         DEFAULTS.put("cursed-armor-locked", "<dark_red>It won't come off. Only death will part you.</dark_red>");
+        DEFAULTS.put("confirm-salvage", "<yellow>Break your</yellow> <item> <yellow>down into a</yellow> <soul><yellow>? It's destroyed. Click again to confirm.</yellow>");
+        DEFAULTS.put("salvaged", "<gray>The compass draws a soul out of your</gray> <item><gray>.</gray>");
         DEFAULTS.put("confirm-catalyst", "<yellow>This is permanent.</yellow> <gray>Do it again within 10 seconds to use the Catalyst on your</gray> <item><gray>.</gray>");
         DEFAULTS.put("apply-not-equipment", "<red>That item can't be upgraded. Use weapons, armor, shields or tools.</red>");
         DEFAULTS.put("apply-wrong-type", "<red>This rune only fits: <fits>.</red>");

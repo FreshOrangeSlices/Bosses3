@@ -49,11 +49,7 @@ public final class FeatureSettings {
     public final List<Double> ascendantPhaseThresholds = new ArrayList<>();
     public final double ascendantShockwaveRadius;
     public final double ascendantShockwaveDamage;
-    /** How big trophy figures placed in older versions are, in blocks (their larger side: height or width). */
-    public final double trophySize;
-    /** How big a placed Nemesis Statue is, in blocks (its larger side); 0 = the Nemesis's own size. */
-    public final double statueSize;
-    /** Only used when statueSize is 0: a fraction of the Nemesis's own size. */
+    /** How big a placed Nemesis Statue is: 0.5 = half the size of a normal mob of its kind. */
     public final double statueScale;
 
     // ---- Waystones ----
@@ -173,9 +169,7 @@ public final class FeatureSettings {
         ascendantPhaseThresholds.sort(Comparator.reverseOrder());
         ascendantShockwaveRadius = c.getDouble("ascendant.phases.shockwave-radius", 7);
         ascendantShockwaveDamage = c.getDouble("ascendant.phases.shockwave-damage", 6);
-        trophySize = Math.max(0.1, Math.min(4.0, c.getDouble("trophies.size", 0.5)));
-        statueSize = Math.max(0, Math.min(4.0, c.getDouble("nemesis.statue-size", 0.5)));
-        statueScale = Math.max(0.05, Math.min(1.0, c.getDouble("nemesis.statue-scale", 1.0)));
+        statueScale = Math.max(0.0625, Math.min(2.0, c.getDouble("nemesis.statue-scale", 0.5)));
 
         waystonesEnabled = c.getBoolean("waystones.enabled", true);
         waystoneAscendantDrops = Math.max(0, c.getInt("waystones.ascendant-drops", 2));

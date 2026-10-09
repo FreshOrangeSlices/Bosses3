@@ -63,6 +63,9 @@ public final class RelicManager {
     private final Map<UUID, List<Active>> cache = new HashMap<>();
     private final Set<UUID> passivePlayers = new HashSet<>();
     private final Map<UUID, Map<String, Integer>> cooldowns = new HashMap<>();
+    /** Curses put on a player for testing (/bosses curse): curse id -> server tick it wears off. */
+    private final Map<UUID, Map<String, Integer>> tests = new HashMap<>();
+    private final Map<UUID, List<BukkitTask>> testTasks = new HashMap<>();
     private @Nullable BukkitTask passiveTask;
 
     public RelicManager(AdditionalBosses plugin) {
@@ -221,6 +224,16 @@ public final class RelicManager {
         if (off.getType() == Material.SHIELD) {
             collect(off, RelicContext.Slot.ARMOR, found);
         }
+        Map<String, Integer> testing = tests.get(player.getUniqueId());
+        if (testing != null) {
+            int now = Bukkit.getCurrentTick();
+            for (Map.Entry<String, Integer> test : testing.entrySet()) {
+                RelicEffect effect = get(test.getKey());
+                if (effect != null && test.getValue() > now) {
+                    found.putIfAbsent(effect.id() + "@test", new Active(effect, RelicContext.Slot.ARMOR));
+                }
+            }
+        }
         List<Active> list = List.copyOf(found.values());
         List<Active> previous = cache.put(player.getUniqueId(), list);
         deactivateMissing(player, previous, list);
@@ -334,7 +347,87 @@ public final class RelicManager {
         return new NamespacedKey(plugin, "relic_" + effect.id().replace('-', '_') + "_" + index);
     }
 
+    // =====================================================================
+    // Testing (/bosses curse)
+    // =====================================================================
+
+    /** The player has this curse (or relic) for a while, exactly as if they were wearing it. */
+    public void addTest(Player player, RelicEffect effect, int seconds) {
+        UUID id = player.getUniqueId();
+        int until = Bukkit.getCurrentTick() + seconds * 20;
+        tests.computeIfAbsent(id, k -> new HashMap<>()).put(effect.id(), until);
+        refresh(player);
+        trackTest(id, Bukkit.getScheduler().runTaskLater(plugin, () -> {
+            Map<String, Integer> map = tests.get(id);
+            if (map == null || !Integer.valueOf(until).equals(map.get(effect.id()))) {
+                return; // replaced by a newer test, or cleared
+            }
+            map.remove(effect.id());
+            if (map.isEmpty()) {
+                tests.remove(id);
+            }
+            Player p = Bukkit.getPlayer(id);
+            if (p != null) {
+                refresh(p);
+            }
+        }, seconds * 20L));
+    }
+
+    /** Fires the effect's event every {@code everyTicks} for {@code seconds}, whatever its normal odds. */
+    public void repeatTest(Player player, RelicEffect effect, int seconds, int everyTicks) {
+        UUID id = player.getUniqueId();
+        int total = seconds * 20;
+        trackTest(id, new org.bukkit.scheduler.BukkitRunnable() {
+            int elapsed = 0;
+
+            @Override
+            public void run() {
+                Player p = Bukkit.getPlayer(id);
+                if (p == null || elapsed >= total) {
+                    cancel();
+                    return;
+                }
+                if (!p.isDead()) {
+                    effect.trigger(p, RelicManager.this);
+                }
+                elapsed += everyTicks;
+            }
+        }.runTaskTimer(plugin, 0L, everyTicks));
+    }
+
+    /** True if the effect has a single event that /bosses curse can fire (a hiccup, a visit...). */
+    public static boolean hasTrigger(RelicEffect effect) {
+        try {
+            return effect.getClass().getMethod("trigger", Player.class, RelicManager.class).getDeclaringClass()
+                != RelicEffect.class;
+        } catch (NoSuchMethodException ex) {
+            return false;
+        }
+    }
+
+    private void trackTest(UUID id, BukkitTask task) {
+        List<BukkitTask> list = testTasks.computeIfAbsent(id, k -> new ArrayList<>());
+        list.removeIf(BukkitTask::isCancelled);
+        list.add(task);
+    }
+
+    /** Ends every test on the player. Returns how many curses were being tested. */
+    public int clearTests(Player player) {
+        List<BukkitTask> tasks = testTasks.remove(player.getUniqueId());
+        if (tasks != null) {
+            tasks.forEach(BukkitTask::cancel);
+        }
+        Map<String, Integer> map = tests.remove(player.getUniqueId());
+        refresh(player);
+        return map == null ? 0 : map.size();
+    }
+
     public void forget(Player player) {
+        List<BukkitTask> tasks = testTasks.remove(player.getUniqueId());
+        if (tasks != null) {
+            tasks.forEach(BukkitTask::cancel);
+        }
+        tests.remove(player.getUniqueId());
         List<Active> before = cache.get(player.getUniqueId());
         deactivateMissing(player, before, List.of());
         applyAttributes(player, List.of());
