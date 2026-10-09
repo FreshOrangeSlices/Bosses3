@@ -1,0 +1,27 @@
+name: Build mcMMO
+on:
+  push:
+    paths:
+      - "mcMMO/**"
+      - ".github/workflows/build-mcmmo.yml"
+  workflow_dispatch:
+defaults:
+  run:
+    working-directory: mcMMO
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+          cache-dependency-path: mcMMO/pom.xml
+      - run: mvn -B -DskipTests package
+      - uses: actions/upload-artifact@v6
+        with:
+          name: mcMMO
+          path: mcMMO/target/mcMMO.jar
+          if-no-files-found: error

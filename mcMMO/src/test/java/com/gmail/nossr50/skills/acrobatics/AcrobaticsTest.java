@@ -1,0 +1,475 @@
+package com.gmail.nossr50.skills.acrobatics;
+
+import static java.util.logging.Logger.getLogger;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.within;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyFloat;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.atLeastOnce;
+import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
+import com.gmail.nossr50.MMOTestEnvironment;
+import com.gmail.nossr50.api.exceptions.InvalidSkillException;
+import com.gmail.nossr50.config.experience.ExperienceConfig;
+import com.gmail.nossr50.datatypes.experience.XPGainReason;
+import com.gmail.nossr50.datatypes.experience.XPGainSource;
+import com.gmail.nossr50.datatypes.skills.PrimarySkillType;
+import com.gmail.nossr50.datatypes.skills.SubSkillType;
+import com.gmail.nossr50.datatypes.skills.subskills.AbstractSubSkill;
+import com.gmail.nossr50.datatypes.skills.subskills.acrobatics.Roll;
+import com.gmail.nossr50.mcMMO;
+import com.gmail.nossr50.util.skills.RankUtils;
+import java.util.UUID;
+import java.util.logging.Logger;
+import java.util.stream.Stream;
+import org.bukkit.Location;
+import org.bukkit.entity.LightningStrike;
+import org.bukkit.entity.Mob;
+import org.bukkit.entity.Player;
+import org.bukkit.event.entity.EntityDamageEvent;
+import org.jetbrains.annotations.NotNull;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.mockito.Mockito;
+
+class AcrobaticsTest extends MMOTestEnvironment {
+    private static final Logger logger = getLogger(AcrobaticsTest.class.getName());
+
+    @BeforeEach
+    void setUp() throws InvalidSkillException {
+        mockBaseEnvironment(logger);
+        when(rankConfig.getSubSkillUnlockLevel(SubSkillType.ACROBATICS_ROLL, 1)).thenReturn(1);
+        when(rankConfig.getSubSkillUnlockLevel(SubSkillType.ACROBATICS_DODGE, 1)).thenReturn(1);
+
+        // wire advanced config
+        when(advancedConfig.getMaximumProbability(SubSkillType.ACROBATICS_ROLL)).thenReturn(100D);
+        when(advancedConfig.getMaxBonusLevel(SubSkillType.ACROBATICS_ROLL)).thenReturn(1000);
+        when(advancedConfig.getRollDamageThreshold()).thenReturn(7D);
+
+        Mockito.when(RankUtils.getRankUnlockLevel(SubSkillType.ACROBATICS_ROLL, 1))
+                .thenReturn(1); // needed?
+        Mockito.when(RankUtils.getRankUnlockLevel(SubSkillType.ACROBATICS_DODGE, 1))
+                .thenReturn(1000); // needed?
+
+        when(RankUtils.getRankUnlockLevel(SubSkillType.ACROBATICS_ROLL, 1)).thenReturn(
+                1); // needed?
+        when(RankUtils.hasReachedRank(eq(1), any(Player.class),
+                eq(SubSkillType.ACROBATICS_ROLL))).thenReturn(true);
+        when(RankUtils.hasReachedRank(eq(1), any(Player.class),
+                any(AbstractSubSkill.class))).thenReturn(true);
+    }
+
+    @AfterEach
+    void tearDown() {
+        cleanUpStaticMocks();
+        DodgeXpTracker.clearAll();
+    }
+
+    @SuppressWarnings("deprecation")
+    @Test
+    public void rollShouldLowerDamage() {
+        // Given
+        final Roll roll = new Roll();
+        final double damage = 2D;
+        final EntityDamageEvent mockEvent = mockEntityDamageEvent(damage);
+        mmoPlayer.modifySkill(PrimarySkillType.ACROBATICS, 1000);
+        when(roll.canRoll(mmoPlayer)).thenReturn(true);
+        assertThat(roll.canRoll(mmoPlayer)).isTrue();
+
+        // When
+        roll.doInteraction(mockEvent, mcMMO.p);
+
+        // Then
+        verify(mockEvent, atLeastOnce()).setDamage(0);
+    }
+
+    @SuppressWarnings("deprecation")
+    @Test
+    public void rollShouldNotLowerDamage() {
+        // Given
+        final Roll roll = new Roll();
+        final double damage = 100D;
+        final EntityDamageEvent mockEvent = mockEntityDamageEvent(damage);
+        mmoPlayer.modifySkill(PrimarySkillType.ACROBATICS, 0);
+        when(roll.canRoll(mmoPlayer)).thenReturn(true);
+        assertThat(roll.canRoll(mmoPlayer)).isTrue();
+
+        // When
+        roll.doInteraction(mockEvent, mcMMO.p);
+
+        // Then
+        assertThat(roll.canRoll(mmoPlayer)).isTrue();
+        verify(mockEvent, Mockito.never()).setDamage(any(Double.class));
+    }
+
+    /**
+     * calculateModifiedRollDamage should subtract the threshold from the base damage and clamp to 0.
+     */
+    @ParameterizedTest(name = "baseDamage={0}, threshold={1}, expected={2}")
+    @MethodSource("calculateModifiedRollDamageArgs")
+    void calculateModifiedRollDamage_subtractsThresholdAndClampsToZero(
+            final double baseDamage,
+            final double threshold,
+            final double expected) {
+        assertThat(Roll.calculateModifiedRollDamage(baseDamage, threshold)).isEqualTo(expected);
+    }
+
+    static Stream<Arguments> calculateModifiedRollDamageArgs() {
+        return Stream.of(
+                Arguments.of(10.0, 7.0, 3.0),   // normal case: 10 - 7 = 3 remaining
+                Arguments.of(5.0, 7.0, 0.0),    // damage < threshold: clamped to 0
+                Arguments.of(14.0, 14.0, 0.0),  // exactly at threshold: clamped to 0
+                Arguments.of(20.0, 3.0, 17.0),  // large damage, small threshold
+                Arguments.of(0.0, 7.0, 0.0)     // zero base damage: stays 0
+        );
+    }
+
+    /**
+     * A normal (non-sneaking) roll must negate up to the configured Roll DamageThreshold and no
+     * more. Regression test for the bug where rollCheck applied getRollDamageThreshold() * 2 to
+     * every roll, so a normal roll negated 14 damage (the graceful cap) instead of the shipped 7.
+     * At max skill level the roll always succeeds, so the only variable is how much damage remains
+     * after applying the threshold.
+     */
+    @ParameterizedTest(name = "rollThreshold={0}, damage={1}, expectedMagicDamage={2}")
+    @MethodSource("normalRollThresholdArgs")
+    @SuppressWarnings("deprecation")
+    void normalRollShouldNegateUpToRollDamageThreshold(
+            final double configuredThreshold,
+            final double incomingDamage,
+            final double expectedMagicDamage) throws InvalidSkillException {
+        // Given - a non-sneaking player at max level so the roll always succeeds
+        when(advancedConfig.getRollDamageThreshold()).thenReturn(configuredThreshold);
+        final Roll roll = new Roll();
+        final EntityDamageEvent mockEvent = mockEntityDamageEvent(incomingDamage);
+        mmoPlayer.modifySkill(PrimarySkillType.ACROBATICS, 1000);
+        when(roll.canRoll(mmoPlayer)).thenReturn(true);
+        when(player.isSneaking()).thenReturn(false);
+
+        // When - the fall damage is processed
+        roll.doInteraction(mockEvent, mcMMO.p);
+
+        // Then - only the damage beyond the normal roll threshold remains
+        verify(mockEvent).setDamage(eq(EntityDamageEvent.DamageModifier.MAGIC),
+                eq(expectedMagicDamage));
+    }
+
+    static Stream<Arguments> normalRollThresholdArgs() {
+        // A normal roll negates up to getRollDamageThreshold() with no doubling
+        return Stream.of(
+                // shipped default: threshold 7 negates 7 of 10 damage, 3 remains
+                Arguments.of(7.0, 10.0, 3.0),
+                // threshold 3 negates 3 of 10 damage, 7 remains
+                Arguments.of(3.0, 10.0, 7.0),
+                // threshold 4 negates 4 of 15 damage, 11 remains
+                Arguments.of(4.0, 15.0, 11.0)
+        );
+    }
+
+    /**
+     * A graceful (sneaking) roll must negate up to the configured GracefulRoll DamageThreshold,
+     * the separate and larger cap that previously went unused by gameplay entirely.
+     */
+    @ParameterizedTest(name = "gracefulThreshold={0}, damage={1}, expectedMagicDamage={2}")
+    @MethodSource("gracefulRollThresholdArgs")
+    @SuppressWarnings("deprecation")
+    void gracefulRollShouldNegateUpToGracefulRollDamageThreshold(
+            final double configuredThreshold,
+            final double incomingDamage,
+            final double expectedMagicDamage) throws InvalidSkillException {
+        // Given - a sneaking player at max level so the graceful roll always succeeds
+        when(advancedConfig.getGracefulRollDamageThreshold()).thenReturn(configuredThreshold);
+        final Roll roll = new Roll();
+        final EntityDamageEvent mockEvent = mockEntityDamageEvent(incomingDamage);
+        mmoPlayer.modifySkill(PrimarySkillType.ACROBATICS, 1000);
+        when(roll.canRoll(mmoPlayer)).thenReturn(true);
+        when(player.isSneaking()).thenReturn(true);
+
+        // When - the fall damage is processed
+        roll.doInteraction(mockEvent, mcMMO.p);
+
+        // Then - only the damage beyond the graceful roll threshold remains
+        verify(mockEvent).setDamage(eq(EntityDamageEvent.DamageModifier.MAGIC),
+                eq(expectedMagicDamage));
+    }
+
+    static Stream<Arguments> gracefulRollThresholdArgs() {
+        // A graceful roll negates up to getGracefulRollDamageThreshold()
+        return Stream.of(
+                // shipped default: threshold 14 fully negates 10 damage
+                Arguments.of(14.0, 10.0, 0.0),
+                // threshold 14 negates 14 of 20 damage, 6 remains
+                Arguments.of(14.0, 20.0, 6.0),
+                // threshold 8 negates 8 of 15 damage, 7 remains
+                Arguments.of(8.0, 15.0, 7.0)
+        );
+    }
+
+    /**
+     * Graceful roll probability must be exactly double the non-graceful probability at any skill
+     * level. This is a regression test for the bug fixed in 2.2.007 where ofPercent() was used
+     * instead of ofValue(), causing the value to be divided by 100 a second time (resulting in ~2%
+     * at max level instead of 100%).
+     */
+    @ParameterizedTest(name = "acrobaticsLevel={0}")
+    @MethodSource("acrobaticsLevels")
+    void gracefulRollProbability_isExactlyDoubleNonGraceful(final int acrobaticsLevel) {
+        mmoPlayer.modifySkill(PrimarySkillType.ACROBATICS, acrobaticsLevel);
+
+        final double normalOdds = Roll.getNonGracefulProbability(mmoPlayer).getValue();
+        final double gracefulOdds = Roll.getGracefulProbability(mmoPlayer).getValue();
+
+        assertThat(gracefulOdds).isCloseTo(normalOdds * 2, within(1e-9));
+    }
+
+    /**
+     * At max level, the graceful probability must be >= 1.0 so that evaluate() always returns true
+     * (guaranteed success).
+     */
+    @Test
+    void gracefulRollProbability_atMaxLevel_guaranteesSuccess() {
+        mmoPlayer.modifySkill(PrimarySkillType.ACROBATICS, 1000); // MaxBonusLevel = 1000
+
+        final double gracefulOdds = Roll.getGracefulProbability(mmoPlayer).getValue();
+
+        assertThat(gracefulOdds).isGreaterThanOrEqualTo(1.0);
+    }
+
+    static Stream<Arguments> acrobaticsLevels() {
+        return Stream.of(
+                Arguments.of(1),
+                Arguments.of(100),
+                Arguments.of(500),
+                Arguments.of(999),
+                Arguments.of(1000)
+        );
+    }
+
+    /**
+     * Regression test for the Dodge anti-exploit tracker: a single mob may only hand out a
+     * limited number of Dodge XP rewards, so letting a trapped mob attack repeatedly must not
+     * farm unlimited XP.
+     */
+    @Test
+    void dodgeCheckShouldStopRewardingXpAtPerMobCapWhenExploitPreventionEnabled() {
+        // Given - Dodge exploit prevention is enabled
+        when(ExperienceConfig.getInstance().isAcrobaticsDodgeXpFarmingPrevented()).thenReturn(true);
+        final AcrobaticsManager acrobaticsManager = dodgeReadyAcrobaticsManager();
+        final Mob mob = mockMob();
+
+        // When - the same mob is dodged far more often than the reward cap allows
+        for (int i = 0; i < 20; i++) {
+            acrobaticsManager.dodgeCheck(mob, 10D);
+        }
+
+        // Then - XP is only granted up to the per-mob reward cap
+        verify(acrobaticsManager, times(DodgeXpTracker.MAX_XP_REWARDS_PER_MOB))
+                .applyXpGain(anyFloat(), any(XPGainReason.class), any(XPGainSource.class));
+    }
+
+    /**
+     * The reward cap is per mob, not global; a second mob must grant its own full set of Dodge
+     * XP rewards even when the first mob is already exhausted.
+     */
+    @Test
+    void dodgeCheckShouldTrackDodgeRewardsPerMobWhenExploitPreventionEnabled() {
+        // Given - Dodge exploit prevention is enabled and one mob is already at its cap
+        when(ExperienceConfig.getInstance().isAcrobaticsDodgeXpFarmingPrevented()).thenReturn(true);
+        final AcrobaticsManager acrobaticsManager = dodgeReadyAcrobaticsManager();
+        final Mob exhaustedMob = mockMob();
+        for (int i = 0; i < 20; i++) {
+            acrobaticsManager.dodgeCheck(exhaustedMob, 10D);
+        }
+
+        // When - a second mob is dodged just as often
+        final Mob freshMob = mockMob();
+        for (int i = 0; i < 20; i++) {
+            acrobaticsManager.dodgeCheck(freshMob, 10D);
+        }
+
+        // Then - both mobs granted a full reward cap each
+        verify(acrobaticsManager, times(DodgeXpTracker.MAX_XP_REWARDS_PER_MOB * 2))
+                .applyXpGain(anyFloat(), any(XPGainReason.class), any(XPGainSource.class));
+    }
+
+    /**
+     * With exploit prevention disabled every dodge grants XP, matching the behavior for servers
+     * that opt out of ExploitFix.AcrobaticsDodgeXpFarming.
+     */
+    @Test
+    void dodgeCheckShouldRewardXpEveryTimeWhenExploitPreventionDisabled() {
+        // Given - Dodge exploit prevention is disabled
+        when(ExperienceConfig.getInstance().isAcrobaticsDodgeXpFarmingPrevented()).thenReturn(false);
+        final AcrobaticsManager acrobaticsManager = dodgeReadyAcrobaticsManager();
+        final Mob mob = mockMob();
+
+        // When - the same mob is dodged ten times
+        for (int i = 0; i < 10; i++) {
+            acrobaticsManager.dodgeCheck(mob, 10D);
+        }
+
+        // Then - every dodge grants XP
+        verify(acrobaticsManager, times(10)).applyXpGain(anyFloat(), any(XPGainReason.class),
+                any(XPGainSource.class));
+    }
+
+    /**
+     * Builds an AcrobaticsManager whose dodge always procs: max skill level, guaranteed RNG,
+     * sane static modifiers, and XP application stubbed out so only the reward count matters.
+     */
+    private @NotNull AcrobaticsManager dodgeReadyAcrobaticsManager() {
+        when(advancedConfig.getMaximumProbability(SubSkillType.ACROBATICS_DODGE)).thenReturn(100D);
+        when(advancedConfig.getMaxBonusLevel(SubSkillType.ACROBATICS_DODGE)).thenReturn(1000);
+        mmoPlayer.modifySkill(PrimarySkillType.ACROBATICS, 1000);
+        Acrobatics.dodgeDamageModifier = 2.0;
+        Acrobatics.dodgeXpModifier = 120;
+        final AcrobaticsManager acrobaticsManager = spy(new AcrobaticsManager(mmoPlayer));
+        doNothing().when(acrobaticsManager).applyXpGain(anyFloat(), any(XPGainReason.class),
+                any(XPGainSource.class));
+        return acrobaticsManager;
+    }
+
+    /**
+     * Mocks a Mob with a real unique id, which the dodge tracker uses as its map key.
+     */
+    private @NotNull Mob mockMob() {
+        final Mob mob = mock(Mob.class);
+        when(mob.getUniqueId()).thenReturn(UUID.randomUUID());
+        return mob;
+    }
+
+    @Nested
+    class DodgeGate {
+        private AcrobaticsManager acrobaticsManager;
+
+        @BeforeEach
+        void setUpManager() {
+            acrobaticsManager = new AcrobaticsManager(mmoPlayer);
+            when(RankUtils.hasUnlockedSubskill(player, SubSkillType.ACROBATICS_DODGE))
+                    .thenReturn(true);
+            when(generalConfig.getPVEEnabled(PrimarySkillType.ACROBATICS)).thenReturn(true);
+            when(generalConfig.getPVPEnabled(PrimarySkillType.ACROBATICS)).thenReturn(true);
+        }
+
+        @Test
+        void blockingPlayersShouldNotDodge() {
+            // Given - the defender is blocking with a shield
+            when(player.isBlocking()).thenReturn(true);
+
+            // When / Then - dodge stays out of the way of the block
+            assertThat(acrobaticsManager.canDodge(mockMob())).isFalse();
+        }
+
+        @Test
+        void mobAttacksShouldBeDodgeableWhenPveTriggersAllow() {
+            // Given / When / Then - a plain mob hit can be dodged
+            assertThat(acrobaticsManager.canDodge(mockMob())).isTrue();
+
+            // And - not when PVE skill triggers are disabled
+            when(generalConfig.getPVEEnabled(PrimarySkillType.ACROBATICS)).thenReturn(false);
+            assertThat(acrobaticsManager.canDodge(mockMob())).isFalse();
+        }
+
+        @Test
+        void lightningShouldRespectTheLightningConfig() {
+            // Given - dodging lightning is disabled in the config
+            final boolean originalLightningDisabled = Acrobatics.dodgeLightningDisabled;
+            Acrobatics.dodgeLightningDisabled = true;
+            try {
+                // When / Then - lightning cannot be dodged
+                assertThat(acrobaticsManager.canDodge(mock(LightningStrike.class))).isFalse();
+
+                // And - it can once the config allows it
+                Acrobatics.dodgeLightningDisabled = false;
+                assertThat(acrobaticsManager.canDodge(mock(LightningStrike.class))).isTrue();
+            } finally {
+                Acrobatics.dodgeLightningDisabled = originalLightningDisabled;
+            }
+        }
+
+        @Test
+        void lockedDodgeShouldNeverTrigger() {
+            // Given - Dodge has not been unlocked
+            when(RankUtils.hasUnlockedSubskill(player, SubSkillType.ACROBATICS_DODGE))
+                    .thenReturn(false);
+
+            // When / Then - no dodging
+            assertThat(acrobaticsManager.canDodge(mockMob())).isFalse();
+        }
+    }
+
+    @Nested
+    class RollXpThrottle {
+        private AcrobaticsManager acrobaticsManager;
+
+        @BeforeEach
+        void setUpManager() {
+            acrobaticsManager = new AcrobaticsManager(mmoPlayer);
+        }
+
+        @Test
+        void disabledExploitPreventionShouldAlwaysPayRollXp() {
+            // Given - acrobatics exploit prevention is off
+            when(ExperienceConfig.getInstance().isAcrobaticsExploitingPrevented())
+                    .thenReturn(false);
+
+            // When / Then - repeated rolls all gain XP
+            assertThat(acrobaticsManager.canGainRollXP()).isTrue();
+            assertThat(acrobaticsManager.canGainRollXP()).isTrue();
+        }
+
+        /**
+         * With exploit prevention on, the first roll starts a cooldown and rapid re-rolls
+         * are denied, with each denial lengthening the cooldown further.
+         */
+        @Test
+        void rapidRollsShouldBeThrottledWhenExploitPreventionIsOn() {
+            // Given - acrobatics exploit prevention is on
+            when(ExperienceConfig.getInstance().isAcrobaticsExploitingPrevented())
+                    .thenReturn(true);
+
+            // When / Then - the first roll pays, immediate re-rolls do not
+            assertThat(acrobaticsManager.canGainRollXP()).isTrue();
+            assertThat(acrobaticsManager.canGainRollXP()).isFalse();
+            assertThat(acrobaticsManager.canGainRollXP()).isFalse();
+        }
+    }
+
+    @Nested
+    class FallLocationTracking {
+        @Test
+        void repeatFallLocationsShouldBeRemembered() {
+            // Given - a fall spot the player already rolled at
+            final AcrobaticsManager acrobaticsManager = new AcrobaticsManager(mmoPlayer);
+            final Location fallSpot = new Location(world, 10, 64, 10);
+
+            // When / Then - the spot is only known after it is recorded
+            assertThat(acrobaticsManager.hasFallenInLocationBefore(fallSpot)).isFalse();
+            acrobaticsManager.addLocationToFallMap(fallSpot);
+            assertThat(acrobaticsManager.hasFallenInLocationBefore(fallSpot)).isTrue();
+        }
+    }
+
+    private @NotNull EntityDamageEvent mockEntityDamageEvent(double damage) {
+        final EntityDamageEvent mockEvent = mock(EntityDamageEvent.class);
+        when(mockEvent.isApplicable(any(EntityDamageEvent.DamageModifier.class))).thenReturn(true);
+        when(mockEvent.getCause()).thenReturn(EntityDamageEvent.DamageCause.FALL);
+        when(mockEvent.getFinalDamage()).thenReturn(damage);
+        when(mockEvent.getDamage(any(EntityDamageEvent.DamageModifier.class))).thenReturn(damage);
+        when(mockEvent.getDamage()).thenReturn(damage);
+        when(mockEvent.isCancelled()).thenReturn(false);
+        when(mockEvent.getEntity()).thenReturn(player);
+        return mockEvent;
+    }
+}

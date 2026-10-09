@@ -1,0 +1,663 @@
+package com.gmail.nossr50.util.scoreboards;
+
+import com.gmail.nossr50.datatypes.database.PlayerStat;
+import com.gmail.nossr50.datatypes.player.McMMOPlayer;
+import com.gmail.nossr50.datatypes.player.PlayerProfile;
+import com.gmail.nossr50.datatypes.skills.PrimarySkillType;
+import com.gmail.nossr50.datatypes.skills.SuperAbilityType;
+import com.gmail.nossr50.events.scoreboard.McMMOScoreboardRevertEvent;
+import com.gmail.nossr50.events.scoreboard.ScoreboardEventReason;
+import com.gmail.nossr50.locale.LocaleLoader;
+import com.gmail.nossr50.mcMMO;
+import com.gmail.nossr50.util.LogUtils;
+import com.gmail.nossr50.util.Misc;
+import com.gmail.nossr50.util.player.UserManager;
+import com.gmail.nossr50.util.scoreboards.ScoreboardManager.SidebarType;
+import com.gmail.nossr50.util.scoreboards.backend.PlayerBoard;
+import com.gmail.nossr50.util.scoreboards.backend.SidebarLine;
+import com.gmail.nossr50.util.skills.SkillTools;
+import com.tcoded.folialib.wrapper.task.WrappedTask;
+import org.bukkit.Bukkit;
+import org.bukkit.ChatColor;
+import org.bukkit.entity.Player;
+import org.bukkit.scoreboard.Scoreboard;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+
+/**
+ * Wraps a backend-specific player board for a single player.
+ */
+public class ScoreboardWrapper {
+    private static final int MAX_LINES = 15;
+
+    // Initialization variables
+    public final String playerName;
+    public final Player player;
+    private final PlayerBoard playerBoard;
+    private boolean tippedKeep = false;
+    private boolean tippedClear = false;
+    private Scoreboard oldBoard = null;
+
+    // Internal usage variables (should exist)
+    private SidebarType sidebarType;
+
+    // Parameter variables (May be null / invalid)
+    public String targetPlayer = null;
+    public PrimarySkillType targetSkill = null;
+    private PlayerProfile targetProfile = null;
+    public int leaderboardPage = -1;
+
+    // Data supplied by the manager for RANK/TOP boards, consumed by render()
+    private Map<PrimarySkillType, Integer> rankData = null;
+    private List<PlayerStat> leaderboardData = null;
+
+    public ScoreboardWrapper(Player player, PlayerBoard playerBoard) {
+        this.player = player;
+        this.playerName = player.getName();
+        this.sidebarType = SidebarType.NONE;
+        this.playerBoard = playerBoard;
+    }
+
+    private WrappedTask updateTask = null;
+
+    private class ScoreboardQuickUpdate implements Runnable {
+        @Override
+        public void run() {
+            render();
+            updateTask = null;
+        }
+    }
+
+    private WrappedTask revertTask = null;
+
+    private class ScoreboardChangeTask implements Runnable {
+        @Override
+        public void run() {
+            tryRevertBoard();
+            revertTask = null;
+        }
+    }
+
+    private WrappedTask cooldownTask = null;
+
+    private class ScoreboardCooldownTask implements Runnable {
+        @Override
+        public void run() {
+            // Stop updating if it's no longer something displaying cooldowns
+            if (isBoardShown() && (isSkillScoreboard() || isCooldownScoreboard())) {
+                doSidebarUpdateSoon();
+            } else {
+                stopCooldownUpdating();
+            }
+        }
+    }
+
+    public void doSidebarUpdateSoon() {
+        if (updateTask == null) {
+            // To avoid spamming the scheduler, store the instance and run 2 ticks later
+            updateTask = mcMMO.p.getFoliaLib().getScheduler()
+                    .runAtEntityLater(player, new ScoreboardQuickUpdate(), 2L);
+        }
+    }
+
+    private void startCooldownUpdating() {
+        if (cooldownTask == null) {
+            // Repeat every 5 seconds.
+            // Cancels once all cooldowns are done, using stopCooldownUpdating().
+            cooldownTask = mcMMO.p.getFoliaLib().getScheduler()
+                    .runAtEntityTimer(player, new ScoreboardCooldownTask(),
+                            5 * Misc.TICK_CONVERSION_FACTOR, 5 * Misc.TICK_CONVERSION_FACTOR);
+        }
+    }
+
+    private void stopCooldownUpdating() {
+        cooldownTask = cancelQuietly(cooldownTask, "cooldown scoreboard task");
+    }
+
+    /**
+     * Cancels a scheduled task, logging instead of throwing if the scheduler refuses. Always
+     * returns null so callers can clear the task field in the same statement.
+     */
+    private @Nullable WrappedTask cancelQuietly(@Nullable WrappedTask task, String taskName) {
+        if (task != null) {
+            try {
+                task.cancel();
+            } catch (Exception e) {
+                LogUtils.debug(mcMMO.p.getLogger(), "Unable to cancel " + taskName + " for "
+                        + playerName + ": " + e.getMessage());
+            }
+        }
+
+        return null;
+    }
+
+    public boolean isSkillScoreboard() {
+        return sidebarType == SidebarType.SKILL_BOARD;
+    }
+
+    public boolean isCooldownScoreboard() {
+        return sidebarType == SidebarType.COOLDOWNS_BOARD;
+    }
+
+    public boolean isStatsScoreboard() {
+        return sidebarType == SidebarType.STATS_BOARD;
+    }
+
+    /**
+     * Cancels any pending revert, shows the backend board, and, on the Bukkit backend, captures
+     * the board to restore when this one is reverted.
+     *
+     * @return the online player, or null if the player is gone and this wrapper was cleaned up
+     */
+    private @Nullable Player showBoardCapturingOldBoard() {
+        final Player onlinePlayer = mcMMO.p.getServer().getPlayerExact(playerName);
+
+        if (onlinePlayer == null) {
+            ScoreboardManager.cleanup(this);
+            return null;
+        }
+
+        cancelRevert();
+
+        final boolean alreadyShown = playerBoard.isShown();
+        final Scoreboard previousBoard = playerBoard.show();
+
+        if (ScoreboardManager.isBukkitBackendActive()) {
+            if (alreadyShown && oldBoard == null && Bukkit.getScoreboardManager() != null) {
+                oldBoard = Bukkit.getScoreboardManager().getMainScoreboard();
+            } else if (!alreadyShown) {
+                oldBoard = previousBoard;
+            }
+        }
+
+        return onlinePlayer;
+    }
+
+    public void showBoardWithNoRevert() {
+        showBoardCapturingOldBoard();
+    }
+
+    public void showBoardAndScheduleRevert(int ticks) {
+        final Player onlinePlayer = showBoardCapturingOldBoard();
+
+        if (onlinePlayer == null) {
+            return;
+        }
+
+        revertTask = mcMMO.p.getFoliaLib().getScheduler()
+                .runAtEntityLater(onlinePlayer, new ScoreboardChangeTask(), ticks);
+
+        final McMMOPlayer mmoPlayer = UserManager.getPlayer(onlinePlayer);
+
+        if (mmoPlayer == null) {
+            return;
+        }
+
+        final PlayerProfile profile = mmoPlayer.getProfile();
+
+        if (profile.getScoreboardTipsShown() >= mcMMO.p.getGeneralConfig().getTipsAmount()) {
+            return;
+        }
+
+        if (!tippedKeep) {
+            tippedKeep = true;
+            onlinePlayer.sendMessage(LocaleLoader.getString("Commands.Scoreboard.Tip.Keep"));
+        } else if (!tippedClear) {
+            tippedClear = true;
+            onlinePlayer.sendMessage(LocaleLoader.getString("Commands.Scoreboard.Tip.Clear"));
+            profile.increaseTipsShown();
+        }
+    }
+
+    public void tryRevertBoard() {
+        Player onlinePlayer = mcMMO.p.getServer().getPlayerExact(playerName);
+
+        if (onlinePlayer == null) {
+            ScoreboardManager.cleanup(this);
+            return;
+        }
+
+        if (ScoreboardManager.isBukkitBackendActive()) {
+            if (oldBoard != null && isBoardShown()) {
+                McMMOScoreboardRevertEvent event = new McMMOScoreboardRevertEvent(
+                        oldBoard,
+                        onlinePlayer.getScoreboard(),
+                        onlinePlayer,
+                        ScoreboardEventReason.REVERTING_BOARD);
+                onlinePlayer.getServer().getPluginManager().callEvent(event);
+                onlinePlayer = event.getTargetPlayer();
+                playerBoard.hide(onlinePlayer, event.getTargetBoard());
+                oldBoard = null;
+            } else if (oldBoard != null) {
+                LogUtils.debug(mcMMO.p.getLogger(),
+                        "Not reverting scoreboard for "
+                                + playerName
+                                + " - scoreboard was changed by another plugin.");
+            }
+        } else if (isBoardShown()) {
+            McMMOScoreboardRevertEvent event = new McMMOScoreboardRevertEvent(
+                    onlinePlayer.getScoreboard(),
+                    onlinePlayer.getScoreboard(),
+                    onlinePlayer,
+                    ScoreboardEventReason.REVERTING_BOARD);
+            onlinePlayer.getServer().getPluginManager().callEvent(event);
+            onlinePlayer = event.getTargetPlayer();
+            playerBoard.hide(onlinePlayer, event.getTargetBoard());
+        } else {
+            playerBoard.hide(onlinePlayer, null);
+        }
+
+        cancelRevert();
+
+        sidebarType = SidebarType.NONE;
+        targetPlayer = null;
+        targetSkill = null;
+        targetProfile = null;
+        leaderboardPage = -1;
+        rankData = null;
+        leaderboardData = null;
+    }
+
+    public boolean isBoardShown() {
+        Player onlinePlayer = mcMMO.p.getServer().getPlayerExact(playerName);
+
+        if (onlinePlayer == null) {
+            ScoreboardManager.cleanup(this);
+            return false;
+        }
+
+        return playerBoard.isShown();
+    }
+
+    public void cancelRevert() {
+        revertTask = cancelQuietly(revertTask, "scoreboard revert task");
+    }
+
+    /**
+     * Releases backend resources and scheduled tasks.
+     */
+    public void close() {
+        stopCooldownUpdating();
+        cancelRevert();
+        updateTask = cancelQuietly(updateTask, "sidebar update task");
+
+        try {
+            playerBoard.close();
+        } finally {
+            // Always drop the backend's bookkeeping entry, even if closing the board throws
+            ScoreboardManager.onPlayerBoardClosed(playerName);
+        }
+    }
+
+    // Board Type Changing 'API' methods
+
+    public void setTypeNone() {
+        this.sidebarType = SidebarType.NONE;
+
+        targetPlayer = null;
+        targetSkill = null;
+        targetProfile = null;
+        leaderboardPage = -1;
+
+        loadObjective("");
+    }
+
+    public void setTypeSkill(PrimarySkillType skill) {
+        this.sidebarType = SidebarType.SKILL_BOARD;
+        targetSkill = skill;
+
+        targetPlayer = null;
+        targetProfile = null;
+        leaderboardPage = -1;
+
+        loadObjective(ScoreboardManager.getSkillLabels().get(skill));
+    }
+
+    public void setTypeSelfStats() {
+        this.sidebarType = SidebarType.STATS_BOARD;
+
+        targetPlayer = null;
+        targetSkill = null;
+        targetProfile = null;
+        leaderboardPage = -1;
+
+        loadObjective(ScoreboardManager.getHeaderStats());
+    }
+
+    public void setTypeInspectStats(PlayerProfile profile) {
+        this.sidebarType = SidebarType.STATS_BOARD;
+        targetPlayer = profile.getPlayerName();
+        targetProfile = profile;
+
+        targetSkill = null;
+        leaderboardPage = -1;
+
+        loadObjective(LocaleLoader.getString("Scoreboard.Header.PlayerInspect", targetPlayer));
+    }
+
+    public void setTypeInspectStats(@NotNull McMMOPlayer mmoPlayer) {
+        this.sidebarType = SidebarType.STATS_BOARD;
+        targetPlayer = mmoPlayer.getPlayer().getName();
+        targetProfile = mmoPlayer.getProfile();
+
+        targetSkill = null;
+        leaderboardPage = -1;
+
+        loadObjective(LocaleLoader.getString("Scoreboard.Header.PlayerInspect", targetPlayer));
+    }
+
+    public void setTypeCooldowns() {
+        this.sidebarType = SidebarType.COOLDOWNS_BOARD;
+
+        targetPlayer = null;
+        targetSkill = null;
+        targetProfile = null;
+        leaderboardPage = -1;
+
+        loadObjective(ScoreboardManager.getHeaderCooldowns());
+    }
+
+    public void setTypeSelfRank() {
+        this.sidebarType = SidebarType.RANK_BOARD;
+        targetPlayer = null;
+
+        targetSkill = null;
+        targetProfile = null;
+        leaderboardPage = -1;
+
+        loadObjective(ScoreboardManager.getHeaderRank());
+    }
+
+    public void setTypeInspectRank(String otherPlayer) {
+        this.sidebarType = SidebarType.RANK_BOARD;
+        targetPlayer = otherPlayer;
+
+        targetSkill = null;
+        targetProfile = null;
+        leaderboardPage = -1;
+
+        loadObjective(ScoreboardManager.getHeaderRank());
+    }
+
+    public void setTypeTopPower(int page) {
+        this.sidebarType = SidebarType.TOP_BOARD;
+        leaderboardPage = page;
+        targetSkill = null;
+
+        targetPlayer = null;
+        targetProfile = null;
+
+        int endPosition = page * 10;
+        int startPosition = endPosition - 9;
+        loadObjective(String.format("%s (%2d - %2d)", ScoreboardManager.getPowerLevelLabel(),
+                startPosition, endPosition));
+    }
+
+    public void setTypeTop(PrimarySkillType skill, int page) {
+        this.sidebarType = SidebarType.TOP_BOARD;
+        leaderboardPage = page;
+        targetSkill = skill;
+
+        targetPlayer = null;
+        targetProfile = null;
+
+        int endPosition = page * 10;
+        int startPosition = endPosition - 9;
+        loadObjective(String.format("%s (%2d - %2d)", ScoreboardManager.getSkillLabels().get(skill),
+                startPosition, endPosition));
+    }
+
+    /**
+     * Sets the sidebar title and re-renders. Replaces the old register/unregister objective flow.
+     */
+    protected void loadObjective(String displayName) {
+        playerBoard.setTitle(displayName);
+        render();
+    }
+
+    /**
+     * Pushes an ordered list of rows to the active backend board.
+     */
+    private void drawLines(List<SidebarLine> lines) {
+        int count = Math.min(lines.size(), MAX_LINES);
+        List<SidebarLine> toRender = lines;
+
+        if (count != lines.size()) {
+            toRender = new ArrayList<>(lines.subList(0, count));
+        }
+
+        playerBoard.draw(toRender);
+    }
+
+    /**
+     * Recomputes and redraws every row based on the current {@link SidebarType}. Replaces the old
+     * {@code updateSidebar()}; the data sources and per-type logic mirror the original board.
+     */
+    private void render() {
+        updateTask = cancelQuietly(updateTask, "sidebar update task");
+
+        if (sidebarType == SidebarType.NONE) {
+            return;
+        }
+
+        Player player = mcMMO.p.getServer().getPlayerExact(playerName);
+
+        if (player == null) {
+            ScoreboardManager.cleanup(this);
+            return;
+        }
+
+        final McMMOPlayer mmoPlayer = UserManager.getPlayer(player);
+
+        if (mmoPlayer == null) {
+            return;
+        }
+
+        final List<SidebarLine> lines = new ArrayList<>();
+
+        switch (sidebarType) {
+            case NONE:
+                break;
+
+            case SKILL_BOARD:
+                renderSkill(player, mmoPlayer, lines);
+                break;
+
+            case COOLDOWNS_BOARD:
+                renderCooldowns(mmoPlayer, lines);
+                break;
+
+            case STATS_BOARD:
+                renderStats(player, mmoPlayer, lines);
+                break;
+
+            case RANK_BOARD:
+                renderRank(player, lines);
+                break;
+
+            case TOP_BOARD:
+                renderLeaderboard(lines);
+                break;
+
+            default:
+                break;
+        }
+
+        drawLines(lines);
+    }
+
+    private void renderSkill(Player player, McMMOPlayer mmoPlayer, List<SidebarLine> lines) {
+        if (!SkillTools.isChildSkill(targetSkill)) {
+            int currentXP = mmoPlayer.getSkillXpLevel(targetSkill);
+            lines.add(new SidebarLine(ScoreboardManager.getLevelLabel(),
+                    mmoPlayer.getSkillLevel(targetSkill)));
+            lines.add(new SidebarLine(ScoreboardManager.getCurrentXpLabel(), currentXP));
+            lines.add(new SidebarLine(ScoreboardManager.getRemainingXpLabel(),
+                    mmoPlayer.getXpToLevel(targetSkill) - currentXP));
+        } else {
+            for (PrimarySkillType parentSkill : mcMMO.p.getSkillTools()
+                    .getChildSkillParents(targetSkill)) {
+                lines.add(new SidebarLine(ScoreboardManager.getSkillLabels().get(parentSkill),
+                        mmoPlayer.getSkillLevel(parentSkill)));
+            }
+            lines.add(new SidebarLine(ScoreboardManager.getLevelLabel(),
+                    mmoPlayer.getSkillLevel(targetSkill)));
+        }
+
+        if (mcMMO.p.getSkillTools().getSuperAbility(targetSkill) != null) {
+            final Map<SuperAbilityType, String> abilityLabels =
+                    ScoreboardManager.getAbilityLabelsSkill();
+            boolean stopUpdating;
+
+            if (targetSkill == PrimarySkillType.MINING) {
+                // Special-Case: Mining has two abilities, both with cooldowns
+                int secondsSB = Math.max(
+                        mmoPlayer.calculateTimeRemaining(SuperAbilityType.SUPER_BREAKER), 0);
+                int secondsBM = Math.max(
+                        mmoPlayer.calculateTimeRemaining(SuperAbilityType.BLAST_MINING), 0);
+
+                lines.add(new SidebarLine(abilityLabels.get(SuperAbilityType.SUPER_BREAKER),
+                        secondsSB));
+                lines.add(new SidebarLine(abilityLabels.get(SuperAbilityType.BLAST_MINING),
+                        secondsBM));
+
+                stopUpdating = (secondsSB == 0 && secondsBM == 0);
+            } else {
+                SuperAbilityType ability = mcMMO.p.getSkillTools().getSuperAbility(targetSkill);
+                int seconds = Math.max(mmoPlayer.calculateTimeRemaining(ability), 0);
+
+                lines.add(new SidebarLine(abilityLabels.get(ability), seconds));
+
+                stopUpdating = seconds == 0;
+            }
+
+            if (stopUpdating) {
+                stopCooldownUpdating();
+            } else {
+                startCooldownUpdating();
+            }
+        }
+    }
+
+    private void renderCooldowns(McMMOPlayer mmoPlayer, List<SidebarLine> lines) {
+        final Map<SuperAbilityType, String> abilityLabels =
+                ScoreboardManager.getAbilityLabelsColored();
+        boolean anyCooldownsActive = false;
+
+        for (SuperAbilityType ability : SuperAbilityType.values()) {
+            int seconds = Math.max(mmoPlayer.calculateTimeRemaining(ability), 0);
+
+            if (seconds != 0) {
+                anyCooldownsActive = true;
+            }
+
+            lines.add(new SidebarLine(abilityLabels.get(ability), seconds));
+        }
+
+        if (anyCooldownsActive) {
+            startCooldownUpdating();
+        } else {
+            stopCooldownUpdating();
+        }
+    }
+
+    private void renderStats(Player player, McMMOPlayer mmoPlayer, List<SidebarLine> lines) {
+        // Both setTypeInspectStats overloads set targetProfile, so the only case without one
+        // is the self stats board
+        final PlayerProfile newProfile = targetProfile != null
+                ? targetProfile
+                : mmoPlayer.getProfile();
+
+        int powerLevel = 0;
+        final boolean compact = mcMMO.p.getGeneralConfig().getCompactStatsBoard();
+        final List<SidebarLine> skillLines = new ArrayList<>();
+        // Don't include child skills, makes the list too long
+        for (PrimarySkillType skill : SkillTools.NON_CHILD_SKILLS) {
+            // Skills hidden by permission stay out of the power level total so the
+            // total always matches the rows shown and the permission-aware power level
+            if (!mcMMO.p.getSkillTools().doesPlayerHaveSkillPermission(player, skill)) {
+                continue;
+            }
+
+            int level = newProfile.getSkillLevel(skill);
+            powerLevel += level;
+
+            // Server-specific: the compact board leaves out skills that haven't been trained yet
+            if (compact && level <= 0 && mcMMO.p.getGeneralConfig().getCompactStatsHideUntrained()) {
+                continue;
+            }
+            skillLines.add(new SidebarLine(ScoreboardManager.getSkillLabels().get(skill), level));
+        }
+        skillLines.sort((a, b) -> Integer.compare(b.value(), a.value()));
+        if (compact) {
+            // Server-specific: only the highest few skills, so the sidebar stays small
+            final int max = Math.max(1, mcMMO.p.getGeneralConfig().getCompactStatsMaxSkills());
+            if (skillLines.size() > max) {
+                skillLines.subList(max, skillLines.size()).clear();
+            }
+        }
+        lines.addAll(skillLines);
+
+        // Sort by value descending to mirror the old score-sorted Bukkit board. The power
+        // level line takes part in the sort: the sum is never smaller than any single row, so
+        // it ranks first and always survives the sidebar line cap, which would otherwise drop
+        // it whenever 15 or more skill rows are shown (a full-permission player has 17)
+        lines.add(new SidebarLine(ScoreboardManager.getPowerLevelLabel(), powerLevel));
+        lines.sort((a, b) -> Integer.compare(b.value(), a.value()));
+    }
+
+    private void renderRank(Player player, List<SidebarLine> lines) {
+        if (rankData == null) {
+            return;
+        }
+
+        for (PrimarySkillType skill : SkillTools.NON_CHILD_SKILLS) {
+            if (!mcMMO.p.getSkillTools().doesPlayerHaveSkillPermission(player, skill)) {
+                continue;
+            }
+
+            Integer rank = rankData.get(skill);
+            if (rank != null) {
+                lines.add(new SidebarLine(ScoreboardManager.getSkillLabels().get(skill), rank));
+            }
+        }
+
+        Integer powerRank = rankData.get(null);
+        if (powerRank != null) {
+            lines.add(new SidebarLine(ScoreboardManager.getPowerLevelLabel(), powerRank));
+        }
+    }
+
+    private void renderLeaderboard(List<SidebarLine> lines) {
+        if (leaderboardData == null) {
+            return;
+        }
+
+        for (PlayerStat stat : leaderboardData) {
+            String name = stat.playerName();
+
+            if (name.equals(playerName)) {
+                name = ChatColor.GOLD + "--You--";
+            }
+
+            lines.add(new SidebarLine(name, stat.value()));
+        }
+
+        // Highest score at the top
+        lines.sort((a, b) -> Integer.compare(b.value(), a.value()));
+    }
+
+    public void acceptRankData(Map<PrimarySkillType, Integer> rankData) {
+        this.rankData = rankData;
+        render();
+    }
+
+    public void acceptLeaderboardData(@NotNull List<PlayerStat> leaderboardData) {
+        this.leaderboardData = leaderboardData;
+        render();
+    }
+}

@@ -1,0 +1,127 @@
+package com.gmail.nossr50.runnables.database;
+
+import static com.gmail.nossr50.database.UsernamePlaceholder.isInvalidOldUsername;
+
+import com.gmail.nossr50.config.experience.ExperienceConfig;
+import com.gmail.nossr50.database.DatabaseManager;
+import com.gmail.nossr50.datatypes.database.PlayerNameAndUUID;
+import com.gmail.nossr50.datatypes.experience.FormulaType;
+import com.gmail.nossr50.datatypes.player.McMMOPlayer;
+import com.gmail.nossr50.datatypes.player.PlayerProfile;
+import com.gmail.nossr50.datatypes.skills.PrimarySkillType;
+import com.gmail.nossr50.locale.LocaleLoader;
+import com.gmail.nossr50.mcMMO;
+import com.gmail.nossr50.util.CancellableRunnable;
+import com.gmail.nossr50.util.LogUtils;
+import com.gmail.nossr50.util.Misc;
+import com.gmail.nossr50.util.player.UserManager;
+import com.gmail.nossr50.util.skills.SkillTools;
+import org.bukkit.command.CommandSender;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
+
+public class FormulaConversionTask extends CancellableRunnable {
+    private final CommandSender sender;
+    private final FormulaType formulaType;
+
+    public FormulaConversionTask(CommandSender sender, FormulaType formulaType) {
+        this.sender = sender;
+        this.formulaType = formulaType;
+    }
+
+    @Override
+    public void run() {
+        int convertedUsers = 0;
+        long startMillis = System.currentTimeMillis();
+        for (PlayerNameAndUUID storedUser : mcMMO.getDatabaseManager().getStoredUsersWithUUIDs()) {
+            // Everyone who lost their name shares the placeholder, so without a UUID nothing
+            // tells which of them this is
+            if (storedUser.uuid() == null && isInvalidOldUsername(storedUser.playerName())) {
+                continue;
+            }
+
+            final McMMOPlayer mmoPlayer = getOnlinePlayer(storedUser);
+            PlayerProfile profile;
+
+            // If the mmoPlayer doesn't exist, create a temporary profile and check if it's present in the database. If it's not, abort the process.
+            if (mmoPlayer == null) {
+                profile = loadProfile(storedUser);
+
+                if (!profile.isLoaded()) {
+                    LogUtils.debug(mcMMO.p.getLogger(), "Profile not loaded.");
+                    continue;
+                }
+
+                editValues(profile);
+                // Since this is a temporary profile, we save it here.
+                profile.scheduleAsyncSave();
+            } else {
+                profile = mmoPlayer.getProfile();
+                editValues(profile);
+            }
+            convertedUsers++;
+            Misc.printProgress(convertedUsers, DatabaseManager.progressInterval, startMillis);
+        }
+        mcMMO.getFormulaManager().setPreviousFormulaType(formulaType);
+
+        sender.sendMessage(LocaleLoader.getString("Commands.mcconvert.Experience.Finish",
+                formulaType.toString()));
+    }
+
+    private static @Nullable McMMOPlayer getOnlinePlayer(@NotNull PlayerNameAndUUID storedUser) {
+        if (storedUser.uuid() == null) {
+            return UserManager.getOfflinePlayer(storedUser.playerName());
+        }
+
+        return UserManager.getPlayer(mcMMO.p.getServer().getPlayer(storedUser.uuid()));
+    }
+
+    /** By UUID when there is one, since a name can be stored for more than one player. */
+    private static @NotNull PlayerProfile loadProfile(@NotNull PlayerNameAndUUID storedUser) {
+        if (storedUser.uuid() == null) {
+            return mcMMO.getDatabaseManager().loadPlayerProfile(storedUser.playerName());
+        }
+
+        return mcMMO.getDatabaseManager().loadPlayerProfile(storedUser.uuid());
+    }
+
+    private void editValues(PlayerProfile profile) {
+        LogUtils.debug(mcMMO.p.getLogger(),
+                "========================================================================");
+        LogUtils.debug(mcMMO.p.getLogger(),
+                "Conversion report for " + profile.getPlayerName() + ":");
+        for (PrimarySkillType primarySkillType : SkillTools.NON_CHILD_SKILLS) {
+            int oldLevel = profile.getSkillLevel(primarySkillType);
+            int oldXPLevel = profile.getSkillXpLevel(primarySkillType);
+            int totalOldXP = mcMMO.getFormulaManager()
+                    .calculateTotalExperience(oldLevel, oldXPLevel);
+
+            if (totalOldXP == 0) {
+                continue;
+            }
+
+            int[] newExperienceValues = mcMMO.getFormulaManager()
+                    .calculateNewLevel(primarySkillType, (int) Math.floor(
+                                    totalOldXP / ExperienceConfig.getInstance().getExpModifier()),
+                            formulaType);
+            int newLevel = newExperienceValues[0];
+            int newXPlevel = newExperienceValues[1];
+
+            LogUtils.debug(mcMMO.p.getLogger(), "  Skill: " + primarySkillType.toString());
+
+            LogUtils.debug(mcMMO.p.getLogger(), "    OLD:");
+            LogUtils.debug(mcMMO.p.getLogger(), "      Level: " + oldLevel);
+            LogUtils.debug(mcMMO.p.getLogger(), "      XP " + oldXPLevel);
+            LogUtils.debug(mcMMO.p.getLogger(), "      Total XP " + totalOldXP);
+
+            LogUtils.debug(mcMMO.p.getLogger(), "    NEW:");
+            LogUtils.debug(mcMMO.p.getLogger(), "      Level " + newLevel);
+            LogUtils.debug(mcMMO.p.getLogger(), "      XP " + newXPlevel);
+            LogUtils.debug(mcMMO.p.getLogger(),
+                    "------------------------------------------------------------------------");
+
+            profile.modifySkill(primarySkillType, newLevel);
+            profile.setSkillXpLevel(primarySkillType, newXPlevel);
+        }
+    }
+}

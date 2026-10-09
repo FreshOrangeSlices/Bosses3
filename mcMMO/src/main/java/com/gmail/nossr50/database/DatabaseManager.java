@@ -1,0 +1,189 @@
+package com.gmail.nossr50.database;
+
+import com.gmail.nossr50.api.exceptions.InvalidSkillException;
+import com.gmail.nossr50.datatypes.database.DatabaseType;
+import com.gmail.nossr50.datatypes.database.LeaderboardSnapshot;
+import com.gmail.nossr50.datatypes.database.PlayerNameAndUUID;
+import com.gmail.nossr50.datatypes.database.PlayerStat;
+import com.gmail.nossr50.datatypes.player.PlayerProfile;
+import com.gmail.nossr50.datatypes.skills.PrimarySkillType;
+import com.gmail.nossr50.util.skills.SkillTools;
+import java.util.EnumMap;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+import org.bukkit.OfflinePlayer;
+import org.bukkit.entity.Player;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
+
+public interface DatabaseManager {
+    // During convertUsers, how often to output a status
+    int progressInterval = 200;
+
+    /**
+     * Purge users with 0 power level from the database.
+     */
+    int purgePowerlessUsers();
+
+    /**
+     * Purge users who haven't logged on in over a certain time frame from the database.
+     */
+    void purgeOldUsers();
+
+    /**
+     * Remove a user from the database.
+     *
+     * @param playerName The name of the user to remove
+     * @param uuid player UUID, can be null
+     * @return true if the user was successfully removed, false otherwise
+     */
+    boolean removeUser(String playerName, UUID uuid);
+
+    /**
+     * Removes any cache used for faster lookups Currently only used for SQL
+     *
+     * @param uuid target UUID to cleanup
+     */
+    void cleanupUser(UUID uuid);
+
+    /**
+     * Save a user to the database. The FlatFile and SQL databases only save a profile with a
+     * UUID, and return false for one without.
+     *
+     * @param profile The profile of the player to save
+     * @return true if successful, false on failure
+     */
+    boolean saveUser(PlayerProfile profile);
+
+    /**
+     * Retrieve leaderboard info. Will never be null but it may be empty
+     *
+     * @param skill The skill to retrieve info on
+     * @param pageNumber Which page in the leaderboards to retrieve
+     * @param statsPerPage The number of stats per page
+     * @return the requested leaderboard information
+     */
+    @NotNull List<PlayerStat> readLeaderboard(@Nullable PrimarySkillType skill, int pageNumber,
+            int statsPerPage) throws InvalidSkillException;
+
+    /**
+     * Retrieve the top rows of every leaderboard scope (each non-child skill plus the power level
+     * leaderboard) directly from the backend in one bulk call, for callers that build caches from
+     * the result.
+     * <p>
+     * Unlike {@link #readLeaderboard(PrimarySkillType, int, int)}, implementations must propagate
+     * backend read failures instead of returning a partial or empty result, so callers can tell a
+     * failed read apart from genuinely empty leaderboards. Implementations should also bypass any
+     * backend-level result caching so callers always observe current data. The default
+     * implementation reads each scope through
+     * {@link #readLeaderboard(PrimarySkillType, int, int)} and therefore inherits that method's
+     * failure handling; custom database managers should override it to honor this contract.
+     *
+     * @param perScopeLimit The maximum number of rows to include per leaderboard scope
+     * @return the top rows of every leaderboard scope
+     * @throws RuntimeException when the backend read fails
+     */
+    default @NotNull LeaderboardSnapshot readLeaderboardSnapshot(int perScopeLimit) {
+        final Map<PrimarySkillType, List<PlayerStat>> skillLeaderboards =
+                new EnumMap<>(PrimarySkillType.class);
+
+        try {
+            for (PrimarySkillType skill : SkillTools.NON_CHILD_SKILLS) {
+                skillLeaderboards.put(skill, readLeaderboard(skill, 1, perScopeLimit));
+            }
+
+            return new LeaderboardSnapshot(skillLeaderboards,
+                    readLeaderboard(null, 1, perScopeLimit));
+        } catch (InvalidSkillException e) {
+            // Scopes are fixed to non-child skills plus overall, so this cannot happen.
+            throw new IllegalStateException(e);
+        }
+    }
+
+    /**
+     * Retrieve rank info into a HashMap from PrimarySkillType to the rank.
+     * <p>
+     * The special value <code>null</code> is used to represent the Power Level rank (the
+     * combination of all skill levels).
+     *
+     * @param playerName The name of the user to retrieve the rankings for
+     * @return the requested rank information
+     */
+    Map<PrimarySkillType, Integer> readRank(String playerName);
+
+    /**
+     * Add a new user to the database. The FlatFile and SQL databases only add a player with a
+     * UUID, and return an unloaded profile for one without.
+     *
+     * @param playerName The name of the player to be added to the database
+     * @param uuid The uuid of the player to be added to the database
+     * @return the new player's profile, unloaded when they were not added
+     */
+    @NotNull PlayerProfile newUser(String playerName, UUID uuid);
+
+    @NotNull PlayerProfile newUser(@NotNull Player player);
+
+    /**
+     * Load a player from the database.
+     *
+     * @param playerName The name of the player to load from the database
+     * @return The player's data, or an unloaded PlayerProfile if not found and createNew is false
+     */
+    @NotNull PlayerProfile loadPlayerProfile(@NotNull String playerName);
+
+    /**
+     * Load a player from the database by UUID. Their name replaces the one stored for them only
+     * while they are online, as an offline player's name may belong to someone else by now.
+     *
+     * @param offlinePlayer The player to load from the database
+     * @return The player's data, or an unloaded PlayerProfile if not found
+     */
+    @NotNull PlayerProfile loadPlayerProfile(@NotNull OfflinePlayer offlinePlayer);
+
+    @NotNull PlayerProfile loadPlayerProfile(@NotNull UUID uuid);
+
+    /**
+     * Get all users currently stored in the database.
+     *
+     * @return list of playernames
+     */
+    List<String> getStoredUsers();
+
+    /**
+     * Get every user stored in the database with their UUID. Unlike {@link #getStoredUsers()},
+     * this tells apart players who share a name, such as everyone who lost theirs to another
+     * player and is stored under {@link UsernamePlaceholder#INVALID_OLD_USERNAME}.
+     * <p>
+     * A database manager that does not override this lists every user without a UUID.
+     *
+     * @return one entry per stored user
+     */
+    default @NotNull List<PlayerNameAndUUID> getStoredUsersWithUUIDs() {
+        return getStoredUsers().stream().map(name -> new PlayerNameAndUUID(name, null)).toList();
+    }
+
+    /**
+     * Convert all users from this database to the provided database using
+     * {@link #saveUser(PlayerProfile)}.
+     *
+     * @param destination The DatabaseManager to save to
+     */
+    void convertUsers(DatabaseManager destination);
+
+    boolean saveUserUUID(String userName, UUID uuid);
+
+    boolean saveUserUUIDs(Map<String, UUID> fetchedUUIDs);
+
+    /**
+     * Retrieve the type of database in use. Custom databases should return CUSTOM.
+     *
+     * @return The type of database
+     */
+    DatabaseType getDatabaseType();
+
+    /**
+     * Called when the plugin disables
+     */
+    void onDisable();
+}
