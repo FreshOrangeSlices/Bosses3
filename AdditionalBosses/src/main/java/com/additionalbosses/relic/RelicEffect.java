@@ -88,6 +88,14 @@ public interface RelicEffect {
     default void onDeactivate(Player player) {
     }
 
+    /**
+     * Makes the curse's random event happen right now (for testing: /bosses curse). Return false if it has no
+     * single event to show, because it is always on while equipped or needs something else to happen first.
+     */
+    default boolean trigger(Player player, RelicManager manager) {
+        return false;
+    }
+
     /** Multiplies the killer's boss reward chances. */
     default double rewardChanceMultiplier() {
         return 1.0;

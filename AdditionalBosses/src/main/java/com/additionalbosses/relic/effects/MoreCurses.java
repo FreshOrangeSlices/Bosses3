@@ -90,6 +90,11 @@ public final class MoreCurses {
             if (!Rng.chance(chance) || !ctx.manager().ready(p, id(), (int) Math.round(cooldown * 20))) {
                 return;
             }
+            trigger(p, ctx.manager());
+        }
+
+        @Override
+        public boolean trigger(Player p, com.additionalbosses.relic.RelicManager manager) {
             p.addPotionEffect(new PotionEffect(PotionEffectType.DARKNESS, (int) (seconds * 20), 0, false, false));
             Location at = behind(p, 6);
             playPrivately(p, "entity.warden.heartbeat", at, 1.0f, 1.0f);
@@ -98,6 +103,7 @@ public final class MoreCurses {
             } else {
                 playPrivately(p, "entity.warden.nearby_closer", at, 1.0f, 1.0f);
             }
+            return true;
         }
     }
 
@@ -135,8 +141,14 @@ public final class MoreCurses {
             if (!Rng.chance(chance) || !ctx.manager().ready(p, id(), (int) Math.round(cooldown * 20))) {
                 return;
             }
+            trigger(p, ctx.manager());
+        }
+
+        @Override
+        public boolean trigger(Player p, com.additionalbosses.relic.RelicManager manager) {
             String sound = SOUNDS[Rng.between(0, SOUNDS.length - 1)];
             playPrivately(p, sound, behind(p, Rng.between(3.0, 7.0)), 1.0f, (float) Rng.between(0.9, 1.1));
+            return true;
         }
     }
 

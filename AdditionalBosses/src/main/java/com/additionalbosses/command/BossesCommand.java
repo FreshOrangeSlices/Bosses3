@@ -48,7 +48,7 @@ public final class BossesCommand implements BasicCommand {
     private static final String USE = "additionalbosses.use";
     private static final String ADMIN = "additionalbosses.admin";
     private static final List<String> PLAYER_SUBS = List.of("help", "guide", "apply", "inspect", "stats", "nemesis");
-    private static final List<String> ADMIN_SUBS = List.of("spawn", "give", "list", "killall", "reload", "escalate", "promote");
+    private static final List<String> ADMIN_SUBS = List.of("spawn", "give", "list", "killall", "reload", "escalate", "promote", "curse");
 
     private final AdditionalBosses plugin;
 
@@ -83,6 +83,7 @@ public final class BossesCommand implements BasicCommand {
             case "promote" -> promote(sender, args);
             case "spawn" -> spawn(sender, args);
             case "give" -> give(sender, args);
+            case "curse" -> curse(sender, args);
             case "list" -> list(sender);
             case "killall" -> info(sender, "Removed " + plugin.bosses().killAll() + " boss(es).");
             case "reload" -> {
@@ -111,6 +112,7 @@ public final class BossesCommand implements BasicCommand {
             line(sender, "/bosses escalate <player>", "trigger an Escalation on a player");
             line(sender, "/bosses promote [ranks]", "promote the boss you are looking at");
             line(sender, "/bosses give <player> waystone [amount]", "give Waystones");
+            line(sender, "/bosses curse <player> <curse>", "make a curse's effect happen now (testing)");
             line(sender, "/bosses list | killall | reload", "admin tools");
         }
     }
@@ -435,6 +437,30 @@ public final class BossesCommand implements BasicCommand {
         }
     }
 
+    /** Testing: makes a curse's random event (the jump scare, the angel, a hiccup...) happen right now. */
+    private void curse(CommandSender sender, String[] args) {
+        if (args.length < 3) {
+            error(sender, "Usage: /bosses curse <player> <curse>");
+            return;
+        }
+        Player target = Bukkit.getPlayerExact(args[1]);
+        if (target == null) {
+            error(sender, "Player not found: " + args[1]);
+            return;
+        }
+        RelicEffect curse = plugin.relics().get(args[2]);
+        if (curse == null || !curse.curse()) {
+            error(sender, "Unknown curse: " + args[2]);
+            return;
+        }
+        if (curse.trigger(target, plugin.relics())) {
+            info(sender, curse.displayName() + " triggered on " + target.getName() + ".");
+        } else {
+            info(sender, curse.displayName() + " has no single moment to trigger (it's always on, or needs something"
+                + " to happen first). To try it, wear it: /bosses give " + target.getName() + " relic random " + curse.id());
+        }
+    }
+
     private void give(CommandSender sender, String[] args) {
         if (args.length < 3) {
             error(sender, "Usage: /bosses give <player> <gear|rune|relic|catalyst|compass|totem|soul|waystone|guide> ...");
@@ -630,6 +656,21 @@ public final class BossesCommand implements BasicCommand {
         }
         if (sub.equals("escalate") && args.length == 2) {
             return filter(onlineNames(), last);
+        }
+        if (sub.equals("curse")) {
+            if (args.length == 2) {
+                return filter(onlineNames(), last);
+            }
+            if (args.length == 3) {
+                List<String> ids = new ArrayList<>();
+                for (RelicEffect r : plugin.relics().all()) {
+                    if (r.curse()) {
+                        ids.add(r.id());
+                    }
+                }
+                return filter(ids, last);
+            }
+            return List.of();
         }
         if (sub.equals("spawn")) {
             return switch (args.length) {

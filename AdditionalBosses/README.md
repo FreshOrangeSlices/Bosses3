@@ -93,6 +93,7 @@ Build locally instead (needs Java 25): `./gradlew build` → `build/libs/Additio
 | `/bosses give <player> soul [rank] [amount]` | admin | Boss Souls |
 | `/bosses nemesis list\|summon\|clear <player>` | admin | See, call back early, or remove a player's Nemeses |
 | `/bosses escalate <player>` | admin | Trigger an Escalation Chain |
+| `/bosses curse <player> <curse>` | admin | Make a curse's effect happen right now, for testing (the jump scare, the angel, a hiccup...) |
 | `/bosses promote [ranks]` | admin | Promote the boss you are looking at |
 | `/bosses give <player> waystone [amount]` | admin | Waystones |
 | `/bosses list` · `killall` · `reload` | admin | Admin tools |
