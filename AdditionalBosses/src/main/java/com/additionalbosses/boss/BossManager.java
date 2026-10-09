@@ -98,13 +98,20 @@ public final class BossManager {
         return entity.getPersistentDataContainer().has(Keys.MINION, PersistentDataType.STRING);
     }
 
+    private static final org.bukkit.NamespacedKey BLOOM_PET = org.bukkit.NamespacedKey.fromString("bloompets:pet");
+
+    /** A pet from the BloomPets plugin: never turned into a boss, hunted, chased off or angered by curses. */
+    public static boolean isPet(Entity entity) {
+        return BLOOM_PET != null && entity.getPersistentDataContainer().has(BLOOM_PET);
+    }
+
     // =====================================================================
     // Natural spawns
     // =====================================================================
 
     public void handleSpawn(LivingEntity entity, SpawnReason reason) {
         PluginSettings s = settings();
-        if (!s.enabled || !Bukkit.isPrimaryThread() || isBoss(entity) || isMinion(entity)
+        if (!s.enabled || !Bukkit.isPrimaryThread() || isBoss(entity) || isMinion(entity) || isPet(entity)
             || entity.getPersistentDataContainer().has(Keys.STATUE, PersistentDataType.STRING)) {
             return;
         }

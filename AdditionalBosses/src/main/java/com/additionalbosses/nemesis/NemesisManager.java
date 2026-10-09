@@ -404,6 +404,7 @@ public final class NemesisManager {
             if (!(near instanceof LivingEntity prey) || near instanceof Player || near instanceof org.bukkit.entity.ArmorStand
                 || !(near instanceof org.bukkit.entity.Animals || near instanceof org.bukkit.entity.Enemy)
                 || com.additionalbosses.boss.BossManager.isBoss(near) || com.additionalbosses.boss.BossManager.isMinion(near)
+                || com.additionalbosses.boss.BossManager.isPet(near)
                 || near.getPersistentDataContainer().has(Keys.STATUE, PersistentDataType.STRING)
                 || (near instanceof org.bukkit.entity.Tameable t && t.isTamed()) || near.isInvulnerable()
                 || near instanceof org.bukkit.entity.Boss || near instanceof org.bukkit.entity.Warden

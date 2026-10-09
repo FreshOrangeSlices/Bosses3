@@ -211,7 +211,8 @@ public final class MoreCurses {
         public void onPassive(RelicContext ctx) {
             Player p = ctx.player();
             for (Entity e : p.getNearbyEntities(radius, radius / 2, radius)) {
-                if (e instanceof Mob mob && ANGERED.contains(e.getType()) && mob.getTarget() == null) {
+                if (e instanceof Mob mob && ANGERED.contains(e.getType()) && mob.getTarget() == null
+                    && !com.additionalbosses.boss.BossManager.isPet(mob)) {
                     mob.setTarget(p);
                 }
             }

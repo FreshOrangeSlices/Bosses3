@@ -1,0 +1,17 @@
+name: BloomPets
+version: '${version}'
+main: com.bloompets.BloomPets
+api-version: '26.3'
+description: Bond with animals by feeding them, then summon, ride and level up your pets.
+authors: [ BloomPets ]
+
+# The /pets command is registered in code (Paper's command API), so it is not listed here.
+permissions:
+  bloompets.use:
+    description: Taming, summoning and riding pets, and the /pets commands.
+    default: true
+  bloompets.admin:
+    description: /pets give and /pets reload.
+    default: op
+    children:
+      bloompets.use: true
