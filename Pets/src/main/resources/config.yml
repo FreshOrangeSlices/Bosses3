@@ -1,0 +1,75 @@
+# =====================================================================
+#  BloomPets
+#  Feed an animal the food it likes until it bonds with you. Then it's
+#  your pet: summon it with its Pet Bloom, ride it, store things in it,
+#  and level it up to 10.
+# =====================================================================
+
+# How many pets one player can own.
+max-pets: 27
+
+# Turn a species off and it can't be tamed or summoned (existing pets of
+# that kind stay in their owner's list).
+pets:
+  wolf: true
+  polar-bear: true
+  iron-golem: true
+  goat: true
+  panda: true
+  vex: true
+  donkey: true
+  mule: true
+  llama: true
+  camel: true
+  sniffer: true
+  horse: true
+  fox: true
+  rabbit: true
+  ocelot: true
+  strider: true
+  cat: true
+  bee: true
+  allay: true
+  chicken: true
+  cow: true
+  turtle: true
+  armadillo: true
+  frog: true
+
+taming:
+  # Sneak + right-click a wild animal with its favourite food to bond with
+  # it (plain feeding still breeds animals). How many feedings it takes:
+  feeds:
+    default: 5
+    iron-golem: 8
+    sniffer: 6
+    vex: 3          # Vexes vanish quickly, so be fast with the Emeralds
+
+feeding:
+  heal-percent: 25  # feeding your pet its food heals it this much
+
+riding:
+  unlock-level: 3          # pets can be ridden from this level
+  hover-height: 3          # Bees and Allays hover at most this many blocks up
+  smallest-rider-scale: 0.3
+
+fainting:
+  # Pets never die: at zero health they faint and rest before they can
+  # be summoned again.
+  rest-seconds: 60
+  comes-back-with-health: 0.5
+
+# Bond XP (levels 1-10). Level n -> n+1 takes 40 + 30*n XP.
+bond-xp:
+  feeding: 10
+  you-kill-a-mob: 3
+  pet-kills-a-mob: 6
+  blocks-ridden-per-xp: 25
+  per-minute-out: 2
+
+# Other players can't hurt your pets.
+protect-pets-from-other-players: true
+
+# The Allay bottles XP orbs it gathers into Bottles o' Enchanting in its
+# storage (false: it pulls the orbs to you instead).
+allay-bottles-xp: true

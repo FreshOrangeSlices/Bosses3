@@ -103,7 +103,8 @@ public final class NatureCurses {
             Location from = p.getLocation();
             for (Entity e : p.getNearbyEntities(radius, 4, radius)) {
                 if (!(e instanceof Animals animal) || e instanceof org.bukkit.entity.Enemy
-                    || (e instanceof Tameable t && t.isTamed()) || animal.isLeashed() || !animal.getPassengers().isEmpty()) {
+                    || (e instanceof Tameable t && t.isTamed()) || animal.isLeashed() || !animal.getPassengers().isEmpty()
+                    || com.additionalbosses.boss.BossManager.isPet(animal)) {
                     continue;
                 }
                 Vector away = animal.getLocation().toVector().subtract(from.toVector()).setY(0);
