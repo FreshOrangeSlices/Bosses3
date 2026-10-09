@@ -236,7 +236,7 @@ public final class NemesisManager {
                 grow(r, f.nemesisLevelsOnKill, boss.entity());
                 refreshBody(boss, r);
                 retreat(boss, r);
-                victim.sendMessage(messages().prefixed("nemesis-grows", Placeholder.component("boss", displayName(r))));
+                plugin.presentation().tell(victim, "nemesis-grows", Placeholder.component("boss", displayName(r)));
             } else {
                 grow(r, 1, boss.entity()); // it also grows by killing anyone else
                 refreshBody(boss, r);
@@ -252,7 +252,7 @@ public final class NemesisManager {
         updateTitles(created);
         configure(boss, created, false);
         retreat(boss, created);
-        victim.sendMessage(messages().prefixed("nemesis-born", Placeholder.component("boss", displayName(created))));
+        plugin.presentation().tell(victim, "nemesis-born", Placeholder.component("boss", displayName(created)));
     }
 
     /**
@@ -283,7 +283,7 @@ public final class NemesisManager {
         configure(boss, created, false);
         retreat(boss, created);
         if (p != null) {
-            p.sendMessage(messages().prefixed("nemesis-born", Placeholder.component("boss", displayName(created))));
+            plugin.presentation().tell(p, "nemesis-born", Placeholder.component("boss", displayName(created)));
         }
         return true;
     }
@@ -322,7 +322,7 @@ public final class NemesisManager {
         refreshBody(boss, r);
         boolean removed = retreat(boss, r);
         if (owner != null) {
-            owner.sendMessage(messages().prefixed("nemesis-flee", Placeholder.component("boss", displayName(r))));
+            plugin.presentation().tell(owner, "nemesis-flee", Placeholder.component("boss", displayName(r)));
         }
         return removed;
     }
@@ -436,7 +436,7 @@ public final class NemesisManager {
         if (boss.entity() instanceof Mob mob) {
             mob.setTarget(attacker);
         }
-        attacker.sendMessage(messages().prefixed("nemesis-provoked", Placeholder.component("boss", displayName(r))));
+        plugin.presentation().tell(attacker, "nemesis-provoked", Placeholder.component("boss", displayName(r)));
     }
 
     /** While prowling it only targets players who attacked it. */
@@ -696,7 +696,9 @@ public final class NemesisManager {
         owner.showTitle(Title.title(messages().get("nemesis-return-title"),
             messages().get("nemesis-return-subtitle", Placeholder.component("boss", name)),
             Title.Times.times(Duration.ofMillis(400), Duration.ofMillis(3500), Duration.ofMillis(1000))));
-        owner.sendMessage(messages().prefixed("nemesis-return-subtitle", Placeholder.component("boss", name)));
+        if (plugin.settings().bossChat) {
+            owner.sendMessage(messages().prefixed("nemesis-return-subtitle", Placeholder.component("boss", name)));
+        }
         Fx.playTo(owner, Fx.sound("entity.wither.spawn", 0.7f, 0.8f));
         plugin.bosses().engage(boss, owner);
     }
@@ -841,9 +843,9 @@ public final class NemesisManager {
             if (killer.getUniqueId().equals(r.owner) && r.kills > 0) {
                 event.setDroppedExp((int) Math.round(event.getDroppedExp() * f().nemesisRevengeXpMultiplier));
                 rewards.addAll(plugin.rewards().roll(boss, killer));
-                killer.sendMessage(messages().prefixed("revenge"));
+                plugin.presentation().tell(killer, "revenge");
             }
-            Bukkit.getServer().sendMessage(messages().prefixed("nemesis-slain",
+            plugin.presentation().broadcast(messages().prefixed("nemesis-slain",
                 Placeholder.component("player", killer.displayName()), Placeholder.component("boss", displayName(r))));
         }
     }

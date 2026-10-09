@@ -40,54 +40,12 @@ import java.util.Locale;
 import java.util.Map;
 
 /**
- * Collectible boss trophies (a "Blaze Core", "Ravager Horn"...) and Nemesis statues: a trophy that places the
- * slain Nemesis as a frozen, unkillable display mob with its title above its head.
+ * Nemesis statues: an item that places the slain Nemesis as a small, frozen, unkillable display mob.
+ *
+ * <p>Boss trophies are gone (bosses drop stackable Boss Souls now). Trophies made by older versions still work as
+ * souls, and trophy figures already placed can still be picked up: they come back as a soul.</p>
  */
 public final class Trophies {
-
-    private record Look(String model, String name) {
-    }
-
-    private static final Map<EntityType, Look> LOOKS = new EnumMap<>(EntityType.class);
-
-    static {
-        LOOKS.put(EntityType.ZOMBIE, new Look("rotten_flesh", "Zombie Heart"));
-        LOOKS.put(EntityType.HUSK, new Look("rotten_flesh", "Husk Heart"));
-        LOOKS.put(EntityType.DROWNED, new Look("nautilus_shell", "Drowned Shell"));
-        LOOKS.put(EntityType.ZOMBIE_VILLAGER, new Look("emerald", "Tarnished Emerald"));
-        LOOKS.put(EntityType.SKELETON, new Look("bone", "Skeleton Fragment"));
-        LOOKS.put(EntityType.STRAY, new Look("bone", "Frozen Bone"));
-        LOOKS.put(EntityType.BOGGED, new Look("brown_mushroom", "Bogged Spore"));
-        LOOKS.put(EntityType.PARCHED, new Look("bone", "Sunbleached Bone"));
-        LOOKS.put(EntityType.WITHER_SKELETON, new Look("wither_skeleton_skull", "Withered Skull"));
-        LOOKS.put(EntityType.CREEPER, new Look("gunpowder", "Volatile Core"));
-        LOOKS.put(EntityType.SPIDER, new Look("spider_eye", "Broodmother Eye"));
-        LOOKS.put(EntityType.CAVE_SPIDER, new Look("fermented_spider_eye", "Venom Gland"));
-        LOOKS.put(EntityType.ENDERMAN, new Look("ender_pearl", "Void Shard"));
-        LOOKS.put(EntityType.ENDERMITE, new Look("popped_chorus_fruit", "Endermite Husk"));
-        LOOKS.put(EntityType.WITCH, new Look("glass_bottle", "Hex Bottle"));
-        LOOKS.put(EntityType.PILLAGER, new Look("arrow", "Raider's Bolt"));
-        LOOKS.put(EntityType.VINDICATOR, new Look("iron_axe", "Executioner's Blade"));
-        LOOKS.put(EntityType.EVOKER, new Look("totem_of_undying", "Evoker's Idol"));
-        LOOKS.put(EntityType.ILLUSIONER, new Look("ender_eye", "Illusion Eye"));
-        LOOKS.put(EntityType.RAVAGER, new Look("goat_horn", "Ravager Horn"));
-        LOOKS.put(EntityType.GUARDIAN, new Look("prismarine_shard", "Guardian Spine"));
-        LOOKS.put(EntityType.ELDER_GUARDIAN, new Look("prismarine_crystals", "Elder Guardian Eye"));
-        LOOKS.put(EntityType.BLAZE, new Look("blaze_rod", "Blaze Core"));
-        LOOKS.put(EntityType.GHAST, new Look("ghast_tear", "Ghast Tear"));
-        LOOKS.put(EntityType.MAGMA_CUBE, new Look("magma_cream", "Magma Heart"));
-        LOOKS.put(EntityType.SLIME, new Look("slime_ball", "Slime Core"));
-        LOOKS.put(EntityType.HOGLIN, new Look("leather", "Hoglin Hide"));
-        LOOKS.put(EntityType.ZOGLIN, new Look("rotten_flesh", "Zoglin Tusk"));
-        LOOKS.put(EntityType.PIGLIN, new Look("gold_nugget", "Piglin Signet"));
-        LOOKS.put(EntityType.PIGLIN_BRUTE, new Look("golden_axe", "Brute's Axe"));
-        LOOKS.put(EntityType.ZOMBIFIED_PIGLIN, new Look("gold_nugget", "Tarnished Signet"));
-        LOOKS.put(EntityType.PHANTOM, new Look("phantom_membrane", "Phantom Wing"));
-        LOOKS.put(EntityType.BREEZE, new Look("breeze_rod", "Breeze Core"));
-        LOOKS.put(EntityType.SILVERFISH, new Look("iron_nugget", "Silverfish Scale"));
-        LOOKS.put(EntityType.WARDEN, new Look("echo_shard", "Warden's Heart"));
-        LOOKS.put(EntityType.WITHER, new Look("wither_rose", "Wither's Bloom"));
-    }
 
     private final AdditionalBosses plugin;
 
@@ -99,42 +57,7 @@ public final class Trophies {
         return String.valueOf(Clock.day());
     }
 
-    /**
-     * A trophy named after the mob type (a Blaze Core, a Ravager Horn...). Place it to get a tiny frozen copy of the
-     * boss, or use it on a living boss to promote it.
-     */
-    public ItemStack createTrophy(Boss boss, @Nullable Player killer) {
-        LivingEntity e = boss.entity();
-        EntityType type = e.getType();
-        Look look = LOOKS.getOrDefault(type, new Look("bone", Text.pretty(type.name()) + " Remnant"));
-        ItemStack item = ItemStack.of(Material.PAPER);
-        item.setData(DataComponentTypes.ITEM_MODEL, Key.key(look.model()));
-        item.setData(DataComponentTypes.ITEM_NAME, boss.rank().styled(look.name()));
-        item.setData(DataComponentTypes.MAX_STACK_SIZE, 1);
-        if (boss.rank().atLeast(BossRank.PURPLE) || boss.isNemesis()) {
-            item.setData(DataComponentTypes.ENCHANTMENT_GLINT_OVERRIDE, true);
-        }
-        List<Component> lore = new ArrayList<>();
-        lore.add(Text.line(boss.rank().starText() + " Boss Trophy", NamedTextColor.GOLD));
-        lore.add(Text.line("From: " + boss.plainName(), NamedTextColor.GRAY));
-        if (killer != null) {
-            lore.add(Text.line("Slain by " + killer.getName() + " on day " + day(e), NamedTextColor.DARK_GRAY));
-        }
-        lore.add(Component.empty());
-        lore.add(Text.line("Right-click a block: place a tiny copy.", NamedTextColor.DARK_GRAY));
-        lore.add(Text.line("Right-click or throw it at a boss: promote it.", NamedTextColor.DARK_GRAY));
-        item.lore(lore);
-        String data = typeToken(e) + ";1;" + gearString(e.getEquipment())
-            + ";" + Text.MM.serialize(boss.name());
-        item.editPersistentDataContainer(pdc -> {
-            pdc.set(Keys.ITEM_KIND, PersistentDataType.STRING, ItemService.Kind.TROPHY.name());
-            pdc.set(Keys.ITEM_RANK, PersistentDataType.STRING, boss.rank().name());
-            pdc.set(Keys.STATUE, PersistentDataType.STRING, data);
-        });
-        return item;
-    }
-
-    /** The rank of the boss a trophy came from (older trophies: read from the name colour). */
+    /** The rank of a Boss Soul, or of the boss an old trophy came from (oldest trophies: read from the name colour). */
     public static BossRank trophyRank(ItemStack trophy) {
         BossRank rank = BossRank.parse(trophy.getPersistentDataContainer().get(Keys.ITEM_RANK, PersistentDataType.STRING));
         if (rank != null) {
@@ -286,7 +209,6 @@ public final class Trophies {
             player.sendMessage(Text.mm("<red>Hostile statues can't stand in Peaceful difficulty.</red>"));
             return false;
         }
-        boolean mini = trophy;
         String original = Base64.getEncoder().encodeToString(item.asOne().serializeAsBytes());
         Entity placed = at.getWorld().spawn(at, type.getEntityClass(), false, ent -> {
             if (!(ent instanceof LivingEntity statue)) {
@@ -301,7 +223,7 @@ public final class Trophies {
             statue.setCollidable(false);
             statue.setCanPickupItems(false);
             statue.customName(name);
-            statue.setCustomNameVisible(!mini); // trophies show their name only when you look at them
+            statue.setCustomNameVisible(false); // the name shows when you look at it
             AttributeInstance s = statue.getAttribute(Attribute.SCALE);
             if (s != null) {
                 s.setBaseValue(scale);
@@ -345,13 +267,13 @@ public final class Trophies {
     }
 
     /**
-     * Size of a placed figure. Nemesis statues are a fraction of the Nemesis's own size (by default its full size).
-     * Trophies are sized so their larger side (height or width) is about half a block, whatever the mob: that needs
-     * the mob's real dimensions, so it is worked out in {@link #resize} once the mob exists.
+     * Starting size of a placed figure. Statues (and old trophy figures) are sized so their larger side (height or
+     * width) is a set number of blocks, half a block by default, whatever the mob: that needs the mob's real
+     * dimensions, so it is worked out in {@link #resize} once the mob exists.
      */
     private double figureScale(boolean trophy, String storedScale) {
         var f = plugin.settings().features;
-        return trophy ? 0.25 : Math.max(0.0625, parseDouble(storedScale, 1.0) * f.statueScale);
+        return trophy || f.statueSize > 0 ? 0.25 : Math.max(0.0625, parseDouble(storedScale, 1.0) * f.statueScale);
     }
 
     /** Placed trophies and statues always use the current sizes, including ones placed before they changed. */
@@ -368,15 +290,18 @@ public final class Trophies {
         ItemStack original = storedItem(e);
         boolean trophy = original != null && ItemService.Kind.TROPHY.name().equals(
             original.getPersistentDataContainer().get(Keys.ITEM_KIND, PersistentDataType.STRING));
+        living.setCustomNameVisible(false);
+        var f = plugin.settings().features;
+        double blocks = trophy ? f.trophySize : f.statueSize;
         double wanted;
-        if (trophy) {
+        if (blocks > 0) {
             double now = scale.getValue();
             double side = Math.max(living.getHeight(), living.getWidth());
             if (now <= 0 || side <= 0) {
                 return;
             }
             double natural = side / now; // its size at scale 1
-            wanted = Math.max(0.0625, Math.min(2.0, plugin.settings().features.trophySize / natural));
+            wanted = Math.max(0.0625, Math.min(2.0, blocks / natural));
         } else {
             wanted = figureScale(false, parts[1]);
         }
@@ -412,7 +337,7 @@ public final class Trophies {
         return entity.getPersistentDataContainer().has(Keys.STATUE, PersistentDataType.STRING);
     }
 
-    /** Turns a placed statue back into its item. */
+    /** Turns a placed statue back into its item (an old trophy figure comes back as a Boss Soul). */
     public @Nullable ItemStack pickUp(Entity statue) {
         String data = statue.getPersistentDataContainer().get(Keys.STATUE, PersistentDataType.STRING);
         if (data == null) {
@@ -422,6 +347,9 @@ public final class Trophies {
         if (original != null) {
             try {
                 ItemStack item = ItemStack.deserializeBytes(Base64.getDecoder().decode(original));
+                if (plugin.items().kind(item) == ItemService.Kind.TROPHY) {
+                    item = plugin.items().createSoul(trophyRank(item), 1);
+                }
                 Fx.particle(Fx.center(statue), Particle.CLOUD, 15, 0.4, 0.02);
                 statue.remove();
                 return item;

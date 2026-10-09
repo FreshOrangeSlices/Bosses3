@@ -97,9 +97,13 @@ public final class GuideBook {
             w.reserve(4);
             w.add(Component.text(rs.title(), rank.bookColor()).decorate(TextDecoration.BOLD), true);
             if (!rank.natural()) {
-                w.text("Only reached by promoting a boss with trophies.", SOFT);
+                w.text("Only reached by promoting a boss with Boss Souls.", SOFT);
             }
             w.text("Health x" + Text.num(rs.stats().health()) + ", damage x" + Text.num(rs.stats().damage()), INK);
+            if (rs.stats().minHealth() > 0 || rs.stats().minDamage() > 0) {
+                w.text("At least " + Text.num(rs.stats().minHealth()) + " health, melee hits of "
+                    + Text.num(rs.stats().minDamage()) + "+", INK);
+            }
             String traits = rs.traits().min() == rs.traits().max() ? String.valueOf(rs.traits().min())
                 : rs.traits().min() + "-" + rs.traits().max();
             w.text("Traits: " + traits + "  XP: x" + Text.num(rs.xpMultiplier()) + " +" + rs.xpBonus(), SOFT);
@@ -273,6 +277,11 @@ public final class GuideBook {
             w.blank();
             w.text(overMax + " gear can even roll enchantments above the normal maximum.", INK);
         }
+        if (s.overlappingEnchantsFrom != null) {
+            w.blank();
+            w.text(s.rank(s.overlappingEnchantsFrom).name() + " and higher gear can mix enchantments that"
+                + " normally exclude each other, like Sharpness with Smite.", INK);
+        }
         w.blank();
         w.text("Material and quality are rolled separately. Quality: Crude, Standard, Fine or Masterwork"
             + " (more and stronger enchantments).", INK);
@@ -301,13 +310,17 @@ public final class GuideBook {
         w.text("Or: item in main hand, rune in off hand, then /bosses apply.", SOFT);
         w.blank();
         w.text("Up to " + s.empowermentMaxPerItem + " per item. They stack with enchantments and relics.", INK);
+        if (s.fixedRuneValues) {
+            w.blank();
+            w.text("Every rune of the same stat and rank is identical, so they stack in your inventory.", SOFT);
+        }
         w.newPage();
         w.heading("Rune Stats", EMPOWER);
         for (EmpowermentStat stat : s.empowermentStats) {
             w.reserve(4);
             w.add(Component.text(stat.displayName(), EMPOWER).decorate(TextDecoration.BOLD), true);
             w.text("Fits: " + stat.fitsText(), INK);
-            w.text(rangeLine(stat), SOFT);
+            w.text(rangeLine(stat, s.fixedRuneValues), SOFT);
             w.blank();
         }
         w.newPage();
@@ -342,6 +355,8 @@ public final class GuideBook {
             : "You only find out when you bind it...", INK);
         w.blank();
         w.text("A curse doesn't use up a relic slot. Cursed gear can be powerful, but weird.", SOFT);
+        w.blank();
+        w.text("Cursed armor gains Curse of Binding: once worn, only death takes it off.", INK);
         w.newPage();
         for (RelicEffect curse : plugin.relics().enabledEffects(true)) {
             w.reserve(4);
@@ -358,6 +373,11 @@ public final class GuideBook {
             w.text("An extremely rare drop that gives a piece of equipment one more Relic slot.", INK);
             w.blank();
             w.text("Maximum " + s.catalystMaxSlots + " Relic slots per item.", INK);
+            if (s.catalystCorruptionChance > s.corruptionChance) {
+                w.blank();
+                w.text("But it draws corruption: a relic bound to that item carries a curse "
+                    + Text.num(s.catalystCorruptionChance) + "% of the time.", CURSE);
+            }
             w.blank();
             StringJoiner from = new StringJoiner(", ");
             for (BossRank rank : BossRank.values()) {
@@ -404,11 +424,11 @@ public final class GuideBook {
                 + " powerful bosses come for you.", INK);
             w.blank();
         }
-        if (f.trophiesEnabled) {
+        if (f.soulsEnabled) {
             w.reserve(5);
-            w.add(Component.text("Trophies", TITLE).decorate(TextDecoration.BOLD), true);
-            w.text("Bosses sometimes leave a trophy: a Blaze Core, a Ravager Horn, a Withered Skull... Gold"
-                + " bosses always do." + (f.trophyPlacing ? " Place it to get a tiny copy of the boss." : ""), INK);
+            w.add(Component.text("Boss Souls", TITLE).decorate(TextDecoration.BOLD), true);
+            w.text("Bosses sometimes leave a Boss Soul of their rank (Gold bosses and every Nemesis always do)."
+                + " They stack. Offer one to a boss to make it rise.", INK);
         }
         w.newPage();
 
@@ -429,7 +449,7 @@ public final class GuideBook {
         if (f.promotionEnabled) {
             sections.put("Promotion & Ascendant", w.currentPage());
             w.heading("Promotion", TITLE);
-            w.text("Right-click a boss with a trophy, or throw (drop) the trophy at it, and the boss rises."
+            w.text("Right-click a boss with a Boss Soul, or throw (drop) the soul at it, and the boss rises."
                 + " Ranks can be skipped:", INK);
             w.blank();
             for (BossRank rank : BossRank.values()) {
@@ -441,7 +461,7 @@ public final class GuideBook {
                 if (rank == BossRank.GRAY) {
                     text += " (" + Text.num(f.grayPromotionChance) + "% chance)";
                 }
-                w.add(Component.text(s.rank(rank).name() + " trophy: ", rank.bookColor()).append(Component.text(text, INK)), false);
+                w.add(Component.text(s.rank(rank).name() + " soul: ", rank.bookColor()).append(Component.text(text, INK)), false);
             }
             w.blank();
             w.text("It heals fully and gains traits for its new rank. Nemeses can't be promoted.", SOFT);
@@ -702,9 +722,13 @@ public final class GuideBook {
         return out.toString();
     }
 
-    private static String rangeLine(EmpowermentStat stat) {
-        return BossRank.GRAY.name().charAt(0) + BossRank.GRAY.name().substring(1).toLowerCase() + " "
-            + stat.rangeText(BossRank.GRAY) + "  Gold " + stat.rangeText(BossRank.GOLD);
+    /** "1 / 1.5 / 2 / 3 / 4 / 5 (Gray to Ascendant)" */
+    private static String rangeLine(EmpowermentStat stat, boolean fixed) {
+        StringJoiner values = new StringJoiner(" / ");
+        for (BossRank rank : BossRank.values()) {
+            values.add(stat.rangeText(rank, fixed));
+        }
+        return values + " (Gray to Ascendant)";
     }
 
     private static String examples(MobCategory category) {

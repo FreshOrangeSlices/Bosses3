@@ -7,6 +7,8 @@ import net.kyori.adventure.text.minimessage.MiniMessage;
 import net.kyori.adventure.text.minimessage.tag.resolver.TagResolver;
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 
 /**
@@ -34,6 +36,29 @@ public final class Text {
 
     public static String plain(Component component) {
         return PlainTextComponentSerializer.plainText().serialize(component);
+    }
+
+    /**
+     * Breaks text into lines of about {@code width} characters at spaces. Item tooltips never wrap on their own, and
+     * a long line runs off the edge of the screen (worst for armor, whose tooltip opens beside the armor slots).
+     */
+    public static List<String> wrap(String text, int width) {
+        List<String> lines = new ArrayList<>();
+        StringBuilder line = new StringBuilder();
+        for (String word : text.trim().split("\\s+")) {
+            if (!line.isEmpty() && line.length() + 1 + word.length() > width) {
+                lines.add(line.toString());
+                line.setLength(0);
+            }
+            if (!line.isEmpty()) {
+                line.append(' ');
+            }
+            line.append(word);
+        }
+        if (!line.isEmpty()) {
+            lines.add(line.toString());
+        }
+        return lines;
     }
 
     public static String stars(int count) {

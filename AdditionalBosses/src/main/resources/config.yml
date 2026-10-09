@@ -1,4 +1,4 @@
-config-version: 6   # used by the plugin to update this file; don't change
+config-version: 7   # used by the plugin to update this file; don't change
 # =====================================================================
 #  Additional Bosses - configuration
 # ---------------------------------------------------------------------
@@ -31,8 +31,9 @@ bosses:
   max-active: 15
   # A new boss can't appear within this many blocks of another boss.
   min-distance-between: 32
-  # Show the boss name above its head at all times.
-  always-show-name: true
+  # Show the boss name above its head at all times (false = only when you
+  # look at it; the boss bar shows it during a fight).
+  always-show-name: false
   # (Boss armor is now set under boss-armor further down.)
   # Mob-themed particles around bosses (Blazes smoulder, Drowned drip,
   # skeletons shed bone dust, Endermen leak portal sparks...).
@@ -52,11 +53,16 @@ bossbar:
 presentation:
   # Spawn announcements reach players within this many blocks.
   announce-radius: 48
+  # Boss news in chat: spawns, kills, the drop list, Nemesis messages...
+  # false = no chat; personal news shows above the hotbar instead.
+  boss-chat: false
 
 # =====================================================================
 #  RANKS
 #  stats:  health/damage/speed are multipliers; armor, armor-toughness,
-#          knockback-resistance and size are added on top.
+#          knockback-resistance and size are added on top. min-health and
+#          min-damage are floors: the least max health the boss has, and the
+#          least its melee hits deal (a Warden has 500 health and hits for 30).
 #  traits: how many traits the boss rolls, and how strong they are.
 #  rewards: independent chances, each rolled separately on death.
 #  gear:   what Boss Gear looks like for this rank. Material (CHAINMAIL,
@@ -135,7 +141,7 @@ ranks:
 
   GOLD:
     name: Legendary
-    stats: { health: 5.0, damage: 2.1, armor: 10, armor-toughness: 6, knockback-resistance: 0.6, speed: 1.12, size: 0.5 }
+    stats: { health: 6.0, damage: 2.4, armor: 10, armor-toughness: 6, knockback-resistance: 0.6, speed: 1.12, size: 0.5, min-health: 500, min-damage: 20 }
     traits: { min: 3, max: 4, power: 1.75 }
     xp: { multiplier: 12, bonus: 300 }
     rewards: { boss-gear: 100, empowerment: 60, relic: 30, relic-catalyst: 5 }
@@ -150,10 +156,10 @@ ranks:
     presentation: { announce: TITLE, sound: "entity.wither.spawn 0.6 1.1", death-sound: "ui.toast.challenge_complete 1.0 1.0", particles: 4, death-broadcast: SERVER }
 
   ASCENDANT:
-    # Never spawns naturally: a boss only becomes Ascendant when trophies
+    # Never spawns naturally: a boss only becomes Ascendant when souls
     # promote it past Legendary. Drops waystones (see waystones below).
     name: Ascendant
-    stats: { health: 8.0, damage: 2.6, armor: 14, armor-toughness: 8, knockback-resistance: 0.8, speed: 1.15, size: 0.65 }
+    stats: { health: 10.0, damage: 3.0, armor: 14, armor-toughness: 8, knockback-resistance: 0.8, speed: 1.15, size: 0.65, min-health: 800, min-damage: 30 }
     traits: { min: 4, max: 5, power: 2.1 }
     xp: { multiplier: 20, bonus: 800 }
     rewards: { boss-gear: 100, empowerment: 100, relic: 60, relic-catalyst: 15 }
@@ -325,6 +331,10 @@ boss-gear:
     WITHER_SKELETON: { SWORD: 30 }
     BREEZE: { MACE: 15 }
   allow-curse-enchantments: false
+  # From this rank up, enchantments that normally exclude each other can
+  # roll together (Sharpness + Smite, Protection + Blast Protection...).
+  # NONE to turn off.
+  overlapping-enchantments-from: GOLD
   # Enchantments that are never rolled, e.g. [mending, "minecraft:infinity"]
   excluded-enchantments: []
 
@@ -334,11 +344,16 @@ boss-gear:
 #              LEGGINGS, BOOTS, SHIELD, TOOL
 #  operation:  ADD_NUMBER (flat), ADD_SCALAR (% of base value)
 #  percent:    show the amount as a percentage in lore
-#  ranges:     [min, max] the rune can roll, by the dropping boss's rank
+#  values:     the amount a rune carries, by the dropping boss's rank.
+#              Every rune of the same stat and rank is identical, so they
+#              stack. (Older "ranges: [min, max]" still work: with
+#              fixed-values on, the rune carries the max.)
 # =====================================================================
 empowerment:
   # How many runes one item can hold.
   max-per-item: 2
+  # false = runes roll a random amount inside "ranges" (they won't stack).
+  fixed-values: true
   # Loot and Fortune runes multiply drops; the total is capped here.
   max-loot-multiplier: 3
   max-fortune-multiplier: 3
@@ -350,7 +365,7 @@ empowerment:
       display: Mob Loot
       weight: 8
       applies-to: [WEAPON]
-      ranges: { GRAY: [0.05, 0.1], GREEN: [0.1, 0.15], RED: [0.15, 0.2], PURPLE: [0.2, 0.3], GOLD: [0.3, 0.4], ASCENDANT: [0.4, 0.5] }
+      values: { GRAY: 0.1, GREEN: 0.15, RED: 0.2, PURPLE: 0.3, GOLD: 0.4, ASCENDANT: 0.5 }
     fortune:
       # Multiplies ore drops when this tool breaks the ore (stacks with the
       # Fortune enchantment; silk-touched blocks are never multiplied).
@@ -358,7 +373,7 @@ empowerment:
       display: Ore Drops
       weight: 8
       applies-to: [TOOL]
-      ranges: { GRAY: [0.05, 0.1], GREEN: [0.1, 0.15], RED: [0.15, 0.2], PURPLE: [0.2, 0.3], GOLD: [0.3, 0.4], ASCENDANT: [0.4, 0.5] }
+      values: { GRAY: 0.1, GREEN: 0.15, RED: 0.2, PURPLE: 0.3, GOLD: 0.4, ASCENDANT: 0.5 }
     reach:
       # Extra attack and block reach while held. Keep it small if your
       # server runs an anti-cheat.
@@ -368,42 +383,42 @@ empowerment:
       display: Reach
       weight: 6
       applies-to: [MELEE, TOOL]
-      ranges: { GRAY: [0.25, 0.5], GREEN: [0.5, 0.75], RED: [0.5, 1.0], PURPLE: [0.75, 1.25], GOLD: [1.0, 1.5], ASCENDANT: [1.5, 2.0] }
+      values: { GRAY: 0.5, GREEN: 0.75, RED: 1.0, PURPLE: 1.25, GOLD: 1.5, ASCENDANT: 2.0 }
     attack-damage:
       attribute: attack_damage
       operation: ADD_NUMBER
       display: Attack Damage
       weight: 20
       applies-to: [MELEE]
-      ranges: { GRAY: [0.5, 1.0], GREEN: [1.0, 1.5], RED: [1.5, 2.0], PURPLE: [2.0, 3.0], GOLD: [3.0, 4.0], ASCENDANT: [4, 5] }
+      values: { GRAY: 1, GREEN: 1.5, RED: 2, PURPLE: 3, GOLD: 4, ASCENDANT: 5 }
     attack-speed:
       attribute: attack_speed
       operation: ADD_NUMBER
       display: Attack Speed
       weight: 12
       applies-to: [MELEE]
-      ranges: { GRAY: [0.05, 0.1], GREEN: [0.1, 0.15], RED: [0.15, 0.2], PURPLE: [0.2, 0.3], GOLD: [0.3, 0.4], ASCENDANT: [0.4, 0.5] }
+      values: { GRAY: 0.1, GREEN: 0.15, RED: 0.2, PURPLE: 0.3, GOLD: 0.4, ASCENDANT: 0.5 }
     max-health:
       attribute: max_health
       operation: ADD_NUMBER
       display: Max Health
       weight: 15
       applies-to: [ARMOR, SHIELD, RANGED]
-      ranges: { GRAY: [1, 2], GREEN: [2, 2], RED: [2, 3], PURPLE: [3, 4], GOLD: [4, 6], ASCENDANT: [6, 7.5] }
+      values: { GRAY: 1, GREEN: 2, RED: 3, PURPLE: 4, GOLD: 6, ASCENDANT: 8 }
     armor:
       attribute: armor
       operation: ADD_NUMBER
       display: Armor
       weight: 15
       applies-to: [ARMOR, SHIELD]
-      ranges: { GRAY: [0.5, 1.0], GREEN: [1.0, 1.5], RED: [1.5, 2.0], PURPLE: [2.0, 3.0], GOLD: [3.0, 4.0], ASCENDANT: [4, 5] }
+      values: { GRAY: 1, GREEN: 1.5, RED: 2, PURPLE: 3, GOLD: 4, ASCENDANT: 5 }
     armor-toughness:
       attribute: armor_toughness
       operation: ADD_NUMBER
       display: Armor Toughness
       weight: 10
       applies-to: [ARMOR]
-      ranges: { GRAY: [0.5, 1.0], GREEN: [1.0, 1.5], RED: [1.5, 2.0], PURPLE: [2.0, 2.5], GOLD: [2.5, 3.0], ASCENDANT: [3, 3.75] }
+      values: { GRAY: 1, GREEN: 1.5, RED: 2, PURPLE: 2.5, GOLD: 3, ASCENDANT: 4 }
     knockback-resistance:
       attribute: knockback_resistance
       operation: ADD_NUMBER
@@ -411,7 +426,7 @@ empowerment:
       percent: true
       weight: 8
       applies-to: [ARMOR]
-      ranges: { GRAY: [0.02, 0.04], GREEN: [0.04, 0.06], RED: [0.06, 0.08], PURPLE: [0.08, 0.1], GOLD: [0.1, 0.15], ASCENDANT: [0.15, 0.188] }
+      values: { GRAY: 0.04, GREEN: 0.06, RED: 0.08, PURPLE: 0.1, GOLD: 0.15, ASCENDANT: 0.2 }
     movement-speed:
       attribute: movement_speed
       operation: ADD_SCALAR
@@ -419,7 +434,7 @@ empowerment:
       percent: true
       weight: 8
       applies-to: [BOOTS, LEGGINGS, RANGED]
-      ranges: { GRAY: [0.02, 0.03], GREEN: [0.03, 0.04], RED: [0.04, 0.06], PURPLE: [0.06, 0.08], GOLD: [0.08, 0.1], ASCENDANT: [0.1, 0.125] }
+      values: { GRAY: 0.03, GREEN: 0.04, RED: 0.06, PURPLE: 0.08, GOLD: 0.1, ASCENDANT: 0.12 }
 
 # =====================================================================
 #  RELICS - permanent unique abilities bound to equipment.
@@ -439,6 +454,10 @@ relics:
     # Relic Catalyst: an extremely rare drop that adds +1 relic slot.
     enabled: true
     max-slots: 2
+    # A Catalyst draws corruption: a relic bound to an item that holds one
+    # carries a curse this often (in total, instead of corruption-chance).
+    corruption-chance: 50
+  # Cursed armor also gets Curse of Binding: once worn, only death takes it off.
 
   effects:
     blood-pact:    { enabled: true, weight: 10, heal-percent: 12 }
@@ -486,8 +505,14 @@ relics:
     reduction:     { enabled: true, weight: 6, size: 0.55, reach-penalty: 1.0 }
     matador:       { enabled: true, weight: 6, radius: 16, knockback: 1.2 }
     mother-hen:    { enabled: true, weight: 6, chicks: 5 }
-    pariah:        { enabled: true, weight: 6, radius: 10, villager-price-penalty: 40 }   # animals flee, worse trades, fishing gives only treasure
+    pariah:        { enabled: true, weight: 6, radius: 12, flee-speed: 2.0, speed-level: 3, villager-price-penalty: 40 }   # animals bolt (you can't catch them), worse trades, fishing gives only treasure
     herbivore:     { enabled: true, weight: 6 }   # can't eat meat or fish; it turns into coal, seeds or berries
+    withering-waters: { enabled: true, weight: 6, level: 1, seconds: 3 }   # rain and water give you Wither, like an Enderman
+    uninvited-guest:  { enabled: true, weight: 6, chance-per-second: 1, cooldown-seconds: 480 }   # a wandering trader only you can see walks up behind you... then a shriek
+    dont-blink:       { enabled: true, weight: 6, chance-per-second: 1.5, cooldown-seconds: 300, lifetime-seconds: 45, stare-seconds: 4 }   # a weeping angel (Creaking) follows you in the dark
+    poltergeist:      { enabled: true, weight: 6, chance-per-second: 2, cooldown-seconds: 60 }   # shuffles your hotbar, opens doors near you
+    restless-dead:    { enabled: true, weight: 6, chance: 30 }   # undead you kill may get back up (no drops the second time)
+    hiccups:          { enabled: true, weight: 6, chance-per-second: 4, cooldown-seconds: 8 }   # *hic* - a little hop now and then
 
 # =====================================================================
 #  LAST STAND - Purple and Gold bosses (and every Nemesis) fight harder
@@ -568,17 +593,11 @@ escalation:
     GOLD: 30
 
 # =====================================================================
-#  TROPHIES - cosmetic collectibles named after the boss (Blaze Core,
-#  Ravager Horn...). Chance per kill; a Nemesis always drops one.
+#  BOSS SOULS - a stackable soul of the boss's rank. Chance per kill; a
+#  Nemesis always drops one. Offer it to a boss to promote it (below).
 # =====================================================================
-trophies:
+souls:
   enabled: true
-  # Right-click a block with a trophy to place a small frozen copy of the
-  # boss. size: how big it is in blocks (its height or width, whichever is
-  # larger), the same for every mob. To pick it up, sneak + right-click it,
-  # or sneak + right-click the block under it with an empty hand.
-  placeable: true
-  size: 0.5
   chance:
     GRAY: 4
     GREEN: 7
@@ -618,8 +637,8 @@ nemesis:
   max-extra-size: 0.5
   revenge-xp-multiplier: 2        # XP bonus for killing the boss that killed you
   gear-evolution: true            # chainmail -> iron -> diamond -> netherite (trimmed) as it levels
-  statue-scale: 1.0               # placed Nemesis Statues: 1.0 = the Nemesis's full size
-  prowl-minutes: 3                # after it lets you go, it roams nearby hunting other mobs before vanishing
+  statue-size: 0.5                # placed Nemesis Statues are about this many blocks big (0 = the Nemesis's real size)
+  prowl-minutes: 1                # after it lets you go, it roams nearby hunting other mobs before vanishing
   levels-from-kills-per-outing: 5 # each mob it kills is +1 level, up to this many per outing
 
 # =====================================================================
@@ -649,14 +668,14 @@ reward-floor:
   pity-after-empty-kills: 3  # 0 to turn off
 
 # =====================================================================
-#  PROMOTION - right-click a boss with a trophy, or throw (drop) the
-#  trophy at it, and the boss rises. Ranks can be skipped. Promoting past
+#  PROMOTION - right-click a boss with a Boss Soul, or throw (drop) the
+#  soul at it, and the boss rises. Ranks can be skipped. Promoting past
 #  Legendary makes it Ascendant.
-#  ranks-gained: [min, max] by the rank of the boss the trophy came from.
+#  ranks-gained: [min, max] by the rank of the soul.
 # =====================================================================
 promotion:
   enabled: true
-  gray-trophy-chance: 25     # % that a Gray trophy works at all
+  gray-soul-chance: 25       # % that a Gray soul works at all
   ranks-gained:
     GRAY: [1, 1]
     GREEN: [1, 1]
@@ -748,6 +767,8 @@ messages:
   relic-corrupted: "<dark_red><bold>CORRUPTED!</bold></dark_red> <red>The relic carried a curse:</red> <dark_red><curse></dark_red>"
   catalyst-applied: "<gold>Relic Catalyst absorbed!</gold> <gray>Your</gray> <item> <gray>now has</gray> <gold><count></gold> <gray>Relic slots.</gray>"
   confirm-relic: "<yellow>Binding is permanent.</yellow> <gray>Do it again within 10 seconds to bind</gray> <light_purple><relic></light_purple> <gray>to your</gray> <item><gray>.</gray>"
+  confirm-relic-catalyst: "<dark_red>This item holds a Relic Catalyst:</dark_red> <red><count>% chance the relic brings a curse with it.</red>"
+  cursed-armor-locked: "<dark_red>It won't come off. Only death will part you.</dark_red>"
   confirm-catalyst: "<yellow>This is permanent.</yellow> <gray>Do it again within 10 seconds to use the Catalyst on your</gray> <item><gray>.</gray>"
   apply-not-equipment: "<red>That item can't be upgraded. Use weapons, armor, shields or tools.</red>"
   apply-wrong-type: "<red>This rune only fits: <fits>.</red>"
@@ -778,7 +799,7 @@ messages:
   promoted-subtitle: "<boss> <gray>rises!</gray>"
   ascended: "<player> <gray>has raised</gray> <boss> <gray>to Ascendance!</gray>"
   ascendant-phase: "<boss> <white><bold>breaks into a new phase!</bold></white>"
-  promote-fail: "<gray>The trophy crumbles to dust... nothing answers.</gray>"
+  promote-fail: "<gray>The soul fades away... nothing answers.</gray>"
   promote-blocked: "<red>That boss can't rise any higher.</red>"
   waystone-placed: "<aqua>Waystone</aqua> <white><name></white> <aqua>joins the network.</aqua>"
   waystone-removed: "<gray>Waystone</gray> <white><name></white> <gray>was taken down.</gray>"

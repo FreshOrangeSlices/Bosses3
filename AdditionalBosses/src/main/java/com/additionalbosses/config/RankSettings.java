@@ -24,9 +24,12 @@ public record RankSettings(
     Presentation presentation
 ) {
 
-    /** Multipliers (health, damage, speed) and flat bonuses (armor, toughness, knockback resistance, size). */
+    /**
+     * Multipliers (health, damage, speed), flat bonuses (armor, toughness, knockback resistance, size), and floors:
+     * the least max health a boss of this rank has, and the least damage its melee hits deal (0 = none).
+     */
     public record Stats(double health, double damage, double armor, double toughness,
-                        double knockbackResistance, double speed, double size) {
+                        double knockbackResistance, double speed, double size, double minHealth, double minDamage) {
     }
 
     public record TraitRoll(int min, int max, double power) {

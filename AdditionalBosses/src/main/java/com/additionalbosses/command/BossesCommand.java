@@ -213,6 +213,10 @@ public final class BossesCommand implements BasicCommand {
             info(player, "This is a " + Text.pretty(kind.name()) + ". Use /bosses apply or click it onto equipment.");
             return;
         }
+        if (kind == ItemService.Kind.SOUL || kind == ItemService.Kind.TROPHY) {
+            info(player, "A Boss Soul. Right-click a boss with it, or throw it at one, to make the boss rise.");
+            return;
+        }
         List<Component> lore = items.buildLore(held);
         if (lore.isEmpty()) {
             info(player, "No Empowerments or Relics yet. Relic slots: 0/" + items.relicSlots(held)
@@ -433,7 +437,7 @@ public final class BossesCommand implements BasicCommand {
 
     private void give(CommandSender sender, String[] args) {
         if (args.length < 3) {
-            error(sender, "Usage: /bosses give <player> <gear|rune|relic|catalyst|compass|totem|waystone|guide> ...");
+            error(sender, "Usage: /bosses give <player> <gear|rune|relic|catalyst|compass|totem|soul|waystone|guide> ...");
             return;
         }
         Player target = Bukkit.getPlayerExact(args[1]);
@@ -470,7 +474,7 @@ public final class BossesCommand implements BasicCommand {
                         error(sender, "Unknown stat: " + args[4]);
                         return;
                     }
-                    item = items.createRune(rank, stat, stat.roll(rank));
+                    item = items.createRune(rank, stat, stat.roll(rank, plugin.settings().fixedRuneValues));
                 } else {
                     item = items.createRandomRune(rank);
                 }
@@ -521,6 +525,23 @@ public final class BossesCommand implements BasicCommand {
                     }
                 }
                 item = items.createCompass(tier);
+            }
+            case "soul" -> {
+                BossRank rank = args.length >= 4 ? BossRank.parse(args[3]) : BossRank.GOLD;
+                if (rank == null) {
+                    error(sender, "Unknown rank: " + args[3]);
+                    return;
+                }
+                int amount = 1;
+                if (args.length >= 5) {
+                    try {
+                        amount = Math.max(1, Math.min(64, Integer.parseInt(args[4])));
+                    } catch (NumberFormatException ex) {
+                        error(sender, "Not a number: " + args[4]);
+                        return;
+                    }
+                }
+                item = items.createSoul(rank, amount);
             }
             case "totem" -> {
                 BossRank rank = null;
@@ -637,7 +658,7 @@ public final class BossesCommand implements BasicCommand {
                 return filter(onlineNames(), last);
             }
             if (args.length == 3) {
-                return filter(List.of("gear", "rune", "relic", "catalyst", "compass", "totem", "waystone", "guide"), last);
+                return filter(List.of("gear", "rune", "relic", "catalyst", "compass", "totem", "soul", "waystone", "guide"), last);
             }
             String what = args[2].toLowerCase(Locale.ROOT);
             if (args.length == 4) {

@@ -38,12 +38,16 @@ public record EmpowermentStat(
         return false;
     }
 
-    public double roll(BossRank rank) {
+    /**
+     * The amount a rune of this rank carries. With fixed values (the default) every rune of a rank and stat is the
+     * same, the top of the rank's range, so identical runes stack instead of cluttering inventories.
+     */
+    public double roll(BossRank rank, boolean fixed) {
         double[] range = ranges.get(rank);
         if (range == null) {
             return 0;
         }
-        double value = Rng.between(range[0], range[1]);
+        double value = fixed ? range[1] : Rng.between(range[0], range[1]);
         // Round to something readable: 0.1% steps for percentages, 0.01 steps for plain numbers.
         return percent ? Math.round(value * 1000.0) / 1000.0 : Math.round(value * 100.0) / 100.0;
     }
@@ -62,10 +66,13 @@ public record EmpowermentStat(
         return "+" + Text.num(amount) + " " + displayName;
     }
 
-    public String rangeText(BossRank rank) {
+    public String rangeText(BossRank rank, boolean fixed) {
         double[] range = ranges.get(rank);
         if (range == null) {
             return "-";
+        }
+        if (fixed || range[0] == range[1]) {
+            return percent ? Text.num(range[1] * 100) + "%" : Text.num(range[1]);
         }
         if (percent) {
             return Text.num(range[0] * 100) + "-" + Text.num(range[1] * 100) + "%";

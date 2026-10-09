@@ -68,6 +68,7 @@ public final class Keys {
     public static NamespacedKey MOD_NEMESIS_SIZE;
     public static NamespacedKey MOD_FOLLOW;
     public static NamespacedKey MOD_DIFFICULTY;
+    public static NamespacedKey MOD_HEALTH_FLOOR;
     public static NamespacedKey MOD_THREAT;
     /** On a player: epoch millis until which this plugin is using the action bar (read by our mcMMO build). */
     public static NamespacedKey ACTION_BAR_BUSY;
@@ -95,6 +96,7 @@ public final class Keys {
         WAYSTONE_LABEL = new NamespacedKey(plugin, "waystone_label");
         PLAYER_DRY_KILLS = new NamespacedKey(plugin, "dry_kills");
         MOD_DIFFICULTY = new NamespacedKey(plugin, "boss_difficulty");
+        MOD_HEALTH_FLOOR = new NamespacedKey(plugin, "boss_health_floor");
         MOD_THREAT = new NamespacedKey(plugin, "boss_threat");
         TOTEM_RANK = new NamespacedKey(plugin, "totem_rank");
         MOD_LAST_STAND = new NamespacedKey(plugin, "last_stand_speed");

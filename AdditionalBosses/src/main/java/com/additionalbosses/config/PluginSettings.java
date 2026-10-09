@@ -53,6 +53,8 @@ public final class PluginSettings {
     public final double bossbarViewDistance;
     public final boolean showHealthNumbers;
     public final double announceRadius;
+    /** Boss news in chat (spawns, kills, drops, Nemesis...). Off: titles and the action bar only. */
+    public final boolean bossChat;
 
     // ---- ranks, categories, profiles ----
     private final Map<BossRank, RankSettings> ranks = new EnumMap<>(BossRank.class);
@@ -65,10 +67,14 @@ public final class PluginSettings {
     public final Map<GearKind, Integer> gearWeights = new EnumMap<>(GearKind.class);
     public final Map<EntityType, Map<GearKind, Integer>> gearPreferences = new HashMap<>();
     public final boolean allowCurseEnchantments;
+    /** From this rank up, Boss Gear can roll enchantments that normally exclude each other (null = never). */
+    public final @Nullable BossRank overlappingEnchantsFrom;
     public final Set<String> excludedEnchantments = new HashSet<>();
 
     // ---- empowerment ----
     public final int empowermentMaxPerItem;
+    /** Every rune of a rank and stat carries the same amount (so they stack). */
+    public final boolean fixedRuneValues;
     public final List<EmpowermentStat> empowermentStats = new ArrayList<>();
 
     // ---- relics ----
@@ -79,6 +85,8 @@ public final class PluginSettings {
     public final boolean allowDuplicateRelics;
     public final boolean catalystEnabled;
     public final int catalystMaxSlots;
+    /** Total chance (%) that a relic bound to an item holding a Relic Catalyst carries a curse. */
+    public final double catalystCorruptionChance;
 
     // ---- items ----
     public final Material runeMaterial;
@@ -107,7 +115,7 @@ public final class PluginSettings {
         excludedMobs = parseMobs(c.getStringList("bosses.excluded-mobs"), log);
         maxActive = Math.max(0, c.getInt("bosses.max-active", 15));
         minDistanceBetween = Math.max(0, c.getDouble("bosses.min-distance-between", 32));
-        alwaysShowName = c.getBoolean("bosses.always-show-name", true);
+        alwaysShowName = c.getBoolean("bosses.always-show-name", false);
         environmentalParticles = c.getBoolean("bosses.environmental-particles", true);
         combatTimeoutTicks = Math.max(20, (int) Math.round(c.getDouble("bosses.combat-timeout", 15) * 20));
         requirePlayerForRewards = c.getBoolean("bosses.require-player-for-rewards", true);
@@ -115,6 +123,7 @@ public final class PluginSettings {
         bossbarViewDistance = c.getDouble("bossbar.view-distance", 48);
         showHealthNumbers = c.getBoolean("bossbar.show-health-numbers", true);
         announceRadius = c.getDouble("presentation.announce-radius", 48);
+        bossChat = c.getBoolean("presentation.boss-chat", false);
 
         // ---------------- ranks ----------------
         for (BossRank rank : BossRank.values()) {
@@ -223,12 +232,15 @@ public final class PluginSettings {
             }
         }
         allowCurseEnchantments = c.getBoolean("boss-gear.allow-curse-enchantments", false);
+        String overlapFrom = c.getString("boss-gear.overlapping-enchantments-from", "GOLD");
+        overlappingEnchantsFrom = overlapFrom == null || overlapFrom.equalsIgnoreCase("NONE") ? null : BossRank.parse(overlapFrom);
         for (String e : c.getStringList("boss-gear.excluded-enchantments")) {
             excludedEnchantments.add(stripNamespace(e));
         }
 
         // ---------------- empowerment ----------------
         empowermentMaxPerItem = Math.max(1, c.getInt("empowerment.max-per-item", 2));
+        fixedRuneValues = c.getBoolean("empowerment.fixed-values", true);
         ConfigurationSection stats = c.getConfigurationSection("empowerment.stats");
         if (stats != null) {
             for (String id : stats.getKeys(false)) {
@@ -259,7 +271,13 @@ public final class PluginSettings {
                 }
                 Map<BossRank, double[]> ranges = new EnumMap<>(BossRank.class);
                 ConfigurationSection rs = s.getConfigurationSection("ranges");
+                ConfigurationSection vs = s.getConfigurationSection("values");
                 for (BossRank rank : BossRank.values()) {
+                    if (vs != null && (vs.isDouble(rank.name()) || vs.isInt(rank.name()))) {
+                        double v = vs.getDouble(rank.name());
+                        ranges.put(rank, new double[]{v, v}); // one fixed amount per rank
+                        continue;
+                    }
                     List<Double> list = rs == null ? List.of() : rs.getDoubleList(rank.name());
                     if (list.size() >= 2) {
                         ranges.put(rank, new double[]{Math.min(list.get(0), list.get(1)), Math.max(list.get(0), list.get(1))});
@@ -268,7 +286,7 @@ public final class PluginSettings {
                     }
                 }
                 if (ranges.isEmpty()) {
-                    log.warning("empowerment.stats." + id + ": no ranges set, skipping");
+                    log.warning("empowerment.stats." + id + ": no values set, skipping");
                     continue;
                 }
                 fillAscendantRange(ranges);
@@ -282,12 +300,12 @@ public final class PluginSettings {
         }
         // Runes added in newer versions, for configs that don't list them yet.
         addDefaultStat(stats, "loot", null, null, EmpowermentStat.LOOT, "Mob Loot", 8, List.of("WEAPON"),
-            new double[][]{{0.05, 0.1}, {0.1, 0.15}, {0.15, 0.2}, {0.2, 0.3}, {0.3, 0.4}, {0.4, 0.5}});
+            new double[][]{{0.1, 0.1}, {0.15, 0.15}, {0.2, 0.2}, {0.3, 0.3}, {0.4, 0.4}, {0.5, 0.5}});
         addDefaultStat(stats, "fortune", null, null, EmpowermentStat.FORTUNE, "Ore Drops", 8, List.of("TOOL"),
-            new double[][]{{0.05, 0.1}, {0.1, 0.15}, {0.15, 0.2}, {0.2, 0.3}, {0.3, 0.4}, {0.4, 0.5}});
+            new double[][]{{0.1, 0.1}, {0.15, 0.15}, {0.2, 0.2}, {0.3, 0.3}, {0.4, 0.4}, {0.5, 0.5}});
         addDefaultStat(stats, "reach", Attribute.ENTITY_INTERACTION_RANGE, Attribute.BLOCK_INTERACTION_RANGE, null,
             "Reach", 6, List.of("MELEE", "TOOL"),
-            new double[][]{{0.25, 0.5}, {0.5, 0.75}, {0.5, 1.0}, {0.75, 1.25}, {1.0, 1.5}, {1.5, 2.0}});
+            new double[][]{{0.5, 0.5}, {0.75, 0.75}, {1.0, 1.0}, {1.25, 1.25}, {1.5, 1.5}, {2.0, 2.0}});
 
         // ---------------- relics ----------------
         relicBaseSlots = Math.max(1, c.getInt("relics.base-slots", 1));
@@ -297,6 +315,7 @@ public final class PluginSettings {
         allowDuplicateRelics = c.getBoolean("relics.allow-duplicates-on-item", false);
         catalystEnabled = c.getBoolean("relics.catalyst.enabled", true);
         catalystMaxSlots = Math.max(relicBaseSlots, c.getInt("relics.catalyst.max-slots", 2));
+        catalystCorruptionChance = c.getDouble("relics.catalyst.corruption-chance", 50);
 
         // ---------------- items ----------------
         runeMaterial = parseMaterial(c.getString("items.rune-material"), Material.AMETHYST_SHARD, log);
@@ -378,8 +397,11 @@ public final class PluginSettings {
     private static RankSettings parseRank(BossRank rank, @Nullable ConfigurationSection s, Logger log) {
         int i = rank.ordinal();
         // Fallback values (used only if a line is missing from config.yml).
-        double[] health = {1.6, 2.0, 2.75, 3.5, 5.0, 8.0};
-        double[] damage = {1.2, 1.35, 1.55, 1.8, 2.1, 2.6};
+        double[] health = {1.6, 2.0, 2.75, 3.5, 6.0, 10.0};
+        double[] damage = {1.2, 1.35, 1.55, 1.8, 2.4, 3.0};
+        // Legendary and Ascendant use the Warden (500 health, 30 damage) as their yardstick.
+        double[] minHealth = {0, 0, 0, 0, 500, 800};
+        double[] minDamage = {0, 0, 0, 0, 20, 30};
         double[] armor = {2, 4, 6, 8, 10, 14};
         double[] tough = {0, 1, 2, 4, 6, 8};
         double[] kb = {0.1, 0.2, 0.3, 0.45, 0.6, 0.8};
@@ -403,7 +425,8 @@ public final class PluginSettings {
         RankSettings.Stats stats = new RankSettings.Stats(
             d(st, "health", health[i]), d(st, "damage", damage[i]), d(st, "armor", armor[i]),
             d(st, "armor-toughness", tough[i]), d(st, "knockback-resistance", kb[i]),
-            d(st, "speed", speed[i]), d(st, "size", size[i]));
+            d(st, "speed", speed[i]), d(st, "size", size[i]),
+            Math.max(0, d(st, "min-health", minHealth[i])), Math.max(0, d(st, "min-damage", minDamage[i])));
 
         ConfigurationSection tr = s == null ? null : s.getConfigurationSection("traits");
         int min = (int) d(tr, "min", tMin[i]);

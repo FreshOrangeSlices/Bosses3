@@ -83,7 +83,9 @@ public final class EscalationManager {
         Messages m = plugin.settings().messages;
         player.showTitle(Title.title(m.get("escalation-title"), m.get("escalation-subtitle"),
             Title.Times.times(Duration.ofMillis(300), Duration.ofMillis(3000), Duration.ofMillis(800))));
-        player.sendMessage(m.prefixed("escalation-subtitle"));
+        if (plugin.settings().bossChat) {
+            player.sendMessage(m.prefixed("escalation-subtitle"));
+        }
         Fx.playTo(player, Fx.sound("event.raid.horn", 1.0f, 0.8f));
         UUID id = player.getUniqueId();
         long delay = Math.max(1, Math.round(f.escalationDelaySeconds * 20));

@@ -41,7 +41,7 @@ public final class FeatureSettings {
     public final @Nullable BossRank rewardFloorFrom;
     public final int pityAfter;
 
-    // ---- Trophy promotion + Ascendant ----
+    // ---- Soul promotion + Ascendant ----
     public final boolean promotionEnabled;
     public final Map<BossRank, int[]> promotionSteps;
     public final double grayPromotionChance;
@@ -49,9 +49,11 @@ public final class FeatureSettings {
     public final List<Double> ascendantPhaseThresholds = new ArrayList<>();
     public final double ascendantShockwaveRadius;
     public final double ascendantShockwaveDamage;
-    public final boolean trophyPlacing;
-    /** How big a placed trophy figure is, in blocks (its larger side: height or width). */
+    /** How big trophy figures placed in older versions are, in blocks (their larger side: height or width). */
     public final double trophySize;
+    /** How big a placed Nemesis Statue is, in blocks (its larger side); 0 = the Nemesis's own size. */
+    public final double statueSize;
+    /** Only used when statueSize is 0: a fraction of the Nemesis's own size. */
     public final double statueScale;
 
     // ---- Waystones ----
@@ -103,9 +105,9 @@ public final class FeatureSettings {
     public final double escalationDelaySeconds;
     public final Map<BossRank, Double> escalationRanks;
 
-    // ---- Trophies ----
-    public final boolean trophiesEnabled;
-    public final Map<BossRank, Double> trophyChance;
+    // ---- Boss Souls (trophies in older configs) ----
+    public final boolean soulsEnabled;
+    public final Map<BossRank, Double> soulChance;
 
     // ---- Nemesis ----
     public final boolean nemesisEnabled;
@@ -164,15 +166,15 @@ public final class FeatureSettings {
             promotionSteps.put(rank, raw.size() >= 2 ? new int[]{Math.min(raw.get(0), raw.get(1)), Math.max(raw.get(0), raw.get(1))}
                 : raw.size() == 1 ? new int[]{raw.get(0), raw.get(0)} : def);
         }
-        grayPromotionChance = c.getDouble("promotion.gray-trophy-chance", 25);
+        grayPromotionChance = c.getDouble("promotion.gray-soul-chance", c.getDouble("promotion.gray-trophy-chance", 25));
         ascendantPhases = c.getBoolean("ascendant.phases.enabled", true);
         List<Double> thresholds = c.getDoubleList("ascendant.phases.at-health-percent");
         ascendantPhaseThresholds.addAll(thresholds.isEmpty() ? List.of(66.0, 33.0) : thresholds);
         ascendantPhaseThresholds.sort(Comparator.reverseOrder());
         ascendantShockwaveRadius = c.getDouble("ascendant.phases.shockwave-radius", 7);
         ascendantShockwaveDamage = c.getDouble("ascendant.phases.shockwave-damage", 6);
-        trophyPlacing = c.getBoolean("trophies.placeable", true);
         trophySize = Math.max(0.1, Math.min(4.0, c.getDouble("trophies.size", 0.5)));
+        statueSize = Math.max(0, Math.min(4.0, c.getDouble("nemesis.statue-size", 0.5)));
         statueScale = Math.max(0.05, Math.min(1.0, c.getDouble("nemesis.statue-scale", 1.0)));
 
         waystonesEnabled = c.getBoolean("waystones.enabled", true);
@@ -240,8 +242,9 @@ public final class FeatureSettings {
         escalationDelaySeconds = c.getDouble("escalation.delay-seconds", 10);
         escalationRanks = rankMap(c.getConfigurationSection("escalation.rank-weights"), new double[]{0, 0, 0, 70, 30});
 
-        trophiesEnabled = c.getBoolean("trophies.enabled", true);
-        trophyChance = rankMap(c.getConfigurationSection("trophies.chance"), new double[]{4, 7, 12, 25, 100, 100});
+        String souls = c.isConfigurationSection("souls") ? "souls" : "trophies"; // older configs call them trophies
+        soulsEnabled = c.getBoolean(souls + ".enabled", true);
+        soulChance = rankMap(c.getConfigurationSection(souls + ".chance"), new double[]{4, 7, 12, 25, 100, 100});
 
         nemesisEnabled = c.getBoolean("nemesis.enabled", true);
         nemesisKillChance = c.getDouble("nemesis.become-on-kill-chance", 100);
@@ -265,7 +268,7 @@ public final class FeatureSettings {
         nemesisSizePerLevel = c.getDouble("nemesis.size-per-level", 0.02);
         nemesisMaxExtraSize = c.getDouble("nemesis.max-extra-size", 0.5);
         nemesisRevengeXpMultiplier = Math.max(1, c.getDouble("nemesis.revenge-xp-multiplier", 2));
-        nemesisProwlMinutes = Math.max(0, c.getDouble("nemesis.prowl-minutes", 3));
+        nemesisProwlMinutes = Math.max(0, c.getDouble("nemesis.prowl-minutes", 1));
         nemesisKillLevelsPerOuting = Math.max(0, c.getInt("nemesis.levels-from-kills-per-outing", 5));
         if (log != null && compassTiers.size() > 5) {
             log.info("Hunter's Compass has " + compassTiers.size() + " tiers configured.");
