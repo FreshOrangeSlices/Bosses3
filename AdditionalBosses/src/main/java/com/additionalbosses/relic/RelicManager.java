@@ -155,6 +155,10 @@ public final class RelicManager {
                 }
             }
         }
+        // Let relics that just got disabled clean up (Don't Blink's Creaking, Mother Hen's chicks...).
+        for (Player p : Bukkit.getOnlinePlayers()) {
+            deactivateMissing(p, cache.get(p.getUniqueId()), List.of());
+        }
         cache.clear();
         for (Player p : Bukkit.getOnlinePlayers()) {
             refresh(p);
@@ -356,8 +360,10 @@ public final class RelicManager {
             if (p.isDead()) {
                 continue;
             }
+            Set<String> ran = new HashSet<>();
             for (Active a : active(p)) {
-                if (a.effect().passive()) {
+                // The same relic on a held item and on armor ticks once, not twice.
+                if (a.effect().passive() && ran.add(a.effect().id())) {
                     a.effect().onPassive(context(p, a));
                 }
             }

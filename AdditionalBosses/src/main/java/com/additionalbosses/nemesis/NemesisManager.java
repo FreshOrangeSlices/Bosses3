@@ -771,7 +771,7 @@ public final class NemesisManager {
         boss.setNemesisScaling(1.0 + r.level * f.nemesisDamagePerLevel / 100.0,
             1.0 + r.level * f.nemesisPowerPerLevel / 100.0, f.nemesisMaxDamageMultiplier);
         boss.rename(displayName(r), plainName(r));
-        e.setCustomNameVisible(true);
+        e.setCustomNameVisible(plugin.settings().alwaysShowName);
         BossBar bar = boss.bar();
         if (bar != null) {
             bar.color(BossBar.Color.PINK);

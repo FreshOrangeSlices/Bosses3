@@ -111,7 +111,13 @@ public final class HauntCurses {
             if (!p.isInWater() && !p.isInRain()) {
                 return;
             }
-            p.addPotionEffect(new PotionEffect(PotionEffectType.WITHER, (int) Math.round(seconds * 20), amplifier, false, true));
+            // Only top it up when it's about to run out: Wither hurts on a 40-tick rhythm of its remaining time, and
+            // resetting it every second would skip every hurting tick.
+            PotionEffect current = p.getPotionEffect(PotionEffectType.WITHER);
+            if (current == null || current.getAmplifier() < amplifier || current.getDuration() <= 20) {
+                p.addPotionEffect(new PotionEffect(PotionEffectType.WITHER, Math.max(60, (int) Math.round(seconds * 20)),
+                    amplifier, false, true));
+            }
             Fx.particle(p.getLocation().add(0, 1, 0), Particle.SMOKE, 6, 0.3, 0.01);
             if (ctx.manager().ready(p, id(), 60)) {
                 MoreCurses.playPrivately(p, "block.fire.extinguish", p.getLocation(), 0.6f, 1.4f);
@@ -126,7 +132,8 @@ public final class HauntCurses {
      * a shriek, and he's gone. About three seconds from start to finish.
      */
     public static final class UninvitedGuest extends BaseRelic {
-        private final Set<UUID> visiting = new HashSet<>();
+        /** Player -> the trader visiting them right now. */
+        private final Map<UUID, UUID> visiting = new HashMap<>();
         private double chance = 1;
         private double cooldown = 480;
 
@@ -158,7 +165,7 @@ public final class HauntCurses {
         @Override
         public void onPassive(RelicContext ctx) {
             Player p = ctx.player();
-            if (visiting.contains(p.getUniqueId()) || p.isInsideVehicle() || p.isFlying() || p.isGliding()
+            if (visiting.containsKey(p.getUniqueId()) || p.isInsideVehicle() || p.isFlying() || p.isGliding()
                 || !Rng.chance(chance) || !ctx.manager().ready(p, id(), (int) Math.round(cooldown * 20))) {
                 return;
             }
@@ -179,6 +186,9 @@ public final class HauntCurses {
                 t.setSilent(true);
                 t.setCollidable(false);
                 t.setCanPickupItems(false);
+                t.setCanDrinkPotion(false); // no turning invisible halfway (traders drink potions at night)
+                t.setCanDrinkMilk(false);
+                Bukkit.getMobGoals().removeAllGoals(t); // no wandering off or fleeing zombies: he only walks to you
                 t.getPersistentDataContainer().set(Keys.MINION, PersistentDataType.STRING, GUEST);
             });
             if (!trader.isValid()) {
@@ -186,7 +196,7 @@ public final class HauntCurses {
             }
             p.showEntity(plugin, trader);
             UUID id = p.getUniqueId();
-            visiting.add(id);
+            visiting.put(id, trader.getUniqueId());
             new BukkitRunnable() {
                 int tick = 0;
                 int scaredAt = -1;
@@ -227,7 +237,7 @@ public final class HauntCurses {
 
                 private void end(@Nullable Player player) {
                     cancel();
-                    visiting.remove(id);
+                    visiting.remove(id, trader.getUniqueId());
                     if (trader.isValid()) {
                         Location at = trader.getLocation().add(0, 1, 0);
                         if (player != null && player.getWorld().equals(at.getWorld())) {
@@ -238,6 +248,16 @@ public final class HauntCurses {
                     }
                 }
             }.runTaskTimer(plugin, 1L, 1L);
+        }
+
+        /** Logout, curse removed or plugin disabled: the guest leaves at once. */
+        @Override
+        public void onDeactivate(Player player) {
+            UUID trader = visiting.remove(player.getUniqueId());
+            Entity e = trader == null ? null : Bukkit.getEntity(trader);
+            if (e != null) {
+                e.remove();
+            }
         }
 
         private static void scare(Player player, WanderingTrader trader) {
@@ -477,6 +497,9 @@ public final class HauntCurses {
                 return false;
             }
             Block door = doors.get(Rng.between(0, doors.size() - 1));
+            if (!mayUse(p, door)) {
+                return false; // someone else's protected door stays shut
+            }
             setOpen(door, true);
             Fx.play(door.getLocation().add(0.5, 0.5, 0.5), "block.wooden_door.open", 1.0f, 0.7f);
             Material type = door.getType();
@@ -487,6 +510,15 @@ public final class HauntCurses {
                 }
             }, 30L);
             return true;
+        }
+
+        /** Asks protection plugins whether the player could open this door themselves. */
+        private static boolean mayUse(Player p, Block door) {
+            org.bukkit.event.player.PlayerInteractEvent check = new org.bukkit.event.player.PlayerInteractEvent(p,
+                org.bukkit.event.block.Action.RIGHT_CLICK_BLOCK, null, door, org.bukkit.block.BlockFace.UP,
+                org.bukkit.inventory.EquipmentSlot.HAND);
+            Bukkit.getPluginManager().callEvent(check);
+            return check.useInteractedBlock() != org.bukkit.event.Event.Result.DENY;
         }
 
         private static void setOpen(Block bottom, boolean open) {
@@ -530,8 +562,9 @@ public final class HauntCurses {
         @Override
         public void onKill(RelicContext ctx, EntityDeathEvent event, boolean victimWasBoss) {
             LivingEntity dead = event.getEntity();
-            if (victimWasBoss || !UNDEAD.contains(dead.getType()) || BossManager.isMinion(dead) || !Rng.chance(chance)) {
-                return;
+            if (victimWasBoss || !UNDEAD.contains(dead.getType()) || BossManager.isMinion(dead)
+                || !ctx.manager().ready(ctx.player(), id() + ":kill", 1) || !Rng.chance(chance)) {
+                return; // (the cooldown: the curse on two items still raises one mob per kill)
             }
             Player p = ctx.player();
             Location at = dead.getLocation();
@@ -545,6 +578,9 @@ public final class HauntCurses {
                 }
                 Entity risen = at.getWorld().spawn(at, type.getEntityClass(), CreatureSpawnEvent.SpawnReason.CUSTOM, e -> {
                     e.setPersistent(false);
+                    if (e instanceof LivingEntity living) {
+                        living.setCanPickupItems(false); // it drops nothing, so it mustn't carry off anything either
+                    }
                     e.getPersistentDataContainer().set(Keys.MINION, PersistentDataType.STRING, RISEN);
                     if (e instanceof org.bukkit.entity.Ageable a) {
                         if (baby) {

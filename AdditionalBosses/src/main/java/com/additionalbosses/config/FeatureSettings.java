@@ -242,7 +242,7 @@ public final class FeatureSettings {
         escalationDelaySeconds = c.getDouble("escalation.delay-seconds", 10);
         escalationRanks = rankMap(c.getConfigurationSection("escalation.rank-weights"), new double[]{0, 0, 0, 70, 30});
 
-        String souls = c.isConfigurationSection("souls") ? "souls" : "trophies"; // older configs call them trophies
+        String souls = c.contains("souls", true) || !c.contains("trophies", true) ? "souls" : "trophies"; // older configs: trophies
         soulsEnabled = c.getBoolean(souls + ".enabled", true);
         soulChance = rankMap(c.getConfigurationSection(souls + ".chance"), new double[]{4, 7, 12, 25, 100, 100});
 

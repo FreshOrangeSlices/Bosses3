@@ -233,7 +233,8 @@ public final class NatureCurses {
         /** A Pariah can't put a lead on an animal: it shies away. */
         @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
         public void onLeash(PlayerLeashEntityEvent event) {
-            if (event.getEntity() instanceof Animals && has(event.getPlayer(), "pariah")) {
+            if (event.getEntity() instanceof Animals && !(event.getEntity() instanceof Tameable t && t.isTamed())
+                && has(event.getPlayer(), "pariah")) {
                 event.setCancelled(true);
                 Fx.actionBar(event.getPlayer(), Component.text("It shies away from you.", NamedTextColor.GRAY));
             }

@@ -270,10 +270,12 @@ public final class PluginSettings {
                     op = AttributeModifier.Operation.ADD_NUMBER;
                 }
                 Map<BossRank, double[]> ranges = new EnumMap<>(BossRank.class);
-                ConfigurationSection rs = s.getConfigurationSection("ranges");
-                ConfigurationSection vs = s.getConfigurationSection("values");
+                // Only the server's own file counts here: the jar's defaults would otherwise fill in "values" for a
+                // stat the owner configured with "ranges".
+                ConfigurationSection rs = s.contains("ranges", true) ? s.getConfigurationSection("ranges") : null;
+                ConfigurationSection vs = s.contains("values", true) ? s.getConfigurationSection("values") : null;
                 for (BossRank rank : BossRank.values()) {
-                    if (vs != null && (vs.isDouble(rank.name()) || vs.isInt(rank.name()))) {
+                    if (vs != null && vs.contains(rank.name(), true) && (vs.isDouble(rank.name()) || vs.isInt(rank.name()))) {
                         double v = vs.getDouble(rank.name());
                         ranges.put(rank, new double[]{v, v}); // one fixed amount per rank
                         continue;

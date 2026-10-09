@@ -78,7 +78,7 @@ public final class ItemListener implements Listener {
     }
 
     /** Trying to take off cursed armor: it's bound (Curse of Binding), and says so. */
-    @EventHandler(priority = EventPriority.MONITOR)
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onCursedArmorClick(InventoryClickEvent event) {
         if (!(event.getWhoClicked() instanceof Player player) || event.getSlotType() != InventoryType.SlotType.ARMOR
             || player.getGameMode() == GameMode.CREATIVE) {

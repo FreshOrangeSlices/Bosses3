@@ -26,7 +26,7 @@ public final class ConfigUpgrader {
     public static final int CURRENT = 7;
     private static final Pattern VERSION = Pattern.compile("^config-version:\\s*(\\d+)\\s*(#.*)?$");
     private static final Pattern STORMCALLER = Pattern.compile("^(\\s+stormcaller:\\s*\\{.*\\bweight:\\s*)6(\\b.*)$");
-    private static final Pattern STATUE_SCALE = Pattern.compile("^(\\s+)statue-scale:.*$");
+    private static final Pattern STATUE_SCALE = Pattern.compile("^(\\s+)statue-scale:\\s*(1|1\\.0|0\\.125)(\\s.*)?$");
     private static final Pattern PROWL = Pattern.compile("^(\\s+prowl-minutes:\\s*)3(\\s.*)?$");
     private static final Pattern SHOW_NAME = Pattern.compile("^(\\s+always-show-name:\\s*)true(\\s.*)?$");
     private static final Pattern GRAY_TROPHY = Pattern.compile("^(\\s+)gray-trophy-chance:\\s*([0-9.]+).*$");
@@ -195,8 +195,9 @@ public final class ConfigUpgrader {
             if (trimmed.equals("trophies:") || line.startsWith("trophies:")) {
                 return "souls:";
             }
-            if (trimmed.startsWith("placeable:") || trimmed.startsWith("size:") || trimmed.startsWith("scale:")) {
-                return null; // trophy figures are gone
+            if (trimmed.startsWith("placeable:") || trimmed.startsWith("size:") || trimmed.startsWith("scale:")
+                || (line.startsWith(" ") && trimmed.startsWith("#"))) {
+                return null; // trophy figures are gone, and so is their explanation
             }
         }
         if (section.equals("promotion")) {
