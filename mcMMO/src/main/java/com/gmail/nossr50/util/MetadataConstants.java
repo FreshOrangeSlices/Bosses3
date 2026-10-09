@@ -1,0 +1,101 @@
+package com.gmail.nossr50.util;
+
+import com.gmail.nossr50.mcMMO;
+import java.util.List;
+import java.util.Set;
+import org.bukkit.metadata.FixedMetadataValue;
+import org.jetbrains.annotations.NotNull;
+
+/**
+ * Stores our constants related to metadata
+ */
+public class MetadataConstants {
+    /**
+     * Bukkit-metadata keys swept from a mob during entity cleanup. Mob spawn-tracking flags are
+     * not listed here because {@link MobMetadataUtils#removeMobFlags} owns them in whichever
+     * backend (Bukkit metadata or persistent data) is active, and the healthbar snapshot key is
+     * removed by {@link MobHealthbarUtils#restoreNameFromSnapshot}.
+     */
+    public static final @NotNull Set<String> MOB_METADATA_KEYS = Set.of(
+            MetadataConstants.METADATA_KEY_EXPLOSION_FROM_RUPTURE
+    );
+
+    public static final @NotNull List<String> ARROW_METADATA_KEYS = List.of(
+            MetadataConstants.METADATA_KEY_INF_ARROW,
+            MetadataConstants.METADATA_KEY_BOW_FORCE,
+            MetadataConstants.METADATA_KEY_ARROW_DISTANCE,
+            MetadataConstants.METADATA_KEY_SPAWNED_ARROW,
+            MetadataConstants.METADATA_KEY_BOUNCE_COUNT
+    );
+
+    public static final @NotNull String METADATA_KEY_REPLANT = "mcMMO: Recently Replanted";
+    public static final @NotNull String METADATA_KEY_SPAWNED_ARROW = "mcMMO: Spawned Arrow";
+
+    public static final @NotNull String METADATA_KEY_BOUNCE_COUNT = "mcMMO: Arrow Bounce Count";
+    public static final @NotNull String METADATA_KEY_EXPLOSION_FROM_RUPTURE = "mcMMO: Rupture Explosion";
+    public static final @NotNull String METADATA_KEY_CUSTOM_DAMAGE = "mcMMO: Custom Damage";
+    public static final @NotNull String METADATA_KEY_TRAVELING_BLOCK = "mcMMO: Traveling Block";
+    public static final @NotNull String METADATA_KEY_TRACKED_TNT = "mcMMO: Tracked TNT";
+    /** Single key storing a {@link com.gmail.nossr50.datatypes.meta.HealthbarSnapshot} before mcMMO applies a healthbar display. */
+    public static final @NotNull String METADATA_KEY_HEALTHBAR_SNAPSHOT = "mcmmo_healthbar_snapshot";
+    public static final @NotNull String METADATA_KEY_INF_ARROW = "mcMMO: Infinite Arrow";
+    public static final @NotNull String METADATA_KEY_TRACKED_ARROW = "mcMMO: Tracked Arrow";
+    public static final @NotNull String METADATA_KEY_BOW_FORCE = "mcMMO: Bow Force";
+    public static final @NotNull String METADATA_KEY_ARROW_DISTANCE = "mcMMO: Arrow Distance";
+    public static final @NotNull String METADATA_KEY_BONUS_DROPS = "mcMMO: Double Drops";
+    /**
+     * Set on a block in BlockBreakEvent (only when the block passed the natural-block check) to
+     * signal BlockDropItemEvent that it should roll excavation treasures. The metadata value is the
+     * pre-break {@link org.bukkit.Material} of the block, captured before the block becomes AIR.
+     */
+    public static final @NotNull String METADATA_KEY_EXCAVATION_TREASURE_ROLL = "mcMMO: Excavation Treasure Roll";
+    public static final @NotNull String METADATA_KEY_DISARMED_ITEM = "mcMMO: Disarmed Item";
+    public static final @NotNull String METADATA_KEY_PLAYER_DATA = "mcMMO: Player Data";
+    public static final @NotNull String METADATA_KEY_DATABASE_COMMAND = "mcMMO: Processing Database Command";
+    // the value of these two keys have "furnace" to keep supporting legacy data
+    public static final @NotNull String METADATA_KEY_CONTAINER_UUID_MOST_SIG = "furnace_uuid_most_sig";
+    public static final @NotNull String METADATA_KEY_CONTAINER_UUID_LEAST_SIG = "furnace_uuid_least_sig";
+    public static final @NotNull String METADATA_KEY_SUPER_ABILITY_BOOSTED_ITEM = "super_ability_boosted";
+    public static final @NotNull String METADATA_KEY_MOB_SPAWNER_MOB = "mcmmo_mob_spawner_mob";
+    public static final @NotNull String METADATA_KEY_EGG_MOB = "mcmmo_egg_mob";
+    public static final @NotNull String METADATA_KEY_NETHER_PORTAL_MOB = "mcmmo_nethergate_mob";
+    public static final @NotNull String METADATA_KEY_COTW_SUMMONED_MOB = "mcmmo_cotw_summoned_mob";
+    public static final @NotNull String METADATA_KEY_PLAYER_BRED_MOB = "mcmmo_player_bred_mob";
+    public static final @NotNull String METADATA_KEY_PLAYER_TAMED_MOB = "mcmmo_player_tamed_mob";
+    public static final @NotNull String METADATA_KEY_VILLAGER_TRADE_ORIGIN_ITEM = "mcmmo_villager_trade_origin_item";
+    public static final @NotNull String METADATA_KEY_EXPLOITED_ENDERMEN = "mcmmo_exploited_endermen";
+
+    /**
+     * No longer used. mcMMO stopped applying this metadata to bleeding entities in 2.3.001,
+     * so {@code hasMetadata} checks against this key always return false. Use
+     * {@link com.gmail.nossr50.api.AbilityAPI#isBleeding(org.bukkit.entity.LivingEntity)} instead.
+     *
+     * @deprecated mcMMO no longer applies this metadata; see
+     * {@link com.gmail.nossr50.api.AbilityAPI#isBleeding}.
+     */
+    @Deprecated(forRemoval = true, since = "2.3.001")
+    public static final @NotNull String METADATA_KEY_RUPTURE = "mcmmo_rupture";
+
+    public static final byte SIMPLE_FLAG_VALUE = (byte) 0x1;
+
+    /**
+     * @deprecated Not initialized until mcMMO enables, so early readers observe null; use
+     * {@link #getMcMMOMetadataValue()} instead.
+     */
+    @Deprecated(since = "2.3.000")
+    public static FixedMetadataValue MCMMO_METADATA_VALUE;
+
+    /**
+     * The shared flag value used for mcMMO's boolean metadata marks. Created lazily so callers
+     * that run before plugin enable finishes can never observe null.
+     */
+    @SuppressWarnings("deprecation")
+    public static @NotNull FixedMetadataValue getMcMMOMetadataValue() {
+        FixedMetadataValue value = MCMMO_METADATA_VALUE;
+        if (value == null) {
+            value = new FixedMetadataValue(mcMMO.p, true);
+            MCMMO_METADATA_VALUE = value;
+        }
+        return value;
+    }
+}
