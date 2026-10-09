@@ -6,6 +6,7 @@ import com.additionalbosses.item.ItemService;
 import com.additionalbosses.util.Fx;
 import com.additionalbosses.util.Keys;
 import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import org.bukkit.Bukkit;
 import org.bukkit.GameMode;
 import org.bukkit.enchantments.Enchantment;
@@ -43,6 +44,11 @@ public final class ItemListener implements Listener {
         ItemService items = plugin.items();
         ItemStack cursor = event.getCursor();
         ItemStack target = event.getCurrentItem();
+        if (items.isSalvage(cursor, target)) {
+            event.setCancelled(true);
+            salvage(event, player, cursor);
+            return;
+        }
         if (cursor.isEmpty() || target == null || target.isEmpty() || !items.isConsumable(cursor)) {
             return;
         }
@@ -54,15 +60,16 @@ public final class ItemListener implements Listener {
             player.sendMessage(plugin.settings().messages.prefixed("apply-creative"));
             return;
         }
+        // Everything below shows above the hotbar instead of in chat.
         Component error = items.validate(cursor, target);
         if (error != null) {
-            player.sendMessage(error);
+            Fx.actionBar(player, error);
             Fx.play(player.getLocation(), "block.note_block.bass", 0.8f, 0.6f);
             return;
         }
         Component confirm = items.confirmationPrompt(player, cursor, target, "slot" + event.getRawSlot());
         if (confirm != null) {
-            player.sendMessage(confirm);
+            Fx.actionBar(player, confirm);
             Fx.play(player.getLocation(), "block.note_block.pling", 0.8f, 1.2f);
             return;
         }
@@ -70,7 +77,32 @@ public final class ItemListener implements Listener {
         Component message = items.apply(player, cursor, updated);
         event.setCurrentItem(updated);
         player.setItemOnCursor(cursor.getAmount() > 1 ? cursor.asQuantity(cursor.getAmount() - 1) : null);
-        player.sendMessage(message);
+        Fx.actionBar(player, message);
+        Bukkit.getScheduler().runTask(plugin, () -> {
+            player.updateInventory();
+            plugin.relics().refresh(player);
+        });
+    }
+
+    /** Boss Gear clicked onto a Hunter's Compass breaks down into a Boss Soul of the gear's rank (after a confirm). */
+    private void salvage(InventoryClickEvent event, Player player, ItemStack gear) {
+        ItemService items = plugin.items();
+        if (event instanceof InventoryCreativeEvent || player.getGameMode() == GameMode.CREATIVE) {
+            player.sendMessage(plugin.settings().messages.prefixed("apply-creative"));
+            return;
+        }
+        Component confirm = items.salvagePrompt(player, gear, "slot" + event.getRawSlot());
+        if (confirm != null) {
+            Fx.actionBar(player, confirm);
+            Fx.play(player.getLocation(), "block.note_block.pling", 0.8f, 1.2f);
+            return;
+        }
+        ItemStack soul = items.createSoul(items.gearRank(gear), 1);
+        Component name = gear.effectiveName();
+        player.setItemOnCursor(soul);
+        Fx.actionBar(player, plugin.settings().messages.get("salvaged", Placeholder.component("item", name)));
+        Fx.play(player.getLocation(), "block.sculk_catalyst.bloom", 1.0f, 1.0f);
+        Fx.play(player.getLocation(), "entity.allay.item_taken", 0.8f, 0.7f);
         Bukkit.getScheduler().runTask(plugin, () -> {
             player.updateInventory();
             plugin.relics().refresh(player);

@@ -118,8 +118,20 @@ public final class HauntCurses {
                 p.addPotionEffect(new PotionEffect(PotionEffectType.WITHER, Math.max(60, (int) Math.round(seconds * 20)),
                     amplifier, false, true));
             }
+            hiss(p, ctx.manager());
+        }
+
+        /** Test: a few seconds of the withering, as if standing in the rain. */
+        @Override
+        public boolean trigger(Player p, com.additionalbosses.relic.RelicManager manager) {
+            p.addPotionEffect(new PotionEffect(PotionEffectType.WITHER, 100, amplifier, false, true));
+            hiss(p, manager);
+            return true;
+        }
+
+        private void hiss(Player p, com.additionalbosses.relic.RelicManager manager) {
             Fx.particle(p.getLocation().add(0, 1, 0), Particle.SMOKE, 6, 0.3, 0.01);
-            if (ctx.manager().ready(p, id(), 60)) {
+            if (manager.ready(p, id(), 60)) {
                 MoreCurses.playPrivately(p, "block.fire.extinguish", p.getLocation(), 0.6f, 1.4f);
             }
         }
@@ -172,10 +184,15 @@ public final class HauntCurses {
             visit(p);
         }
 
-        private void visit(Player p) {
+        @Override
+        public boolean trigger(Player p, com.additionalbosses.relic.RelicManager manager) {
+            return !visiting.containsKey(p.getUniqueId()) && visit(p);
+        }
+
+        private boolean visit(Player p) {
             Location spot = SafeSpots.behind(p, 5);
             if (spot == null) {
-                return;
+                return false;
             }
             AdditionalBosses plugin = AdditionalBosses.get();
             MoreCurses.playPrivately(p, "ambient.cave", MoreCurses.behind(p, 6), 1.0f, 0.7f);
@@ -192,7 +209,7 @@ public final class HauntCurses {
                 t.getPersistentDataContainer().set(Keys.MINION, PersistentDataType.STRING, GUEST);
             });
             if (!trader.isValid()) {
-                return;
+                return false;
             }
             p.showEntity(plugin, trader);
             UUID id = p.getUniqueId();
@@ -248,6 +265,7 @@ public final class HauntCurses {
                     }
                 }
             }.runTaskTimer(plugin, 1L, 1L);
+            return true;
         }
 
         /** Logout, curse removed or plugin disabled: the guest leaves at once. */
@@ -331,12 +349,37 @@ public final class HauntCurses {
                 || !ctx.manager().ready(p, id(), (int) Math.round(cooldown * 20))) {
                 return;
             }
+            summon(p);
+        }
+
+        /** Test: it appears behind you whatever the light (it still only watches over cursed players). */
+        @Override
+        public boolean trigger(Player p, com.additionalbosses.relic.RelicManager manager) {
+            Angel old = angels.get(p.getUniqueId());
+            if (old != null) {
+                vanish(p, Bukkit.getEntity(old.entity), false);
+            }
+            if (!summon(p)) {
+                return false;
+            }
+            // Someone without the curse isn't watched over every second, so make sure it leaves on time anyway.
+            UUID entity = angels.get(p.getUniqueId()).entity;
+            Bukkit.getScheduler().runTaskLater(AdditionalBosses.get(), () -> {
+                Angel angel = angels.get(p.getUniqueId());
+                if (angel != null && angel.entity.equals(entity)) {
+                    vanish(p, Bukkit.getEntity(entity), false);
+                }
+            }, lifetime * 20L);
+            return true;
+        }
+
+        private boolean summon(Player p) {
             Location spot = null;
             for (int attempt = 0; attempt < 6 && spot == null; attempt++) {
                 spot = SafeSpots.standable(MoreCurses.behind(p, Rng.between(10.0, 14.0)), 4);
             }
             if (spot == null) {
-                return;
+                return false;
             }
             Creaking creaking = p.getWorld().spawn(spot, Creaking.class, CreatureSpawnEvent.SpawnReason.CUSTOM, c -> {
                 c.setPersistent(false);
@@ -344,11 +387,12 @@ public final class HauntCurses {
                 c.getPersistentDataContainer().set(Keys.MINION, PersistentDataType.STRING, ANGEL);
             });
             if (!creaking.isValid()) {
-                return;
+                return false;
             }
             creaking.activate(p);
             angels.put(p.getUniqueId(), new Angel(creaking.getUniqueId()));
             MoreCurses.playPrivately(p, "block.sculk_shrieker.shriek", spot, 0.45f, 0.7f);
+            return true;
         }
 
         private static boolean dark(Player p) {
@@ -454,10 +498,15 @@ public final class HauntCurses {
             if (!Rng.chance(chance) || !ctx.manager().ready(p, id(), (int) Math.round(cooldown * 20))) {
                 return;
             }
-            if (Rng.chance(50) && rattleDoor(p)) {
-                return;
+            trigger(p, ctx.manager());
+        }
+
+        @Override
+        public boolean trigger(Player p, com.additionalbosses.relic.RelicManager manager) {
+            if (!(Rng.chance(50) && rattleDoor(p))) {
+                shuffle(p);
             }
-            shuffle(p);
+            return true;
         }
 
         private static void shuffle(Player p) {
@@ -640,9 +689,15 @@ public final class HauntCurses {
                 || !Rng.chance(chance) || !ctx.manager().ready(p, id(), (int) Math.round(cooldown * 20))) {
                 return;
             }
+            trigger(p, ctx.manager());
+        }
+
+        @Override
+        public boolean trigger(Player p, com.additionalbosses.relic.RelicManager manager) {
             p.setVelocity(p.getVelocity().setY(0.4));
             Fx.play(p.getLocation(), "entity.player.burp", 0.6f, 1.7f);
             Fx.actionBar(p, Component.text("*hic*", NamedTextColor.GRAY));
+            return true;
         }
     }
 

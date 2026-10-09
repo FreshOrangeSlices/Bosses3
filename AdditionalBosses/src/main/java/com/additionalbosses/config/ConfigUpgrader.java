@@ -23,13 +23,14 @@ import java.util.regex.Pattern;
  */
 public final class ConfigUpgrader {
 
-    public static final int CURRENT = 7;
+    public static final int CURRENT = 8;
     private static final Pattern VERSION = Pattern.compile("^config-version:\\s*(\\d+)\\s*(#.*)?$");
     private static final Pattern STORMCALLER = Pattern.compile("^(\\s+stormcaller:\\s*\\{.*\\bweight:\\s*)6(\\b.*)$");
     private static final Pattern STATUE_SCALE = Pattern.compile("^(\\s+)statue-scale:\\s*(1|1\\.0|0\\.125)(\\s.*)?$");
     private static final Pattern PROWL = Pattern.compile("^(\\s+prowl-minutes:\\s*)3(\\s.*)?$");
     private static final Pattern SHOW_NAME = Pattern.compile("^(\\s+always-show-name:\\s*)true(\\s.*)?$");
     private static final Pattern GRAY_TROPHY = Pattern.compile("^(\\s+)gray-trophy-chance:\\s*([0-9.]+).*$");
+    private static final Pattern STATUE_SIZE = Pattern.compile("^(\\s+)statue-size:.*$");
     private static final Pattern TOP_LEVEL = Pattern.compile("^([a-z][a-z0-9-]*):.*$");
 
     /** v7: runes carry one fixed amount per rank (old default ranges -> values). */
@@ -153,7 +154,15 @@ public final class ConfigUpgrader {
             log.accept("config.yml: lowered the Stormcaller relic's weight from 6 to 2.");
             return m.group(1) + "2" + m.group(2);
         }
-        // (v6 resized trophies and statues; v7 below replaces both settings.)
+        // v8: statues are a fixed fraction of a normal mob (measuring them in blocks kept shrinking them).
+        if (section.equals("nemesis") && version < 8) {
+            Matcher size = STATUE_SIZE.matcher(line);
+            if (size.matches()) {
+                log.accept("config.yml: Nemesis Statues are half the size of a normal mob (nemesis.statue-scale: 0.5).");
+                return size.group(1) + "statue-scale: 0.5               # placed Nemesis Statues: 0.5 = half the size of a normal mob of that kind";
+            }
+        }
+        // (v6 resized trophies and statues; v7 and v8 replace both settings.)
         if (version >= 7) {
             return line;
         }
@@ -168,8 +177,8 @@ public final class ConfigUpgrader {
         if (section.equals("nemesis")) {
             Matcher statue = STATUE_SCALE.matcher(line);
             if (statue.matches()) {
-                log.accept("config.yml: Nemesis Statues are half a block big now (nemesis.statue-size: 0.5).");
-                return statue.group(1) + "statue-size: 0.5                # placed Nemesis Statues are about this many blocks big (0 = the Nemesis's real size)";
+                log.accept("config.yml: Nemesis Statues are half the size of a normal mob (nemesis.statue-scale: 0.5).");
+                return statue.group(1) + "statue-scale: 0.5               # placed Nemesis Statues: 0.5 = half the size of a normal mob of that kind";
             }
             Matcher prowl = PROWL.matcher(line);
             if (prowl.matches()) {

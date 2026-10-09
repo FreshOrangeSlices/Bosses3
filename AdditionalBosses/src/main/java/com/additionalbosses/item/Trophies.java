@@ -34,10 +34,8 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.Base64;
-import java.util.EnumMap;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 
 /**
  * Nemesis statues: an item that places the slain Nemesis as a small, frozen, unkillable display mob.
@@ -266,17 +264,18 @@ public final class Trophies {
         return true;
     }
 
+    /** Old trophy figures (from before Boss Souls) stay this small. */
+    private static final double TROPHY_FIGURE_SCALE = 0.25;
+
     /**
-     * Starting size of a placed figure. Statues (and old trophy figures) are sized so their larger side (height or
-     * width) is a set number of blocks, half a block by default, whatever the mob: that needs the mob's real
-     * dimensions, so it is worked out in {@link #resize} once the mob exists.
+     * Size of a placed figure, as a fixed scale: Nemesis Statues are nemesis.statue-scale of a normal mob of their
+     * kind (half by default). A fixed number, never measured from the mob, so it can't drift or shrink.
      */
     private double figureScale(boolean trophy, String storedScale) {
-        var f = plugin.settings().features;
-        return trophy || f.statueSize > 0 ? 0.25 : Math.max(0.0625, parseDouble(storedScale, 1.0) * f.statueScale);
+        return trophy ? TROPHY_FIGURE_SCALE : plugin.settings().features.statueScale;
     }
 
-    /** Placed trophies and statues always use the current sizes, including ones placed before they changed. */
+    /** Placed trophies and statues always use the current size, including ones placed before it changed. */
     public void resize(Entity e) {
         if (!(e instanceof LivingEntity living) || !e.isValid()) {
             return;
@@ -291,20 +290,10 @@ public final class Trophies {
         boolean trophy = original != null && ItemService.Kind.TROPHY.name().equals(
             original.getPersistentDataContainer().get(Keys.ITEM_KIND, PersistentDataType.STRING));
         living.setCustomNameVisible(false);
-        var f = plugin.settings().features;
-        double blocks = trophy ? f.trophySize : f.statueSize;
-        double wanted;
-        if (blocks > 0) {
-            double now = scale.getValue();
-            double side = Math.max(living.getHeight(), living.getWidth());
-            if (now <= 0 || side <= 0) {
-                return;
-            }
-            double natural = side / now; // its size at scale 1
-            wanted = Math.max(0.0625, Math.min(2.0, blocks / natural));
-        } else {
-            wanted = figureScale(false, parts[1]);
+        for (org.bukkit.attribute.AttributeModifier modifier : List.copyOf(scale.getModifiers())) {
+            scale.removeModifier(modifier); // only the base size counts for a statue
         }
+        double wanted = figureScale(trophy, parts[1]);
         if (Math.abs(scale.getBaseValue() - wanted) > 1.0E-3) {
             scale.setBaseValue(wanted);
         }

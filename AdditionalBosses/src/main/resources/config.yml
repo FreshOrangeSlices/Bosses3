@@ -1,4 +1,4 @@
-config-version: 7   # used by the plugin to update this file; don't change
+config-version: 8   # used by the plugin to update this file; don't change
 # =====================================================================
 #  Additional Bosses - configuration
 # ---------------------------------------------------------------------
@@ -637,7 +637,7 @@ nemesis:
   max-extra-size: 0.5
   revenge-xp-multiplier: 2        # XP bonus for killing the boss that killed you
   gear-evolution: true            # chainmail -> iron -> diamond -> netherite (trimmed) as it levels
-  statue-size: 0.5                # placed Nemesis Statues are about this many blocks big (0 = the Nemesis's real size)
+  statue-scale: 0.5               # placed Nemesis Statues: 0.5 = half the size of a normal mob of that kind
   prowl-minutes: 1                # after it lets you go, it roams nearby hunting other mobs before vanishing
   levels-from-kills-per-outing: 5 # each mob it kills is +1 level, up to this many per outing
 
@@ -769,6 +769,8 @@ messages:
   confirm-relic: "<yellow>Binding is permanent.</yellow> <gray>Do it again within 10 seconds to bind</gray> <light_purple><relic></light_purple> <gray>to your</gray> <item><gray>.</gray>"
   confirm-relic-catalyst: "<dark_red>This item holds a Relic Catalyst:</dark_red> <red><count>% chance the relic brings a curse with it.</red>"
   cursed-armor-locked: "<dark_red>It won't come off. Only death will part you.</dark_red>"
+  confirm-salvage: "<yellow>Break your</yellow> <item> <yellow>down into a</yellow> <soul><yellow>? It's destroyed. Click again to confirm.</yellow>"
+  salvaged: "<gray>The compass draws a soul out of your</gray> <item><gray>.</gray>"
   confirm-catalyst: "<yellow>This is permanent.</yellow> <gray>Do it again within 10 seconds to use the Catalyst on your</gray> <item><gray>.</gray>"
   apply-not-equipment: "<red>That item can't be upgraded. Use weapons, armor, shields or tools.</red>"
   apply-wrong-type: "<red>This rune only fits: <fits>.</red>"

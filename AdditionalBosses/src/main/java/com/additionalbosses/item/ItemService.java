@@ -296,6 +296,8 @@ public final class ItemService {
         } else {
             lore.add(Text.line("Fully upgraded.", NamedTextColor.DARK_GRAY));
         }
+        lore.add(Text.line("Click Boss Gear onto it to break the", NamedTextColor.DARK_GRAY));
+        lore.add(Text.line("gear down into a Boss Soul of its rank.", NamedTextColor.DARK_GRAY));
         item.lore(lore);
         item.editPersistentDataContainer(pdc -> {
             pdc.set(Keys.ITEM_KIND, PersistentDataType.STRING, Kind.COMPASS.name());
@@ -319,7 +321,7 @@ public final class ItemService {
         if (tier + 1 == max && (rank == null || !rank.atLeast(BossRank.RED))) {
             return Text.mm("<red>The last upgrade needs a Red, Purple or Gold rune.</red>");
         }
-        return compass.getAmount() == 1 ? null : settings().messages.prefixed("apply-not-equipment");
+        return compass.getAmount() == 1 ? null : settings().messages.get("apply-not-equipment");
     }
 
     public boolean isCompassUpgrade(@Nullable ItemStack consumable, @Nullable ItemStack target) {
@@ -340,24 +342,24 @@ public final class ItemService {
         Kind targetKind = kind(target);
         if (targetKind == Kind.COMPASS || targetKind == Kind.TOTEM || targetKind == Kind.TROPHY || targetKind == Kind.SOUL
             || targetKind == Kind.STATUE || targetKind == Kind.GUIDE || targetKind == Kind.WAYSTONE) {
-            return m.prefixed("apply-not-equipment");
+            return m.get("apply-not-equipment");
         }
         if (target.isEmpty() || !type.isEquipment() || kind(target) == Kind.RUNE || kind(target) == Kind.RELIC
             || kind(target) == Kind.CATALYST || target.getAmount() != 1) {
-            return m.prefixed("apply-not-equipment");
+            return m.get("apply-not-equipment");
         }
         PersistentDataContainerView c = consumable.getPersistentDataContainer();
         Kind k = kind(consumable);
         if (k == Kind.RUNE) {
             EmpowermentStat stat = settings().stat(c.getOrDefault(Keys.RUNE_STAT, PersistentDataType.STRING, ""));
             if (stat == null) {
-                return m.prefixed("apply-not-equipment");
+                return m.get("apply-not-equipment");
             }
             if (!stat.fits(type)) {
-                return m.prefixed("apply-wrong-type", Placeholder.unparsed("fits", stat.fitsText()));
+                return m.get("apply-wrong-type", Placeholder.unparsed("fits", stat.fitsText()));
             }
             if (list(target, Keys.EMPOWERMENTS).size() >= settings().empowermentMaxPerItem) {
-                return m.prefixed("apply-empowerment-full",
+                return m.get("apply-empowerment-full",
                     Placeholder.unparsed("count", String.valueOf(settings().empowermentMaxPerItem)));
             }
             return null;
@@ -365,25 +367,25 @@ public final class ItemService {
         if (k == Kind.RELIC) {
             RelicEffect effect = plugin.relics().get(c.get(Keys.RELIC_ID, PersistentDataType.STRING));
             if (effect == null) {
-                return m.prefixed("apply-not-equipment");
+                return m.get("apply-not-equipment");
             }
             List<String> relics = list(target, Keys.RELICS);
             if (relics.size() >= relicSlots(target)) {
-                return m.prefixed("apply-no-relic-slot");
+                return m.get("apply-no-relic-slot");
             }
             if (!settings().allowDuplicateRelics && relics.contains(effect.id())) {
-                return m.prefixed("apply-duplicate-relic", Placeholder.unparsed("relic", effect.displayName()));
+                return m.get("apply-duplicate-relic", Placeholder.unparsed("relic", effect.displayName()));
             }
             return null;
         }
         if (k == Kind.CATALYST) {
             if (relicSlots(target) >= settings().catalystMaxSlots) {
-                return m.prefixed("apply-catalyst-max",
+                return m.get("apply-catalyst-max",
                     Placeholder.unparsed("count", String.valueOf(settings().catalystMaxSlots)));
             }
             return null;
         }
-        return m.prefixed("apply-not-equipment");
+        return m.get("apply-not-equipment");
     }
 
     /** Relics and catalysts are permanent, so (if enabled) they need a second click/command within 10 seconds. */
@@ -403,16 +405,45 @@ public final class ItemService {
         pending.put(player.getUniqueId(), new Pending(token, now + 200));
         Messages m = settings().messages;
         if (k == Kind.CATALYST) {
-            return m.prefixed("confirm-catalyst", Placeholder.component("item", target.effectiveName()));
+            return m.get("confirm-catalyst", Placeholder.component("item", target.effectiveName()));
         }
         RelicEffect effect = plugin.relics().get(consumable.getPersistentDataContainer().get(Keys.RELIC_ID, PersistentDataType.STRING));
-        Component prompt = m.prefixed("confirm-relic", Placeholder.unparsed("relic", effect == null ? "?" : effect.displayName()),
+        Component prompt = m.get("confirm-relic", Placeholder.unparsed("relic", effect == null ? "?" : effect.displayName()),
             Placeholder.component("item", target.effectiveName()));
         if (hasCatalyst(target) && catalystCorruptionChance() > settings().corruptionChance) {
-            prompt = prompt.appendNewline().append(m.prefixed("confirm-relic-catalyst",
+            prompt = prompt.append(Component.space()).append(m.get("confirm-relic-catalyst",
                 Placeholder.unparsed("count", Text.num(catalystCorruptionChance()))));
         }
         return prompt;
+    }
+
+    // =====================================================================
+    // Hunter's Compass: Boss Gear -> Boss Soul
+    // =====================================================================
+
+    /** True for a piece of Boss Gear dropped on a Hunter's Compass. */
+    public boolean isSalvage(@Nullable ItemStack gear, @Nullable ItemStack compass) {
+        return kind(gear) == Kind.GEAR && kind(compass) == Kind.COMPASS && gear != null && gear.getAmount() == 1;
+    }
+
+    /** The rank a piece of Boss Gear came from (Gray if unknown). */
+    public BossRank gearRank(ItemStack gear) {
+        BossRank rank = BossRank.parse(gear.getPersistentDataContainer().get(Keys.ITEM_RANK, PersistentDataType.STRING));
+        return rank == null ? BossRank.GRAY : rank;
+    }
+
+    /** Breaking gear down destroys it, so it asks for a second click within 10 seconds. Null once confirmed. */
+    public @Nullable Component salvagePrompt(Player player, ItemStack gear, String where) {
+        String token = "SALVAGE:" + gear.getType() + ":" + gearRank(gear) + ":" + where;
+        int now = Bukkit.getCurrentTick();
+        Pending p = pending.get(player.getUniqueId());
+        if (p != null && p.token().equals(token) && now <= p.expiresAt()) {
+            pending.remove(player.getUniqueId());
+            return null;
+        }
+        pending.put(player.getUniqueId(), new Pending(token, now + 200));
+        return settings().messages.get("confirm-salvage", Placeholder.component("item", gear.effectiveName()),
+            Placeholder.component("soul", createSoul(gearRank(gear), 1).effectiveName()));
     }
 
     /** Applies the consumable to the target (call {@link #validate} first). Returns the message to show. */
@@ -429,14 +460,14 @@ public final class ItemService {
                 pdc.set(Keys.COMPASS_TIER, PersistentDataType.INTEGER, compassTier(upgraded)));
             Fx.play(player.getLocation(), "block.lodestone.place", 1.0f, 1.2f);
             Fx.play(player.getLocation(), "block.enchantment_table.use", 1.0f, 1.4f);
-            return m.prefixed("compass-upgraded", Placeholder.unparsed("count", Text.roman(compassTier(upgraded))));
+            return m.get("compass-upgraded", Placeholder.unparsed("count", Text.roman(compassTier(upgraded))));
         }
 
         if (k == Kind.RUNE) {
             EmpowermentStat stat = settings().stat(c.getOrDefault(Keys.RUNE_STAT, PersistentDataType.STRING, ""));
             double amount = c.getOrDefault(Keys.RUNE_AMOUNT, PersistentDataType.DOUBLE, 0.0);
             if (stat == null) {
-                return m.prefixed("apply-not-equipment");
+                return m.get("apply-not-equipment");
             }
             EquipmentType type = EquipmentType.of(target.getType());
             if (stat.effect() == null) {
@@ -447,7 +478,7 @@ public final class ItemService {
             target.editPersistentDataContainer(pdc -> pdc.set(Keys.EMPOWERMENTS, PersistentDataType.LIST.strings(), emps));
             refreshLore(target);
             Fx.play(player.getLocation(), "block.enchantment_table.use", 1.0f, 1.2f);
-            return m.prefixed("rune-applied", Placeholder.component("item", itemName),
+            return m.get("rune-applied", Placeholder.component("item", itemName),
                 Placeholder.unparsed("stat", stat.format(amount)));
         }
 
@@ -455,7 +486,7 @@ public final class ItemService {
             RelicEffect effect = plugin.relics().get(c.get(Keys.RELIC_ID, PersistentDataType.STRING));
             RelicEffect curse = plugin.relics().get(c.get(Keys.RELIC_CURSE, PersistentDataType.STRING));
             if (effect == null) {
-                return m.prefixed("apply-not-equipment");
+                return m.get("apply-not-equipment");
             }
             if (curse == null && hasCatalyst(target) && Rng.chance(extraCatalystCurseChance())) {
                 // A Catalyst draws corruption: relics bound to its item are far more likely to carry a curse.
@@ -478,13 +509,12 @@ public final class ItemService {
             refreshLore(target);
             PlayerData.addRelicBound(player);
             Fx.play(player.getLocation(), "block.end_portal_frame.fill", 1.0f, 0.8f);
-            Component msg = m.prefixed("relic-bound", Placeholder.component("item", itemName),
+            Component msg = m.get("relic-bound", Placeholder.component("item", itemName),
                 Placeholder.unparsed("relic", effect.displayName()));
             if (curse != null) {
                 boolean bound = bindCursedArmor(target);
                 Fx.play(player.getLocation(), "entity.wither.ambient", 0.7f, 0.6f);
-                msg = msg.appendNewline().append(m.prefixed("relic-corrupted",
-                    Placeholder.unparsed("curse", curse.displayName() + " - " + curse.description())));
+                msg = m.get("relic-corrupted", Placeholder.unparsed("curse", curse.displayName()));
                 curseNotice(player, curse, bound);
             }
             return msg;
@@ -496,10 +526,10 @@ public final class ItemService {
             target.setData(DataComponentTypes.ENCHANTMENT_GLINT_OVERRIDE, true);
             refreshLore(target);
             Fx.play(player.getLocation(), "block.beacon.activate", 1.0f, 1.3f);
-            return m.prefixed("catalyst-applied", Placeholder.component("item", itemName),
+            return m.get("catalyst-applied", Placeholder.component("item", itemName),
                 Placeholder.unparsed("count", String.valueOf(slots)));
         }
-        return m.prefixed("apply-not-equipment");
+        return m.get("apply-not-equipment");
     }
 
     /** True once a Relic Catalyst has given this item an extra slot. */
@@ -660,9 +690,6 @@ public final class ItemService {
             for (String id : relics) {
                 RelicEffect effect = plugin.relics().get(id);
                 lines.add(Text.line("  ✦ " + (effect == null ? Text.pretty(id) : effect.displayName()), RELIC));
-                if (effect != null) {
-                    describe(lines, "     ", effect.description(), NamedTextColor.GRAY);
-                }
             }
             for (int i = relics.size(); i < slots; i++) {
                 lines.add(Text.line("  ◇ Empty Relic slot", NamedTextColor.DARK_GRAY));
@@ -670,9 +697,10 @@ public final class ItemService {
             for (String id : curses) {
                 RelicEffect curse = plugin.relics().get(id);
                 lines.add(Text.line("  ☠ Curse: " + (curse == null ? Text.pretty(id) : curse.displayName()), CURSE));
-                if (curse != null) {
-                    describe(lines, "     ", curse.description(), NamedTextColor.DARK_RED);
-                }
+            }
+            if (!relics.isEmpty() || !curses.isEmpty()) {
+                // What they do is in the Boss Hunter's Compendium, not on the item.
+                lines.add(Text.line("  What they do: see the Compendium", NamedTextColor.DARK_GRAY));
             }
         }
         return lines;

@@ -67,6 +67,19 @@ public final class Curses {
                 || !ctx.manager().ready(p, id() + "-lightning", (int) Math.round(lightningCooldown * 20))) {
                 return;
             }
+            strike(p);
+        }
+
+        /** Test: the lightning plus the Darkness you'd get when hurt. */
+        @Override
+        public boolean trigger(Player p, com.additionalbosses.relic.RelicManager manager) {
+            strike(p);
+            p.addPotionEffect(new PotionEffect(PotionEffectType.DARKNESS, (int) (seconds * 20), 0));
+            p.playSound(Sound.sound(Key.key("ambient.cave"), Sound.Source.AMBIENT, 1.0f, 0.8f), Sound.Emitter.self());
+            return true;
+        }
+
+        private static void strike(Player p) {
             org.bukkit.util.Vector offset = new org.bukkit.util.Vector(Rng.between(8.0, 16.0), 0, 0)
                 .rotateAroundY(Math.toRadians(Rng.between(0.0, 360.0)));
             org.bukkit.Location at = p.getLocation().add(offset);
@@ -106,7 +119,16 @@ public final class Curses {
             if (!damage.melee() || !Rng.chance(chance)) {
                 return;
             }
-            Player p = ctx.player();
+            fumble(ctx.player());
+        }
+
+        @Override
+        public boolean trigger(Player p, com.additionalbosses.relic.RelicManager manager) {
+            fumble(p);
+            return true;
+        }
+
+        private static void fumble(Player p) {
             PlayerInventory inv = p.getInventory();
             ItemStack held = inv.getItemInMainHand();
             if (held.isEmpty()) {
@@ -145,9 +167,19 @@ public final class Curses {
             if (!Rng.chance(chance) || !ctx.manager().ready(p, id(), (int) Math.round(cooldown * 20))) {
                 return;
             }
-            victim.getWorld().spawn(victim.getLocation().add(0, 0.5, 0), Chicken.class,
+            chicken(victim.getLocation());
+        }
+
+        @Override
+        public boolean trigger(Player p, com.additionalbosses.relic.RelicManager manager) {
+            chicken(p.getLocation().add(p.getLocation().getDirection().setY(0).multiply(2)));
+            return true;
+        }
+
+        private static void chicken(org.bukkit.Location at) {
+            at.getWorld().spawn(at.clone().add(0, 0.5, 0), Chicken.class,
                 CreatureSpawnEvent.SpawnReason.CUSTOM, chicken -> chicken.setVelocity(new Vector(0, 0.4, 0)));
-            Fx.play(victim.getLocation(), "entity.chicken.hurt", 1.0f, 1.0f);
+            Fx.play(at, "entity.chicken.hurt", 1.0f, 1.0f);
         }
     }
 

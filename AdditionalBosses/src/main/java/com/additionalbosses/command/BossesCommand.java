@@ -10,9 +10,11 @@ import com.additionalbosses.item.ItemService;
 import com.additionalbosses.nemesis.NemesisManager;
 import com.additionalbosses.nemesis.NemesisRecord;
 import com.additionalbosses.relic.RelicEffect;
+import com.additionalbosses.relic.RelicManager;
 import com.additionalbosses.reward.GearKind;
 import com.additionalbosses.trait.BossTrait;
 import com.additionalbosses.util.Keys;
+import com.additionalbosses.util.Fx;
 import com.additionalbosses.util.PlayerData;
 import com.additionalbosses.util.Rng;
 import com.additionalbosses.util.Text;
@@ -48,7 +50,7 @@ public final class BossesCommand implements BasicCommand {
     private static final String USE = "additionalbosses.use";
     private static final String ADMIN = "additionalbosses.admin";
     private static final List<String> PLAYER_SUBS = List.of("help", "guide", "apply", "inspect", "stats", "nemesis");
-    private static final List<String> ADMIN_SUBS = List.of("spawn", "give", "list", "killall", "reload", "escalate", "promote");
+    private static final List<String> ADMIN_SUBS = List.of("spawn", "give", "list", "killall", "reload", "escalate", "promote", "curse");
 
     private final AdditionalBosses plugin;
 
@@ -83,6 +85,7 @@ public final class BossesCommand implements BasicCommand {
             case "promote" -> promote(sender, args);
             case "spawn" -> spawn(sender, args);
             case "give" -> give(sender, args);
+            case "curse" -> curse(sender, args);
             case "list" -> list(sender);
             case "killall" -> info(sender, "Removed " + plugin.bosses().killAll() + " boss(es).");
             case "reload" -> {
@@ -111,6 +114,8 @@ public final class BossesCommand implements BasicCommand {
             line(sender, "/bosses escalate <player>", "trigger an Escalation on a player");
             line(sender, "/bosses promote [ranks]", "promote the boss you are looking at");
             line(sender, "/bosses give <player> waystone [amount]", "give Waystones");
+            line(sender, "/bosses curse <player> <curse> [seconds] [every]", "test a curse: once, for a while, or on repeat");
+            line(sender, "/bosses curse <player> clear", "end curse tests");
             line(sender, "/bosses list | killall | reload", "admin tools");
         }
     }
@@ -158,12 +163,12 @@ public final class BossesCommand implements BasicCommand {
         ItemStack target = consumableInOff ? main : off;
         Component error = items.validate(consumable, target);
         if (error != null) {
-            player.sendMessage(error);
+            Fx.actionBar(player, error);
             return;
         }
         Component confirm = items.confirmationPrompt(player, consumable, target, consumableInOff ? "cmd-main" : "cmd-off");
         if (confirm != null) {
-            player.sendMessage(confirm.append(Component.text(" (/bosses apply)", NamedTextColor.DARK_GRAY)));
+            Fx.actionBar(player, confirm.append(Component.text(" (/bosses apply)", NamedTextColor.DARK_GRAY)));
             return;
         }
         ItemStack updated = target.clone();
@@ -176,7 +181,7 @@ public final class BossesCommand implements BasicCommand {
             inv.setItemInOffHand(updated);
             inv.setItemInMainHand(remaining);
         }
-        player.sendMessage(message);
+        Fx.actionBar(player, message);
         plugin.relics().refresh(player);
     }
 
@@ -435,6 +440,73 @@ public final class BossesCommand implements BasicCommand {
         }
     }
 
+    /**
+     * Testing curses.
+     * <ul>
+     *     <li>{@code /bosses curse <player> <curse>}: its event happens once (one hiccup, one visit...). Curses that
+     *     are simply always on (Pariah, Herbivore...) are put on the player for 30 seconds instead.</li>
+     *     <li>{@code ... <seconds>}: the player has the curse for that long, as if wearing it (normal odds).</li>
+     *     <li>{@code ... <seconds> <every>}: and its event is forced every {@code every} seconds.</li>
+     *     <li>{@code /bosses curse <player> clear}: ends all tests.</li>
+     * </ul>
+     */
+    private void curse(CommandSender sender, String[] args) {
+        if (args.length < 3) {
+            error(sender, "Usage: /bosses curse <player> <curse|clear> [seconds] [every-seconds]");
+            return;
+        }
+        Player target = Bukkit.getPlayerExact(args[1]);
+        if (target == null) {
+            error(sender, "Player not found: " + args[1]);
+            return;
+        }
+        if (args[2].equalsIgnoreCase("clear")) {
+            info(sender, "Ended " + plugin.relics().clearTests(target) + " curse test(s) on " + target.getName() + ".");
+            return;
+        }
+        RelicEffect curse = plugin.relics().get(args[2]);
+        if (curse == null || !curse.curse()) {
+            error(sender, "Unknown curse: " + args[2]);
+            return;
+        }
+        Integer seconds = null;
+        Double every = null;
+        try {
+            if (args.length >= 4) {
+                seconds = Math.max(1, Math.min(3600, Integer.parseInt(args[3])));
+            }
+            if (args.length >= 5) {
+                every = Math.max(0.5, Math.min(600, Double.parseDouble(args[4])));
+            }
+        } catch (NumberFormatException ex) {
+            error(sender, "Usage: /bosses curse <player> <curse|clear> [seconds] [every-seconds]");
+            return;
+        }
+        String who = target.getName();
+        boolean fires = RelicManager.hasTrigger(curse);
+        if (seconds == null) {
+            if (!fires) {
+                plugin.relics().addTest(target, curse, 30);
+                info(sender, curse.displayName() + " is always on rather than a single moment, so " + who
+                    + " has it for 30 seconds.");
+            } else if (curse.trigger(target, plugin.relics())) {
+                info(sender, curse.displayName() + " triggered once on " + who + ".");
+            } else {
+                error(sender, curse.displayName() + " couldn't happen right now (already going, or no room around "
+                    + who + "). Try again in a moment.");
+            }
+            return;
+        }
+        plugin.relics().addTest(target, curse, seconds);
+        if (every == null || !fires) {
+            info(sender, who + " has " + curse.displayName() + " for " + seconds + "s"
+                + (every != null ? " (it's always on, so there's nothing to repeat)." : ", at its normal odds."));
+            return;
+        }
+        plugin.relics().repeatTest(target, curse, seconds, (int) Math.round(every * 20));
+        info(sender, who + " has " + curse.displayName() + " for " + seconds + "s, firing every " + Text.num(every) + "s.");
+    }
+
     private void give(CommandSender sender, String[] args) {
         if (args.length < 3) {
             error(sender, "Usage: /bosses give <player> <gear|rune|relic|catalyst|compass|totem|soul|waystone|guide> ...");
@@ -630,6 +702,28 @@ public final class BossesCommand implements BasicCommand {
         }
         if (sub.equals("escalate") && args.length == 2) {
             return filter(onlineNames(), last);
+        }
+        if (sub.equals("curse")) {
+            if (args.length == 2) {
+                return filter(onlineNames(), last);
+            }
+            if (args.length == 3) {
+                List<String> ids = new ArrayList<>();
+                ids.add("clear");
+                for (RelicEffect r : plugin.relics().all()) {
+                    if (r.curse()) {
+                        ids.add(r.id());
+                    }
+                }
+                return filter(ids, last);
+            }
+            if (args.length == 4 && !args[2].equalsIgnoreCase("clear")) {
+                return filter(List.of("10", "30", "60", "300"), last);
+            }
+            if (args.length == 5) {
+                return filter(List.of("1", "2", "5", "10"), last);
+            }
+            return List.of();
         }
         if (sub.equals("spawn")) {
             return switch (args.length) {
