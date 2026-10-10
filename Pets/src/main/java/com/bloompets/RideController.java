@@ -127,7 +127,7 @@ public final class RideController implements Listener {
 
     private void end(Ride r, boolean dismount) {
         rides.remove(r.rider);
-        softLanding.put(r.rider, System.currentTimeMillis() + 3000);
+        softLanding.put(r.rider, System.currentTimeMillis() + 1200); // just the hop down, not a long fall
         Mob m = r.active.entity;
         Player p = Bukkit.getPlayer(r.rider);
         if (p != null) {
@@ -214,7 +214,7 @@ public final class RideController implements Listener {
                 vy = m.isOnGround() ? 0 : -0.12; // drift down gently
             }
         } else if (swimming) {
-            vy = forward > 0 ? -Math.sin(pitch) * speed * forward : 0; // look down to dive, up to rise
+            vy = forward > 0 ? -Math.sin(pitch) * speed * forward : 0.03; // look down to dive; idle: drift up
             if (in.isJump()) {
                 vy = Math.max(vy, 0.16);
             }
@@ -283,7 +283,7 @@ public final class RideController implements Listener {
 
     /**
      * Riders land like they're on a horse: half the fall height counts, so ordinary jumps never hurt and only
-     * big drops do (also for a few seconds after getting off).
+     * big drops do (also for the hop down right after getting off).
      */
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onRiderFall(EntityDamageEvent event) {
@@ -304,11 +304,11 @@ public final class RideController implements Listener {
 
     @EventHandler(priority = EventPriority.LOW)
     public void onQuit(PlayerQuitEvent event) {
-        softLanding.remove(event.getPlayer().getUniqueId());
         Ride r = rides.get(event.getPlayer().getUniqueId());
         if (r != null) {
             end(r, true);
         }
+        softLanding.remove(event.getPlayer().getUniqueId());
     }
 
     /** Leftover size changes (a crash mid-ride) don't survive: transient modifiers are never saved. */

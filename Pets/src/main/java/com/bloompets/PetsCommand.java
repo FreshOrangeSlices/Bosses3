@@ -82,13 +82,13 @@ public final class PetsCommand implements BasicCommand {
             }
             case "release" -> release(p, rest);
             case "toy" -> {
-                if (Blooms.giveToyIfMissing(p)) {
-                    Msg.bar(p, "Here's your Pet Toy!", Msg.PINK);
-                } else {
+                if (Blooms.hasToy(p)) {
                     Msg.bar(p, "You already have a Pet Toy.", NamedTextColor.GRAY);
+                } else if (Blooms.giveToyIfMissing(p, true)) {
+                    Msg.bar(p, "Here's your Pet Toy!", Msg.PINK);
                 }
             }
-            case "guide" -> PetManager.give(p, Guide.book());
+            case "guide" -> p.openBook(Guide.book());
             default -> help(p);
         }
     }
@@ -248,7 +248,7 @@ public final class PetsCommand implements BasicCommand {
             "/pets rename <new name>  rename the pet that's out",
             "/pets toy  a new Pet Toy, if you lost yours",
             "/pets bloom [name]  get a pet's bloom back",
-            "/pets guide  the Pet Guide book",
+            "/pets guide  read the Pet Guide",
             "/pets release <name>[, <name>...]  say goodbye for good"));
         if (sender.hasPermission(ADMIN)) {
             lines.add("/pets give <player> <species> [level]  /pets reload");

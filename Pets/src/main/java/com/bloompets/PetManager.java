@@ -174,7 +174,9 @@ public final class PetManager {
         }
         Pet last = plugin.store().last(owner.getUniqueId());
         if (last != null) {
-            summon(owner, last, true);
+            if (!summon(owner, last, true)) {
+                plugin.menus().openPets(owner); // resting or turned off: pick someone else
+            }
         } else if (plugin.store().pets(owner.getUniqueId()).isEmpty()) {
             Msg.bar(owner, "No pets yet! Sneak + feed an animal its favourite food to make a friend.", Msg.PINK);
         } else {
@@ -600,9 +602,15 @@ public final class PetManager {
     //  Renaming
     // =====================================================================
 
-    public boolean rename(Player p, Pet pet, String raw) {
+    /** A tidy pet name (1-24 letters, numbers, spaces and a little punctuation, no commas), or null. */
+    static @Nullable String cleanName(String raw) {
         String name = raw.replace("§", "").trim().replaceAll("\\s+", " ");
-        if (name.isEmpty() || name.length() > 24 || !name.matches("[\\p{L}\\p{N} '!?.\\-_]+")) {
+        return name.isEmpty() || name.length() > 24 || !name.matches("[\\p{L}\\p{N} '!?.\\-_]+") ? null : name;
+    }
+
+    public boolean rename(Player p, Pet pet, String raw) {
+        String name = cleanName(raw);
+        if (name == null) {
             Msg.error(p, "Pet names are 1-24 letters, numbers and spaces.");
             return false;
         }
@@ -695,8 +703,8 @@ public final class PetManager {
             : ThreadLocalRandom.current().nextBoolean() ? Pet.RideStyle.GROW : Pet.RideStyle.SHRINK;
         String name = null;
         if (mob.customName() != null) {
-            String given = PlainTextComponentSerializer.plainText().serialize(mob.customName()).trim();
-            if (!given.isEmpty() && given.length() <= 24 && !plugin.store().nameTaken(p.getUniqueId(), given)) {
+            String given = cleanName(PlainTextComponentSerializer.plainText().serialize(mob.customName()));
+            if (given != null && !plugin.store().nameTaken(p.getUniqueId(), given)) {
                 name = given;
             }
         }

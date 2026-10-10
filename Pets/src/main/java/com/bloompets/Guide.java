@@ -51,31 +51,32 @@ public final class Guide {
             .append(ink("Every animal has a\nfavourite snack.\nShare it, and they\njust might stay. "))
             .append(Component.text("♥", PINK))
             .build());
+        // a page shows 14 short lines; every page below stays within that
         pages.add(page()
-            .append(title("Making a Friend ♥")).append(nl()).append(nl())
-            .append(ink("1. Find an animal\n    in this book.\n"))
-            .append(ink("2. Sneak, and feed\n    it its favourite\n    snack.\n"))
-            .append(ink("3. Keep going until\n    the hearts fill up!")).append(nl()).append(nl())
+            .append(title("Make a Friend ♥")).append(nl()).append(nl())
+            .append(ink("1. Find an animal\nin this book.\n"))
+            .append(ink("2. Sneak and feed\nit its favourite\nsnack.\n"))
+            .append(ink("3. Repeat until the\nhearts fill up!")).append(nl()).append(nl())
             .append(soft("Then it's yours,\nforever and ever."))
             .build());
         pages.add(page()
             .append(item("popped_chorus_fruit")).append(Component.text(" ")).append(title("Your Pet Toy"))
             .append(nl()).append(nl())
-            .append(ink("Right-click: call\nyour pet, or send it\nhome for a nap.")).append(nl()).append(nl())
-            .append(ink("Punch: see all your\npets and pick one.")).append(nl()).append(nl())
+            .append(ink("Right-click: call\nyour pet, or send\nit home for a nap.")).append(nl()).append(nl())
+            .append(ink("Punch: see all\nyour pets and pick\none.")).append(nl()).append(nl())
             .append(ink("Use it on your pet:\nhop on for a ride!"))
             .build());
         pages.add(page()
             .append(title("More Tricks ✦")).append(nl()).append(nl())
             .append(ink("Click your pet to\nswap to another.")).append(nl()).append(nl())
-            .append(ink("Sneak + click your\npet to peek in its\nbag.")).append(nl()).append(nl())
+            .append(ink("Sneak + click it to\npeek in its bag.")).append(nl()).append(nl())
             .append(ink("Feed it its snack\nto heal it up.")).append(nl()).append(nl())
-            .append(ink("Each pet has its own ")).append(block("poppy")).append(ink(" Bloom\nthat calls just them."))
+            .append(ink("Each has its own\n")).append(block("poppy")).append(ink(" Bloom, too!"))
             .build());
         pages.add(page()
             .append(title("Growing Up ✦")).append(nl()).append(nl())
-            .append(ink("Walks, snacks and\nadventures together\nhelp your pet grow,\nall the way to\nlevel 10.")).append(nl()).append(nl())
-            .append(ink("Bigger bags, more\nheart, and before\nlong, rides!")).append(nl()).append(nl())
+            .append(ink("Walks, snacks and\nadventures help\nyour pet grow up to\nlevel 10.")).append(nl()).append(nl())
+            .append(ink("Bigger bags, more\nheart, and rides!")).append(nl()).append(nl())
             .append(soft("Pets never die. A\ntired pet just goes\nhome for a nap."))
             .build());
 
@@ -87,11 +88,11 @@ public final class Guide {
                     roster.add(s);
                 }
             }
-            for (int i = 0; i < roster.size(); i += 3) {
+            for (int i = 0; i < roster.size(); i += 2) { // two pets a page, so nothing runs off the bottom
                 TextComponent.Builder page = page()
                     .append(Component.text(heading(category), color(category)).decorate(TextDecoration.BOLD))
                     .append(nl());
-                for (Species s : roster.subList(i, Math.min(i + 3, roster.size()))) {
+                for (Species s : roster.subList(i, Math.min(i + 2, roster.size()))) {
                     page.append(nl())
                         .append(egg(s)).append(Component.text(" " + s.displayName(), color(s.category()))
                             .decorate(TextDecoration.BOLD)).append(nl())
@@ -110,8 +111,8 @@ public final class Guide {
         return switch (c) {
             case COMBAT -> "⚔ Brave Buddies";
             case PACK -> "✉ Pack Pals";
-            case SPEEDSTER -> "➹ Speedy Friends";
-            case UTILITY -> "✿ Helpful Friends";
+            case SPEEDSTER -> "➹ Speedy Pals";
+            case UTILITY -> "✿ Helpful Pals";
         };
     }
 

@@ -155,12 +155,40 @@ public final class Blooms {
         return isToy(p.getItemOnCursor());
     }
 
-    /** Gives the player a Pet Toy unless they already carry one. True if one was given. */
+    /** Gives the player a Pet Toy unless they already carry one (or just got one). True if one was given. */
     public static boolean giveToyIfMissing(Player p) {
+        return giveToyIfMissing(p, false);
+    }
+
+    /** {@code tell}: say so when they have to wait for a new one. */
+    public static boolean giveToyIfMissing(Player p, boolean tell) {
         if (hasToy(p)) {
             return false;
         }
+        if (!mayHandOut(p, "toy")) {
+            if (tell) {
+                Msg.bar(p, "You just got a Pet Toy. Try again in a minute.", NamedTextColor.GRAY);
+            }
+            return false;
+        }
         PetManager.give(p, toy());
+        return true;
+    }
+
+    private static final java.util.Map<String, Long> HANDED_OUT = new java.util.HashMap<>();
+
+    /**
+     * Free pet items (toys, blooms) at most once a minute each, so they can't be farmed as paper for shops.
+     * True (and remembered) if this one may be handed out now.
+     */
+    static boolean mayHandOut(Player p, String what) {
+        long now = System.currentTimeMillis();
+        HANDED_OUT.values().removeIf(t -> now - t > 60_000);
+        String key = p.getUniqueId() + ":" + what;
+        if (HANDED_OUT.containsKey(key)) {
+            return false;
+        }
+        HANDED_OUT.put(key, now);
         return true;
     }
 

@@ -116,6 +116,8 @@ public final class Bonuses implements Listener {
     private final Map<UUID, Long> llamaReady = new HashMap<>();
     private final Map<UUID, Long> sniffReady = new HashMap<>();
     private final Map<UUID, Long> sniffNext = new HashMap<>();
+    /** When each player last got trims from a Sniffer (kept across relogs). */
+    private final Map<UUID, java.util.Deque<Long>> trimsFound = new HashMap<>();
     private final Map<UUID, Long> wentToBed = new HashMap<>();
     private final Map<UUID, Location> pandaSpot = new HashMap<>();
     private final Map<UUID, Integer> pandaStill = new HashMap<>();
@@ -503,16 +505,16 @@ public final class Bonuses implements Listener {
             return;
         }
         sniffReady.put(p.getUniqueId(), now + 60_000); // at most one find a minute, so it can't be farmed
-        Material found = sniff(r);
+        Material found = plainFind(r); // trims only come from the Sniffer's own digs
         Location at = event.getBlock().getLocation().add(0.5, 0.5, 0.5);
         at.getWorld().dropItemNaturally(at, ItemStack.of(found));
         a.entity.getWorld().playSound(a.entity.getLocation(), Sound.ENTITY_SNIFFER_HAPPY, 0.8f, 1f);
         announceFind(p, a.pet, found);
     }
 
-    /** Two and a half minutes between digs at level 1, a little under two at level 10. */
+    /** Four minutes between digs at level 1, under three at level 10. */
     private static long sniffGap(double pw) {
-        return (long) (150_000 / pw);
+        return (long) (240_000 / pw);
     }
 
     /**
@@ -522,6 +524,7 @@ public final class Bonuses implements Listener {
     private void dig(Player p, PetManager.Active a) {
         Mob m = a.entity;
         if (!(m instanceof Sniffer sniffer) || !m.isOnGround() || plugin.rides().isRidden(a)
+            || p.getIdleDuration().toMinutes() >= 5 // no treasure for standing AFK
             || m.getWorld() != p.getWorld() || m.getLocation().distanceSquared(p.getLocation()) > 12 * 12
             || !DIGGABLE.contains(m.getLocation().add(0, -0.5, 0).getBlock().getType())) {
             return;
@@ -540,7 +543,7 @@ public final class Bonuses implements Listener {
                 return;
             }
             sniffer.setState(Sniffer.State.RISING);
-            Material found = sniff(ThreadLocalRandom.current());
+            Material found = treasure(p.getUniqueId(), ThreadLocalRandom.current());
             double yaw = Math.toRadians(m.getLocation().getYaw());
             Location front = m.getLocation().add(-Math.sin(yaw) * 1.6, 0.4, Math.cos(yaw) * 1.6);
             m.getWorld().dropItemNaturally(front, ItemStack.of(found));
@@ -573,25 +576,39 @@ public final class Bonuses implements Listener {
             .append(Component.translatable(found, NamedTextColor.GREEN)).append(Component.text("!", NamedTextColor.GREEN)));
     }
 
-    /** What a Sniffer digs up: armor trims a third of the time (rarer trims less often), else seeds and flowers. */
-    private static Material sniff(ThreadLocalRandom r) {
-        double roll = r.nextDouble();
-        if (roll < 0.35) {
+    /**
+     * What a Sniffer digs up on its own: an armor trim one dig in five (rarer trims less often, and at most three
+     * an hour per player), otherwise what {@link #plainFind} gives.
+     */
+    private Material treasure(UUID owner, ThreadLocalRandom r) {
+        long now = System.currentTimeMillis();
+        java.util.Deque<Long> recent = trimsFound.computeIfAbsent(owner, k -> new java.util.ArrayDeque<>());
+        while (!recent.isEmpty() && now - recent.peekFirst() > 3_600_000) {
+            recent.pollFirst();
+        }
+        if (recent.size() < 3 && r.nextDouble() < 0.20) {
             int pick = r.nextInt(TRIM_WEIGHT_TOTAL);
             for (Map.Entry<Material, Integer> trim : TRIMS.entrySet()) {
                 pick -= trim.getValue();
                 if (pick < 0) {
+                    recent.addLast(now);
                     return trim.getKey();
                 }
             }
         }
-        if (roll < 0.55) {
+        return plainFind(r);
+    }
+
+    /** Torchflower seeds, pitcher pods, other seeds and flowers. */
+    private static Material plainFind(ThreadLocalRandom r) {
+        double roll = r.nextDouble();
+        if (roll < 0.30) {
             return Material.TORCHFLOWER_SEEDS;
         }
-        if (roll < 0.70) {
+        if (roll < 0.50) {
             return Material.PITCHER_POD;
         }
-        if (roll < 0.85) {
+        if (roll < 0.80) {
             Material[] seeds = {Material.WHEAT_SEEDS, Material.BEETROOT_SEEDS, Material.PUMPKIN_SEEDS,
                 Material.MELON_SEEDS};
             return seeds[r.nextInt(seeds.length)];
@@ -643,6 +660,5 @@ public final class Bonuses implements Listener {
         llamaReady.remove(id);
         wentToBed.remove(id);
         sniffNext.remove(id);
-        sniffReady.remove(id);
     }
 }

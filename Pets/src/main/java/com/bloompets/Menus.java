@@ -58,6 +58,7 @@ public final class Menus implements Listener {
         boolean releasing;
         final java.util.Set<UUID> chosen = new java.util.LinkedHashSet<>();
         boolean armed;
+        long armedAt;
 
         PetMenu(UUID owner) {
             this.owner = owner;
@@ -251,7 +252,9 @@ public final class Menus implements Listener {
             return;
         }
         if (menu.releasing) {
-            clickRelease(p, menu, slot);
+            if (click != ClickType.DOUBLE_CLICK) {
+                clickRelease(p, menu, slot);
+            }
             return;
         }
         if (slot == DISMISS_SLOT && pets.active(menu.owner) != null) {
@@ -259,10 +262,10 @@ public final class Menus implements Listener {
             return;
         }
         if (slot == TOY_SLOT) {
-            if (Blooms.giveToyIfMissing(p)) {
-                p.playSound(p.getLocation(), Sound.ENTITY_ITEM_PICKUP, 0.6f, 1.2f);
-            } else {
+            if (Blooms.hasToy(p)) {
                 Msg.bar(p, "You already have a Pet Toy.", NamedTextColor.GRAY);
+            } else if (Blooms.giveToyIfMissing(p, true)) {
+                p.playSound(p.getLocation(), Sound.ENTITY_ITEM_PICKUP, 0.6f, 1.2f);
             }
             return;
         }
@@ -304,11 +307,14 @@ public final class Menus implements Listener {
             return;
         }
         if (slot == RELEASE_SLOT && !menu.chosen.isEmpty()) {
-            if (!menu.armed) {
-                menu.armed = true;
-                p.playSound(p.getLocation(), Sound.UI_BUTTON_CLICK, 0.5f, 0.8f);
-                render(menu, p);
-                return;
+            if (!menu.armed || System.currentTimeMillis() - menu.armedAt < 700) {
+                if (!menu.armed) {
+                    menu.armed = true;
+                    menu.armedAt = System.currentTimeMillis();
+                    p.playSound(p.getLocation(), Sound.UI_BUTTON_CLICK, 0.5f, 0.8f);
+                    render(menu, p);
+                }
+                return; // a fast double-click doesn't count as the second click
             }
             List<String> names = new ArrayList<>();
             for (UUID id : List.copyOf(menu.chosen)) {
@@ -347,6 +353,10 @@ public final class Menus implements Listener {
                 Msg.bar(p, "You already carry " + pet.name + "'s Pet Bloom.", NamedTextColor.GRAY);
                 return;
             }
+        }
+        if (!Blooms.mayHandOut(p, "bloom:" + pet.id)) {
+            Msg.bar(p, "You just took " + pet.name + "'s Pet Bloom. Try again in a minute.", NamedTextColor.GRAY);
+            return;
         }
         PetManager.give(p, Blooms.create(pet));
         p.playSound(p.getLocation(), Sound.ENTITY_ITEM_PICKUP, 0.6f, 1.2f);

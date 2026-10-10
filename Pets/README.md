@@ -24,7 +24,7 @@ One item for all your pets (it looks like a popped chorus fruit).
 | Punch (air, a block or a mob) | Open the pet menu with **all** your pets |
 | Use it on your pet | Ride it |
 
-You keep the toy when you die. If you lose it, right-click any of your pets (or use the menu button or `/pets toy`) for a new one.
+You keep the toy when you die. If you lose it, right-click any of your pets (or use the menu button or `/pets toy`) for a new one, once a minute.
 
 ## The pet menu
 
@@ -84,7 +84,7 @@ Storage grows with level:
 | Mule | Pack | Apple | +30% knockback resistance |
 | Llama | Pack | Hay Bale | Spits at mobs that hit you |
 | Camel | Pack | Cactus | Speed on sand, soul sand and snow |
-| Sniffer | Pack | Torchflower Seeds | Every couple of minutes it sniffs the ground and digs up treasure: armor trim templates (about a third of the time, rare trims less often), torchflower seeds, pitcher pods, flowers. Digging dirt yourself sometimes turns some up too |
+| Sniffer | Pack | Torchflower Seeds | Every few minutes (on dirt, sand or gravel, while you are not AFK) it sniffs the ground and digs up treasure: sometimes an armor trim template (rare trims less often, at most 3 an hour), otherwise torchflower seeds, pitcher pods, seeds or flowers. Digging dirt yourself now and then turns up seeds or flowers too |
 | Horse | Speedster | Sugar | +8% movement speed |
 | Fox | Speedster | Sweet or Glow Berries | Mobs notice you from 25% shorter range |
 | Rabbit | Speedster | Carrot or Dandelion | Jump Boost (II from level 8) |
@@ -149,7 +149,7 @@ Going from level n to n+1 takes 40 + 30×n XP. Each level gives:
 | `/pets rename <new name>` | Rename the pet that's out |
 | `/pets toy` | A new Pet Toy, if you lost yours |
 | `/pets bloom [name]` | A pet's own bloom |
-| `/pets guide` | A copy of the Pet Guide |
+| `/pets guide` | Read the Pet Guide |
 | `/pets release <name>[, <name>...]` | Say goodbye to one or more pets for good (asks you to confirm). What they carry comes back to you |
 | `/pets give <player> <species> [level]` | Admin: give someone a pet |
 | `/pets reload` | Admin: reload `config.yml` |
