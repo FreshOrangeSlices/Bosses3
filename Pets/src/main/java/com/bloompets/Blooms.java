@@ -104,19 +104,64 @@ public final class Blooms {
                 lore.add(line("Shift-click: its storage (while it's out)", NamedTextColor.DARK_GRAY));
             }
         } else {
-            lore.add(line("Right-click: summon / dismiss", NamedTextColor.DARK_GRAY));
+            lore.add(line("Right-click: summon / dismiss " + pet.name, NamedTextColor.DARK_GRAY));
             lore.add(line("Punch: open all your pets", NamedTextColor.DARK_GRAY));
             if (pet.species.rideable()) {
-                lore.add(line("Use it on your pet: ride (level " + (plugin == null ? 3 : plugin.settings().rideUnlockLevel)
-                    + "+)", NamedTextColor.DARK_GRAY));
-            }
-            if (pet.species == Species.VEX) {
-                lore.add(line("Sneak + right-click your pet: its gear", NamedTextColor.DARK_GRAY));
-            } else if (pet.storageSlots() > 0) {
-                lore.add(line("Sneak + right-click your pet: its storage", NamedTextColor.DARK_GRAY));
+                int ride = plugin == null ? 3 : plugin.settings().rideLevel(pet.species);
+                lore.add(line("Use it on your pet: ride" + (ride > 1 ? " (level " + ride + "+)" : ""),
+                    NamedTextColor.DARK_GRAY));
             }
         }
         item.lore(lore);
+    }
+
+    // =====================================================================
+    //  The Pet Toy: one item for all your pets
+    // =====================================================================
+
+    /** The Pet Toy: summons your pet, opens all your pets, lets you ride. Works for whoever holds it. */
+    public static ItemStack toy() {
+        ItemStack item = ItemStack.of(Material.PAPER);
+        item.setData(DataComponentTypes.ITEM_MODEL, Key.key("popped_chorus_fruit"));
+        item.setData(DataComponentTypes.MAX_STACK_SIZE, 1);
+        item.setData(DataComponentTypes.ITEM_NAME, Component.text("Pet Toy", Msg.PINK).decorate(TextDecoration.BOLD));
+        item.lore(List.of(
+            line("Squeaks when you squeeze it.", NamedTextColor.GRAY),
+            Component.empty(),
+            line("Right-click: call your pet / send it home", NamedTextColor.DARK_GRAY),
+            line("Punch: see all your pets and pick one", NamedTextColor.DARK_GRAY),
+            line("Use it on your pet: ride", NamedTextColor.DARK_GRAY),
+            line("Right-click your pet: swap to another", NamedTextColor.DARK_GRAY),
+            line("Sneak + right-click your pet: its bag", NamedTextColor.DARK_GRAY)));
+        item.editPersistentDataContainer(pdc -> pdc.set(Keys.TOY, PersistentDataType.BYTE, (byte) 1));
+        return item;
+    }
+
+    public static boolean isToy(@Nullable ItemStack item) {
+        return item != null && !item.isEmpty() && item.getPersistentDataContainer().has(Keys.TOY);
+    }
+
+    /** A bloom or the toy: never crafted with, traded or lost on death. */
+    public static boolean isPetItem(@Nullable ItemStack item) {
+        return isBloom(item) || isToy(item);
+    }
+
+    public static boolean hasToy(Player p) {
+        for (ItemStack item : p.getInventory().getContents()) {
+            if (isToy(item)) {
+                return true;
+            }
+        }
+        return isToy(p.getItemOnCursor());
+    }
+
+    /** Gives the player a Pet Toy unless they already carry one. True if one was given. */
+    public static boolean giveToyIfMissing(Player p) {
+        if (hasToy(p)) {
+            return false;
+        }
+        PetManager.give(p, toy());
+        return true;
     }
 
     private static Component line(String text, TextColor color) {

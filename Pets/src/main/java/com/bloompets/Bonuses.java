@@ -26,6 +26,7 @@ import org.bukkit.entity.Mob;
 import org.bukkit.entity.Phantom;
 import org.bukkit.entity.Player;
 import org.bukkit.entity.Projectile;
+import org.bukkit.entity.Sniffer;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
@@ -73,6 +74,35 @@ public final class Bonuses implements Listener {
         Material.COARSE_DIRT, Material.ROOTED_DIRT, Material.PODZOL, Material.MYCELIUM, Material.MOSS_BLOCK,
         Material.MUD);
 
+    /** Ground a Sniffer will dig in on its own. */
+    private static final Set<Material> DIGGABLE = EnumSet.of(Material.DIRT, Material.GRASS_BLOCK,
+        Material.COARSE_DIRT, Material.ROOTED_DIRT, Material.PODZOL, Material.MYCELIUM, Material.MOSS_BLOCK,
+        Material.MUD, Material.MUDDY_MANGROVE_ROOTS, Material.SAND, Material.RED_SAND, Material.GRAVEL,
+        Material.CLAY, Material.FARMLAND, Material.DIRT_PATH, Material.SNOW_BLOCK, Material.SOUL_SOIL);
+
+    /** Armor trims a Sniffer can dig up, with how likely each is (common 3, uncommon 2, rare 1). */
+    private static final Map<Material, Integer> TRIMS = new java.util.LinkedHashMap<>();
+    private static final int TRIM_WEIGHT_TOTAL;
+
+    static {
+        for (Material m : List.of(Material.COAST_ARMOR_TRIM_SMITHING_TEMPLATE, Material.DUNE_ARMOR_TRIM_SMITHING_TEMPLATE,
+            Material.WILD_ARMOR_TRIM_SMITHING_TEMPLATE, Material.SENTRY_ARMOR_TRIM_SMITHING_TEMPLATE,
+            Material.RAISER_ARMOR_TRIM_SMITHING_TEMPLATE, Material.HOST_ARMOR_TRIM_SMITHING_TEMPLATE,
+            Material.SHAPER_ARMOR_TRIM_SMITHING_TEMPLATE, Material.WAYFINDER_ARMOR_TRIM_SMITHING_TEMPLATE)) {
+            TRIMS.put(m, 3);
+        }
+        for (Material m : List.of(Material.VEX_ARMOR_TRIM_SMITHING_TEMPLATE, Material.TIDE_ARMOR_TRIM_SMITHING_TEMPLATE,
+            Material.SNOUT_ARMOR_TRIM_SMITHING_TEMPLATE, Material.RIB_ARMOR_TRIM_SMITHING_TEMPLATE,
+            Material.BOLT_ARMOR_TRIM_SMITHING_TEMPLATE, Material.FLOW_ARMOR_TRIM_SMITHING_TEMPLATE)) {
+            TRIMS.put(m, 2);
+        }
+        for (Material m : List.of(Material.WARD_ARMOR_TRIM_SMITHING_TEMPLATE, Material.EYE_ARMOR_TRIM_SMITHING_TEMPLATE,
+            Material.SILENCE_ARMOR_TRIM_SMITHING_TEMPLATE, Material.SPIRE_ARMOR_TRIM_SMITHING_TEMPLATE)) {
+            TRIMS.put(m, 1);
+        }
+        TRIM_WEIGHT_TOTAL = TRIMS.values().stream().mapToInt(Integer::intValue).sum();
+    }
+
     private static final Set<Material> EXTRA_CROPS = EnumSet.of(Material.SWEET_BERRY_BUSH, Material.NETHER_WART,
         Material.COCOA);
 
@@ -85,6 +115,7 @@ public final class Bonuses implements Listener {
     private final Map<UUID, Long> cowReady = new HashMap<>();
     private final Map<UUID, Long> llamaReady = new HashMap<>();
     private final Map<UUID, Long> sniffReady = new HashMap<>();
+    private final Map<UUID, Long> sniffNext = new HashMap<>();
     private final Map<UUID, Long> wentToBed = new HashMap<>();
     private final Map<UUID, Location> pandaSpot = new HashMap<>();
     private final Map<UUID, Integer> pandaStill = new HashMap<>();
@@ -193,6 +224,12 @@ public final class Bonuses implements Listener {
                 case CHICKEN -> {
                     if (p.getFallDistance() > 4 && !p.isGliding() && !p.isFlying() && !p.isInsideVehicle()) {
                         effect(p, PotionEffectType.SLOW_FALLING, 0);
+                    }
+                }
+                case SNIFFER -> {
+                    if (now >= sniffNext.computeIfAbsent(p.getUniqueId(), k -> now + sniffGap(pw))) {
+                        sniffNext.put(p.getUniqueId(), now + sniffGap(pw));
+                        dig(p, a);
                     }
                 }
                 default -> {
@@ -428,13 +465,8 @@ public final class Bonuses implements Listener {
                     }
                 }
             }
-            case OCELOT -> {
-                if (mob instanceof Creeper && noticed) {
-                    event.setCancelled(true);
-                }
-            }
-            case CAT -> {
-                if (mob instanceof Phantom) {
+            case CAT, OCELOT -> {
+                if ((mob instanceof Creeper && noticed) || mob instanceof Phantom) {
                     event.setCancelled(true);
                 }
             }
@@ -475,19 +507,91 @@ public final class Bonuses implements Listener {
         Location at = event.getBlock().getLocation().add(0.5, 0.5, 0.5);
         at.getWorld().dropItemNaturally(at, ItemStack.of(found));
         a.entity.getWorld().playSound(a.entity.getLocation(), Sound.ENTITY_SNIFFER_HAPPY, 0.8f, 1f);
-        Msg.bar(p, Component.text(a.pet.name + " sniffed out ", NamedTextColor.GREEN)
+        announceFind(p, a.pet, found);
+    }
+
+    /** Two and a half minutes between digs at level 1, a little under two at level 10. */
+    private static long sniffGap(double pw) {
+        return (long) (150_000 / pw);
+    }
+
+    /**
+     * The Sniffer stops, sniffs the ground, digs, and pops up with a find (its own animation plays). Only on
+     * ground it could dig in, and only while you're nearby.
+     */
+    private void dig(Player p, PetManager.Active a) {
+        Mob m = a.entity;
+        if (!(m instanceof Sniffer sniffer) || !m.isOnGround() || plugin.rides().isRidden(a)
+            || m.getWorld() != p.getWorld() || m.getLocation().distanceSquared(p.getLocation()) > 12 * 12
+            || !DIGGABLE.contains(m.getLocation().add(0, -0.5, 0).getBlock().getType())) {
+            return;
+        }
+        a.pausedUntil = System.currentTimeMillis() + 8000;
+        sniffer.setState(Sniffer.State.SNIFFING); // plays its own sniffing sound
+        Bukkit.getScheduler().runTaskLater(plugin, () -> {
+            if (plugin.pets().of(m) != a) {
+                return;
+            }
+            sniffer.setState(Sniffer.State.DIGGING);
+            m.getWorld().playSound(m.getLocation(), Sound.ENTITY_SNIFFER_DIGGING, 1f, 1f);
+        }, 40L);
+        Bukkit.getScheduler().runTaskLater(plugin, () -> {
+            if (plugin.pets().of(m) != a) {
+                return;
+            }
+            sniffer.setState(Sniffer.State.RISING);
+            Material found = sniff(ThreadLocalRandom.current());
+            double yaw = Math.toRadians(m.getLocation().getYaw());
+            Location front = m.getLocation().add(-Math.sin(yaw) * 1.6, 0.4, Math.cos(yaw) * 1.6);
+            m.getWorld().dropItemNaturally(front, ItemStack.of(found));
+            m.getWorld().playSound(m.getLocation(), Sound.ENTITY_SNIFFER_DROP_SEED, 1f, 1f);
+            m.getWorld().spawnParticle(Particle.HAPPY_VILLAGER, front, 8, 0.3, 0.3, 0.3, 0);
+            Player owner = Bukkit.getPlayer(a.owner);
+            if (owner != null) {
+                announceFind(owner, a.pet, found);
+            }
+        }, 130L);
+        Bukkit.getScheduler().runTaskLater(plugin, () -> {
+            if (m.isValid()) {
+                sniffer.setState(Sniffer.State.IDLING);
+            }
+            a.pausedUntil = 0;
+        }, 160L);
+    }
+
+    private static void announceFind(Player p, Pet pet, Material found) {
+        String name = found.name();
+        if (name.endsWith("_ARMOR_TRIM_SMITHING_TEMPLATE")) {
+            String trim = name.substring(0, name.indexOf("_ARMOR_TRIM"));
+            String pretty = trim.charAt(0) + trim.substring(1).toLowerCase(java.util.Locale.ROOT) + " Armor Trim";
+            Msg.chat(p, Component.text(pet.name + " dug up something special: ", Msg.PINK)
+                .append(Component.text(pretty + "!", NamedTextColor.GOLD)));
+            p.playSound(p.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 0.6f, 1.8f);
+            return;
+        }
+        Msg.bar(p, Component.text(pet.name + " sniffed out ", NamedTextColor.GREEN)
             .append(Component.translatable(found, NamedTextColor.GREEN)).append(Component.text("!", NamedTextColor.GREEN)));
     }
 
+    /** What a Sniffer digs up: armor trims a third of the time (rarer trims less often), else seeds and flowers. */
     private static Material sniff(ThreadLocalRandom r) {
         double roll = r.nextDouble();
-        if (roll < 0.25) {
+        if (roll < 0.35) {
+            int pick = r.nextInt(TRIM_WEIGHT_TOTAL);
+            for (Map.Entry<Material, Integer> trim : TRIMS.entrySet()) {
+                pick -= trim.getValue();
+                if (pick < 0) {
+                    return trim.getKey();
+                }
+            }
+        }
+        if (roll < 0.55) {
             return Material.TORCHFLOWER_SEEDS;
         }
-        if (roll < 0.45) {
+        if (roll < 0.70) {
             return Material.PITCHER_POD;
         }
-        if (roll < 0.80) {
+        if (roll < 0.85) {
             Material[] seeds = {Material.WHEAT_SEEDS, Material.BEETROOT_SEEDS, Material.PUMPKIN_SEEDS,
                 Material.MELON_SEEDS};
             return seeds[r.nextInt(seeds.length)];
@@ -511,7 +615,7 @@ public final class Bonuses implements Listener {
         Long since = wentToBed.remove(p.getUniqueId());
         PetManager.Active a = outFor(p);
         // the night was actually skipped (the clock jumped ahead), not just in and out of bed
-        if (a == null || a.pet.species != Species.CAT || since == null
+        if (a == null || (a.pet.species != Species.CAT && a.pet.species != Species.OCELOT) || since == null
             || p.getWorld().getFullTime() - since < 1000) {
             return;
         }
@@ -538,5 +642,7 @@ public final class Bonuses implements Listener {
         pandaStill.remove(id);
         llamaReady.remove(id);
         wentToBed.remove(id);
+        sniffNext.remove(id);
+        sniffReady.remove(id);
     }
 }

@@ -88,6 +88,11 @@ public final class PetManager {
         long lastFeed;
         boolean fainting;
         int ticks;
+        /** The pet stays put until then (the Sniffer digging something up). */
+        public long pausedUntil;
+        // flyers: whether the owner is standing still
+        @Nullable Location ownerLast;
+        int ownerStill;
         // walking
         @Nullable List<Location> path;
         int pathIndex;
@@ -161,6 +166,22 @@ public final class PetManager {
         }
     }
 
+    /** The Pet Toy: sends your pet home, or calls the one you had out last (or opens the menu to pick one). */
+    public void toggleLast(Player owner) {
+        if (byOwner.containsKey(owner.getUniqueId())) {
+            dismiss(owner, true);
+            return;
+        }
+        Pet last = plugin.store().last(owner.getUniqueId());
+        if (last != null) {
+            summon(owner, last, true);
+        } else if (plugin.store().pets(owner.getUniqueId()).isEmpty()) {
+            Msg.bar(owner, "No pets yet! Sneak + feed an animal its favourite food to make a friend.", Msg.PINK);
+        } else {
+            plugin.menus().openPets(owner);
+        }
+    }
+
     public boolean summon(Player owner, Pet pet, boolean announce) {
         long now = System.currentTimeMillis();
         if (!plugin.settings().enabled.contains(pet.species)) {
@@ -191,6 +212,7 @@ public final class PetManager {
             return false;
         }
         track(owner, pet, mob);
+        plugin.store().setLast(pet);
         if (announce) {
             Msg.bar(owner, Component.text(pet.name + " is here!", pet.species.category().color()));
             Location at = mob.getLocation().add(0, mob.getHeight() / 2, 0);
@@ -387,14 +409,16 @@ public final class PetManager {
         pdc.set(Keys.OWNER, PersistentDataType.STRING, pet.owner.toString());
     }
 
-    /** Behind the owner if there's room, otherwise right where they stand. Flyers appear at shoulder height. */
+    /** Behind the owner if there's room, otherwise right where they stand. Flyers appear beside their head. */
     private static Location spawnSpot(Player owner, Species species) {
         Location base = owner.getLocation();
         double yaw = Math.toRadians(base.getYaw());
-        Location behind = base.clone().add(Math.sin(yaw) * 1.5, 0, -Math.cos(yaw) * 1.5);
         if (species.flies()) {
-            return behind.add(0, 1.2, 0);
+            // beside your head, a little in front, where you can see (and reach) it
+            return owner.getEyeLocation().add(-Math.cos(yaw) * 0.9 - Math.sin(yaw) * 0.6, 0.1,
+                -Math.sin(yaw) * 0.9 + Math.cos(yaw) * 0.6);
         }
+        Location behind = base.clone().add(Math.sin(yaw) * 1.5, 0, -Math.cos(yaw) * 1.5);
         Block feet = behind.getBlock();
         boolean room = feet.isPassable() && !feet.isLiquid() && feet.getRelative(BlockFace.UP).isPassable()
             && !feet.getRelative(BlockFace.DOWN).isPassable();
@@ -469,8 +493,12 @@ public final class PetManager {
     /** Level-based stats: a little more health each level, and the category's step height. */
     void applyStats(Active a) {
         Mob m = a.entity;
-        setModifier(m, Attribute.MAX_HEALTH, Keys.MOD_LEVEL, 0.04 * (a.pet.level - 1),
-            AttributeModifier.Operation.MULTIPLY_SCALAR_1);
+        AttributeInstance health = m.getAttribute(Attribute.MAX_HEALTH);
+        if (health != null) {
+            double base = health.getBaseValue();
+            setModifier(m, Attribute.MAX_HEALTH, Keys.MOD_LEVEL,
+                targetHealth(a.pet.species, base, a.pet.level) - base, AttributeModifier.Operation.ADD_NUMBER);
+        }
         AttributeInstance step = m.getAttribute(Attribute.STEP_HEIGHT);
         if (step != null) {
             setModifier(m, Attribute.STEP_HEIGHT, Keys.MOD_STEP,
@@ -480,6 +508,16 @@ public final class PetManager {
         if (m.getHealth() > maxHealth(m)) {
             m.setHealth(maxHealth(m));
         }
+    }
+
+    /**
+     * Max health at a level: never below a floor that rises from 10 to 20 (combat pets: 20 to 40) by level 10,
+     * and sturdier animals (an Iron Golem, a Camel) keep their own health plus 2% a level.
+     */
+    static double targetHealth(Species species, double base, int level) {
+        double t = (level - 1) / (double) (Pet.MAX_LEVEL - 1);
+        double floor = species.combat() ? 20 + 20 * t : 10 + 10 * t;
+        return Math.max(base * (1 + 0.02 * (level - 1)), floor);
     }
 
     static void setModifier(LivingEntity e, Attribute attribute, NamespacedKey key, double amount,
@@ -666,6 +704,7 @@ public final class PetManager {
             name = Blooms.freshName(plugin.store(), p.getUniqueId());
         }
         Pet pet = new Pet(UUID.randomUUID(), p.getUniqueId(), species, name, style);
+        boolean first = plugin.store().pets(p.getUniqueId()).isEmpty();
         plugin.store().add(pet);
 
         Active current = byOwner.get(p.getUniqueId());
@@ -678,7 +717,11 @@ public final class PetManager {
         }
         mark(mob, pet);
         track(p, pet, mob);
-        give(p, Blooms.create(pet));
+        plugin.store().setLast(pet);
+        boolean gotToy = Blooms.giveToyIfMissing(p);
+        if (first) {
+            give(p, Guide.book());
+        }
 
         mob.getWorld().spawnParticle(Particle.HEART, mob.getLocation().add(0, mob.getHeight() + 0.3, 0), 7,
             0.4, 0.3, 0.4, 0);
@@ -688,8 +731,10 @@ public final class PetManager {
             Title.Times.times(Duration.ofMillis(200), Duration.ofMillis(2200), Duration.ofMillis(600))));
         Msg.chat(p, Component.text("You bonded with a " + species.displayName() + "! Say hi to " + name + ".",
             Msg.PINK));
-        Msg.chat(p, Component.text("Its Pet Bloom is in your inventory: right-click it to summon or dismiss "
-            + name + ", punch with it to see all your pets.", NamedTextColor.GRAY));
+        Msg.chat(p, Component.text((gotToy ? "Here's a Pet Toy: right-click it to call your pet or send it home, "
+            + "punch with it to see all your pets, use it on your pet to ride. " : "")
+            + (first ? "There's a little guide book in your bag too!" : "Punch with your Pet Toy to see "
+            + name + " with your other pets."), NamedTextColor.GRAY));
         if (style == Pet.RideStyle.GROW) {
             Msg.chat(p, Component.text("When you ride " + name + ", it grows big enough to carry you.",
                 NamedTextColor.GRAY));
@@ -821,9 +866,9 @@ public final class PetManager {
         }
         if (owner != null) {
             List<String> perks = new ArrayList<>();
-            int ride = plugin.settings().rideUnlockLevel;
+            int ride = plugin.settings().rideLevel(pet.species);
             if (pet.species.rideable() && before < ride && pet.level >= ride) {
-                perks.add("you can ride it now (use its Pet Bloom on it)");
+                perks.add("you can ride it now (use your Pet Toy on it)");
             }
             int oldSlots = pet.species.storage().slots(before);
             if (pet.storageSlots() > oldSlots) {
@@ -1056,7 +1101,7 @@ public final class PetManager {
             return;
         }
         double stop = target != null ? reach(m, target) * 0.8 : 2.2 + m.getWidth() / 2;
-        if (flat <= stop && Math.abs(dy) < 2.5) {
+        if ((flat <= stop && Math.abs(dy) < 2.5) || System.currentTimeMillis() < a.pausedUntil) {
             a.path = null;
             a.stuck = 0;
             a.lastPos = null;
@@ -1085,8 +1130,9 @@ public final class PetManager {
         }
         double vy = m.getVelocity().getY();
         if (m.isInWater()) {
-            vx *= 0.7;
-            vz *= 0.7;
+            double swim = pet.species.swims() ? 1.6 : 0.7;
+            vx *= swim;
+            vz *= swim;
             vy = dy > -1 ? 0.1 : vy; // swim up, unless you went diving
         }
         // stuck against something: hop, and in the end just come over
@@ -1110,6 +1156,7 @@ public final class PetManager {
             vy = 0.42 + 0.1 * Math.max(0, pet.species.category().stepHeight() - 1);
         } else if (pet.species == Species.RABBIT && m.isOnGround() && Math.abs(vx) + Math.abs(vz) > 0.01) {
             vy = 0.3; // rabbits hop
+            m.playEffect(EntityEffect.RABBIT_JUMP);
         }
         m.setVelocity(new Vector(vx, vy, vz));
         if (Math.abs(vx) + Math.abs(vz) > 0.001) {
@@ -1149,16 +1196,32 @@ public final class PetManager {
     private void fly(Active a, Player owner, @Nullable LivingEntity target) {
         Mob m = a.entity;
         Location pos = m.getLocation();
+        Location o = owner.getLocation();
+        boolean ownerMoving = a.ownerLast == null || a.ownerLast.getWorld() != o.getWorld()
+            || a.ownerLast.distanceSquared(o) > 0.0016;
+        a.ownerLast = o;
+        a.ownerStill = ownerMoving ? 0 : a.ownerStill + 1;
         Location goal;
         if (target != null) {
             goal = target.getLocation().add(0, target.getHeight() * 0.5, 0);
         } else {
-            // beside your shoulder, a little to the right and behind
-            Location o = owner.getLocation();
+            Location eye = owner.getEyeLocation();
+            double near = pos.getWorld() == eye.getWorld() ? pos.distance(eye) : Double.MAX_VALUE;
+            if ((a.ownerStill > 8 && near < 5 && near > 0.8) || System.currentTimeMillis() < a.pausedUntil) {
+                // you're standing still: it hovers right where it is (easy to reach), bobbing a little
+                m.setVelocity(new Vector(0, Math.cos(a.ticks / 10.0) * 0.02, 0));
+                if (a.ticks % 5 == 0) {
+                    face(m, yaw(eye.getX() - pos.getX(), eye.getZ() - pos.getZ()));
+                }
+                a.stuck = 0;
+                a.lastPos = pos;
+                return;
+            }
+            // on the move: it flits beside your head, a little ahead of you, like a fairy
             double yaw = Math.toRadians(o.getYaw());
-            goal = o.clone().add(-Math.cos(yaw) * 1.1 + Math.sin(yaw) * 0.7,
-                1.5 + Math.sin(a.ticks / 12.0) * 0.12,
-                -Math.sin(yaw) * 1.1 - Math.cos(yaw) * 0.7);
+            goal = eye.clone().add(-Math.cos(yaw) * 0.9 - Math.sin(yaw) * 0.4,
+                0.15 + Math.sin(a.ticks / 9.0) * 0.15,
+                -Math.sin(yaw) * 0.9 + Math.cos(yaw) * 0.4);
         }
         Vector d = goal.toVector().subtract(pos.toVector());
         double len = d.length();
@@ -1174,10 +1237,10 @@ public final class PetManager {
             a.stuck = 0;
             return;
         }
-        double max = (target != null ? 0.5 : 0.45) * (1 + 0.02 * (a.pet.level - 1));
-        double speed = Math.min(max, len * 0.2);
+        double max = 0.5 * (1 + 0.02 * (a.pet.level - 1));
+        double speed = Math.min(max, len * 0.3);
         m.setVelocity(d.multiply(speed / len));
-        face(m, len > 1.5 ? yaw(d.getX(), d.getZ()) : owner.getLocation().getYaw());
+        face(m, len > 1.5 ? yaw(d.getX(), d.getZ()) : o.getYaw());
         // Bees and Allays can get stuck behind walls (the Vex flies through them)
         if (a.lastPos != null && a.lastPos.getWorld() == pos.getWorld() && len > 2
             && a.lastPos.distanceSquared(pos) < 0.0025) {

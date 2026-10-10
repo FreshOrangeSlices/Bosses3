@@ -43,7 +43,7 @@ public enum Species {
     CAMEL(EntityType.CAMEL, Category.PACK, "Camel", of(Material.CACTUS), "sunflower", Storage.PACK, 0, 0,
         "Desert Stride: Speed on sand, soul sand and snow"),
     SNIFFER(EntityType.SNIFFER, Category.PACK, "Sniffer", of(Material.TORCHFLOWER_SEEDS), "pitcher_plant",
-        Storage.PACK, 0, 0, "Treasure Nose: digging dirt sometimes turns up seeds and rare flowers"),
+        Storage.PACK, 0, 0, "Treasure Nose: now and then it digs up buried treasure, armor trims included"),
 
     // ---- Speedsters: fastest, good jump ----
     HORSE(EntityType.HORSE, Category.SPEEDSTER, "Horse", of(Material.SUGAR), "lilac", Storage.MEDIUM, 0, 0,
@@ -53,13 +53,13 @@ public enum Species {
     RABBIT(EntityType.RABBIT, Category.SPEEDSTER, "Rabbit", of(Material.CARROT, Material.DANDELION), "pink_tulip",
         Storage.SMALL, 3.0, 0, "Spring: Jump Boost"),
     OCELOT(EntityType.OCELOT, Category.SPEEDSTER, "Ocelot", of(Material.TROPICAL_FISH), "orange_tulip", Storage.SMALL,
-        2.4, 0, "Hunter's Hush: creepers won't come for you"),
+        2.4, 0, "Night Watch: creepers and phantoms keep away, and you wake up to little gifts"),
     STRIDER(EntityType.STRIDER, Category.SPEEDSTER, "Strider", of(Material.WARPED_FUNGUS), "crimson_fungus",
         Storage.MEDIUM, 0, 0, "Lava-born: Fire Resistance in the Nether, and it walks on lava"),
 
     // ---- Utility: about their bonus ----
     CAT(EntityType.CAT, Category.UTILITY, "Cat", of(Material.COD, Material.COOKED_COD), "red_tulip", Storage.SMALL, 2.4,
-        0, "Night Watch: phantoms leave you alone, and you wake up to a small gift"),
+        0, "Night Watch: creepers and phantoms keep away, and you wake up to little gifts"),
     BEE(EntityType.BEE, Category.UTILITY, "Bee", m -> Tag.FLOWERS.isTagged(m), "dandelion", Storage.SMALL, 2.6, 0,
         "Pollinator: crops near you grow faster"),
     ALLAY(EntityType.ALLAY, Category.UTILITY, "Allay", of(Material.AMETHYST_SHARD), "blue_orchid", Storage.SMALL, 3.0,
@@ -195,6 +195,11 @@ public enum Species {
     /** Bees and Allays hover a few blocks up when ridden; the Vex flies on its own. */
     public boolean hovers() {
         return this == BEE || this == ALLAY;
+    }
+
+    /** Turtles and Frogs are quick in water, following or ridden. */
+    public boolean swims() {
+        return this == TURTLE || this == FROG;
     }
 
     public boolean flies() {

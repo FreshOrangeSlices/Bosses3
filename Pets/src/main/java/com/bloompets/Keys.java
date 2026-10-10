@@ -13,6 +13,7 @@ public final class Keys {
     public static NamespacedKey BOND;         // string "<player uuid>:<feedings>", on a wild mob being tamed
     public static NamespacedKey BLOOM;        // string, pet id, on a Pet Bloom item
     public static NamespacedKey BLOOM_OWNER;  // string, owner uuid, on a Pet Bloom item
+    public static NamespacedKey TOY;          // byte, on the Pet Toy item
     public static NamespacedKey MOD_LEVEL;
     public static NamespacedKey MOD_STEP;
     public static NamespacedKey MOD_RIDE_SCALE;
@@ -27,6 +28,7 @@ public final class Keys {
         BOND = new NamespacedKey(plugin, "bond");
         BLOOM = new NamespacedKey(plugin, "bloom");
         BLOOM_OWNER = new NamespacedKey(plugin, "bloom_owner");
+        TOY = new NamespacedKey(plugin, "toy");
         MOD_LEVEL = new NamespacedKey(plugin, "pet_level");
         MOD_STEP = new NamespacedKey(plugin, "pet_step");
         MOD_RIDE_SCALE = new NamespacedKey(plugin, "ride_scale");

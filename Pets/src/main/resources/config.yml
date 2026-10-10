@@ -49,7 +49,11 @@ feeding:
   heal-percent: 25  # feeding your pet its food heals it this much
 
 riding:
-  unlock-level: 3          # pets can be ridden from this level
+  unlock-level: 3          # pets can be ridden from this level...
+  ride-from-start:         # ...except these, which can be ridden right away
+    - cat
+    - wolf
+    - rabbit
   hover-height: 3          # Bees and Allays hover at most this many blocks up
   smallest-rider-scale: 0.3
 
