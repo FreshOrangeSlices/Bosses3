@@ -1,6 +1,6 @@
 # BloomPets
 
-A pet plugin for Paper 26.3 (Java 25). Bond with an animal by feeding it, then summon it with its **Pet Bloom**, ride it, keep things in its storage and level it up to 10. It's a separate plugin from Additional Bosses, but the two know about each other (see the end of this file).
+A pet plugin for Paper 26.3 (Java 25). Bond with an animal by feeding it, then call it with your **Pet Toy**, ride it, keep things in its storage and level it up to 10. It's a separate plugin from Additional Bosses, but the two know about each other (see the end of this file).
 
 ## Getting a pet
 
@@ -11,23 +11,30 @@ Feeding without sneaking still breeds animals as usual.
 When an animal bonds with you:
 
 - it gets a cute name (or keeps the name tag it already had);
-- you get its **Pet Bloom**, a flower in its category's colour.
+- you get a **Pet Toy** if you don't have one yet;
+- with your very first pet, you also get the **Pet Guide**, a picture book of every pet and its favourite food.
 
-## The Pet Bloom
+## The Pet Toy
+
+One item for all your pets (it looks like a popped chorus fruit).
 
 | Do this | What happens |
 |---|---|
-| Right-click (air or ground) | Summon or dismiss that pet |
-| Punch (air, a block or a mob) | Open **all** your pets in one menu, so you only need one bloom |
-| Use it on your pet | Ride it (from level 3) |
+| Right-click (air or ground) | Call the pet you had out last, or send it home |
+| Punch (air, a block or a mob) | Open the pet menu with **all** your pets |
+| Use it on your pet | Ride it |
 
-A bloom only works for its owner. You keep your blooms when you die. A lost bloom is easy to get back: right-click the pet in the menu, or use `/pets bloom`.
+You keep the toy when you die. If you lose it, right-click any of your pets (or use the menu button or `/pets toy`) for a new one, once a minute.
 
-The pet menu holds all your pets (up to 27 by default):
+## The pet menu
 
-- **Left-click** a pet to summon or dismiss it.
-- **Right-click** a pet to take its bloom.
+Holds all your pets (up to 27 by default), each shown as its own flower.
+
+- **Left-click** a pet to summon it (it swaps with the one that's out) or send it home.
 - **Shift-click** a pet to open its storage while it's out.
+- **Right-click** a pet to take its **Pet Bloom**: an optional flower that calls just that pet. Blooms only work for their owner, and you keep them when you die.
+- **The book** opens the Pet Guide.
+- **Release pets...** lets you pick any number of pets and say goodbye to all of them at once (it asks twice). Anything they carry comes back to you.
 
 ## Your pet
 
@@ -37,14 +44,16 @@ Right-click your pet with:
 
 - **Its food:** heals it by 25%. At most every 30 seconds this also gives bond XP.
 - **A name tag:** renames it.
-- **Its bloom:** ride it.
-- **Anything else:** sends it back into its bloom.
+- **Your Pet Toy (or its bloom):** ride it.
+- **Anything else:** opens the pet menu, to swap to another pet.
 
 Sneak + right-click your pet to open its storage (or the Vex's gear).
 
-Pets never die. When one runs out of health it **faints**, goes back into its bloom and rests for 60 seconds. It comes back with half its health.
+Bees, Allays and the Vex flit beside your head while you walk, and stop and hover where they are when you stand still, so they're easy to reach.
 
-Pets can't be hurt by you, by other players (configurable), by falling or by suffocating. They never hurt players, can't be bred, leashed or stolen, and are never saved into the world: they live in the bloom.
+Pets never die. When one runs out of health it **faints**, goes home and rests for 60 seconds. It comes back with half its health.
+
+Pets can't be hurt by you, by other players (configurable), by falling or by suffocating. They never hurt players, can't be bred, leashed or stolen, and are never saved into the world: they live with you, not in the world.
 
 ## Categories
 
@@ -75,13 +84,13 @@ Storage grows with level:
 | Mule | Pack | Apple | +30% knockback resistance |
 | Llama | Pack | Hay Bale | Spits at mobs that hit you |
 | Camel | Pack | Cactus | Speed on sand, soul sand and snow |
-| Sniffer | Pack | Torchflower Seeds | Digging dirt sometimes turns up seeds and rare flowers |
+| Sniffer | Pack | Torchflower Seeds | Every few minutes (on dirt, sand or gravel, while you are not AFK) it sniffs the ground and digs up treasure: sometimes an armor trim template (rare trims less often, at most 3 an hour), otherwise torchflower seeds, pitcher pods, seeds or flowers. Digging dirt yourself now and then turns up seeds or flowers too |
 | Horse | Speedster | Sugar | +8% movement speed |
 | Fox | Speedster | Sweet or Glow Berries | Mobs notice you from 25% shorter range |
 | Rabbit | Speedster | Carrot or Dandelion | Jump Boost (II from level 8) |
-| Ocelot | Speedster | Tropical Fish | Creepers won't come for you |
+| Ocelot | Speedster | Tropical Fish | Creepers and phantoms leave you alone, and you often wake up to a gift (same as the Cat) |
 | Strider | Speedster | Warped Fungus | Fire Resistance in the Nether |
-| Cat | Utility | Cod | Phantoms leave you alone, and you often wake up to a gift |
+| Cat | Utility | Cod | Creepers and phantoms leave you alone, and you often wake up to a gift (same as the Ocelot) |
 | Bee | Utility | Any flower | Crops around you grow faster |
 | Allay | Utility | Amethyst Shard | Pulls nearby drops to you and bottles loose XP into its storage |
 | Chicken | Utility | Seeds | You glide down long drops |
@@ -102,10 +111,14 @@ Every species can be turned off in `config.yml`.
 
 ## Riding
 
-Pets can be ridden from level 3. Use the pet's bloom on it to get on, steer with WASD, jump with space, sprint for a little extra speed, and sneak to get off. You don't need a saddle.
+**Cats, Wolves and Rabbits** can be ridden right away; every other pet from level 3. Use your Pet Toy on the pet to get on, steer with WASD, jump with space, sprint for a little extra speed, and sneak to get off. You don't need a saddle.
+
+Landings are soft, like on a horse: only half the fall counts, so ordinary jumps never hurt (also for a few seconds after you get off).
 
 - **Small pets** (Fox, Rabbit, Ocelot, Cat, Bee, Allay, Chicken, Turtle, Armadillo, Frog) either **grow** big enough to carry you, or **shrink you** to their size. This is decided once, at random, when you bond, and stays the same for that pet.
 - **Bees and Allays hover.** Hold jump to rise (3 blocks at most); let go to drift gently down.
+- **Turtles and Frogs swim** as fast as a boat. Look down to dive and up to rise, or hold jump to come up.
+- **Rabbits hop** along as they go.
 
 ## Levels
 
@@ -121,7 +134,7 @@ Level 1 to 10. Bond XP comes from:
 
 Going from level n to n+1 takes 40 + 30×n XP. Each level gives:
 
-- a little more health;
+- more health: every pet reaches at least 20 at level 10 (combat pets 40), and sturdier ones like the Iron Golem keep their own, plus a little;
 - a slightly stronger bonus;
 - slightly better riding speed and jump;
 - more storage at some levels.
@@ -131,11 +144,13 @@ Going from level n to n+1 takes 40 + 30×n XP. Each level gives:
 | Command | |
 |---|---|
 | `/pets` | Open your pets |
-| `/pets summon <name>`, `/pets dismiss` | Summon or dismiss without a bloom |
+| `/pets summon <name>`, `/pets dismiss` | Summon or dismiss by name |
 | `/pets list` | All your pets with their levels |
 | `/pets rename <new name>` | Rename the pet that's out |
-| `/pets bloom [name]` | Get a pet's bloom back |
-| `/pets release <name>` | Say goodbye for good (asks you to confirm). Its storage comes back to you |
+| `/pets toy` | A new Pet Toy, if you lost yours |
+| `/pets bloom [name]` | A pet's own bloom |
+| `/pets guide` | Read the Pet Guide |
+| `/pets release <name>[, <name>...]` | Say goodbye to one or more pets for good (asks you to confirm). What they carry comes back to you |
 | `/pets give <player> <species> [level]` | Admin: give someone a pet |
 | `/pets reload` | Admin: reload `config.yml` |
 
@@ -154,7 +169,7 @@ Permissions:
 - which species can be pets;
 - how many feedings each one takes;
 - healing from food;
-- the riding level and hover height;
+- the riding level, which pets can be ridden right away, and the hover height;
 - fainting and rest time;
 - bond XP amounts;
 - whether other players can hurt your pets;

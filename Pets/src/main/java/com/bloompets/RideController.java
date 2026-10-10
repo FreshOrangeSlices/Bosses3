@@ -1,6 +1,7 @@
 package com.bloompets;
 
 import org.bukkit.Bukkit;
+import org.bukkit.EntityEffect;
 import org.bukkit.Input;
 import org.bukkit.Location;
 import org.bukkit.attribute.Attribute;
@@ -12,6 +13,7 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
+import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.event.entity.EntityDismountEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.util.Vector;
@@ -50,6 +52,8 @@ public final class RideController implements Listener {
 
     private final BloomPets plugin;
     private final Map<UUID, Ride> rides = new HashMap<>();
+    /** Players who just got off a pet: their landing is forgiving for a moment. */
+    private final Map<UUID, Long> softLanding = new HashMap<>();
     private boolean mounting;
 
     public RideController(BloomPets plugin) {
@@ -77,8 +81,9 @@ public final class RideController implements Listener {
             Msg.error(p, pet.species.plural() + " can't be ridden.");
             return;
         }
-        if (pet.level < s.rideUnlockLevel) {
-            Msg.error(p, pet.name + " can be ridden from level " + s.rideUnlockLevel + " (now level " + pet.level + ").");
+        int rideLevel = s.rideLevel(pet.species);
+        if (pet.level < rideLevel) {
+            Msg.error(p, pet.name + " can be ridden from level " + rideLevel + " (now level " + pet.level + ").");
             return;
         }
         if (p.isInsideVehicle() || !a.entity.getPassengers().isEmpty() || plugin.pets().fainting(a)) {
@@ -122,6 +127,7 @@ public final class RideController implements Listener {
 
     private void end(Ride r, boolean dismount) {
         rides.remove(r.rider);
+        softLanding.put(r.rider, System.currentTimeMillis() + 1200); // just the hop down, not a long fall
         Mob m = r.active.entity;
         Player p = Bukkit.getPlayer(r.rider);
         if (p != null) {
@@ -165,17 +171,27 @@ public final class RideController implements Listener {
         // forward is (-sin, cos); right is (-cos, -sin)
         double mx = -Math.sin(yaw) * forward - Math.cos(yaw) * strafe;
         double mz = Math.cos(yaw) * forward - Math.sin(yaw) * strafe;
-        double len = Math.sqrt(mx * mx + mz * mz);
 
         double speed = cat.rideSpeed() * (1 + 0.02 * (pet.level - 1));
         if (in.isSprint() && forward > 0) {
             speed *= cat == Category.SPEEDSTER ? 1.25 : 1.15;
         }
-        boolean water = m.isInWater() && sp != Species.TURTLE && sp != Species.FROG;
+        boolean swimming = sp.swims() && m.isInWater();
+        boolean water = m.isInWater() && !swimming;
         if (water) {
             speed *= 0.6;
         }
+        double pitch = Math.toRadians(p.getLocation().getPitch());
+        if (swimming) {
+            // as quick as a boat, and you steer up and down by looking
+            speed = (sp == Species.TURTLE ? 0.42 : 0.38) * (1 + 0.02 * (pet.level - 1)) * (in.isSprint() ? 1.15 : 1);
+            if (forward > 0) {
+                mx *= Math.cos(pitch);
+                mz *= Math.cos(pitch);
+            }
+        }
 
+        double len = Math.sqrt(mx * mx + mz * mz);
         Vector v = m.getVelocity();
         double vx;
         double vz;
@@ -197,10 +213,21 @@ public final class RideController implements Listener {
             } else {
                 vy = m.isOnGround() ? 0 : -0.12; // drift down gently
             }
+        } else if (swimming) {
+            vy = forward > 0 ? -Math.sin(pitch) * speed * forward : 0.03; // look down to dive; idle: drift up
+            if (in.isJump()) {
+                vy = Math.max(vy, 0.16);
+            }
         } else if (m.isInWater() || (sp == Species.STRIDER && m.isInLava())) {
             vy = in.isJump() ? 0.14 : (water ? 0.04 : vy);
         } else if (in.isJump() && m.isOnGround()) {
             vy = cat.jumpVelocity() * (1 + 0.01 * (pet.level - 1));
+            if (sp == Species.RABBIT) {
+                m.playEffect(EntityEffect.RABBIT_JUMP);
+            }
+        } else if (sp == Species.RABBIT && m.isOnGround() && len > 0.01) {
+            vy = 0.25; // bunnies hop along
+            m.playEffect(EntityEffect.RABBIT_JUMP);
         }
 
         m.setVelocity(new Vector(vx, vy, vz));
@@ -254,12 +281,34 @@ public final class RideController implements Listener {
         }
     }
 
+    /**
+     * Riders land like they're on a horse: half the fall height counts, so ordinary jumps never hurt and only
+     * big drops do (also for the hop down right after getting off).
+     */
+    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
+    public void onRiderFall(EntityDamageEvent event) {
+        if (event.getCause() != EntityDamageEvent.DamageCause.FALL || !(event.getEntity() instanceof Player p)) {
+            return;
+        }
+        boolean riding = p.getVehicle() != null && Keys.isPet(p.getVehicle());
+        if (!riding && System.currentTimeMillis() > softLanding.getOrDefault(p.getUniqueId(), 0L)) {
+            return;
+        }
+        double damage = Math.ceil(event.getDamage() * 0.5 - 1.5);
+        if (damage <= 0) {
+            event.setCancelled(true);
+        } else {
+            event.setDamage(damage);
+        }
+    }
+
     @EventHandler(priority = EventPriority.LOW)
     public void onQuit(PlayerQuitEvent event) {
         Ride r = rides.get(event.getPlayer().getUniqueId());
         if (r != null) {
             end(r, true);
         }
+        softLanding.remove(event.getPlayer().getUniqueId());
     }
 
     /** Leftover size changes (a crash mid-ride) don't survive: transient modifiers are never saved. */

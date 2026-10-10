@@ -22,11 +22,11 @@ import java.util.UUID;
 public final class PetsCommand implements BasicCommand {
 
     private static final String ADMIN = "bloompets.admin";
-    private static final List<String> PLAYER_SUBS = List.of("summon", "dismiss", "list", "rename", "bloom", "release",
-        "help");
+    private static final List<String> PLAYER_SUBS = List.of("summon", "dismiss", "list", "rename", "toy", "bloom",
+        "guide", "release", "help");
     private static final List<String> ADMIN_SUBS = List.of("give", "reload");
 
-    private record PendingRelease(UUID petId, long until) {
+    private record PendingRelease(List<UUID> petIds, long until) {
     }
 
     private final BloomPets plugin;
@@ -81,6 +81,14 @@ public final class PetsCommand implements BasicCommand {
                 }
             }
             case "release" -> release(p, rest);
+            case "toy" -> {
+                if (Blooms.hasToy(p)) {
+                    Msg.bar(p, "You already have a Pet Toy.", NamedTextColor.GRAY);
+                } else if (Blooms.giveToyIfMissing(p, true)) {
+                    Msg.bar(p, "Here's your Pet Toy!", Msg.PINK);
+                }
+            }
+            case "guide" -> p.openBook(Guide.book());
             default -> help(p);
         }
     }
@@ -141,22 +149,48 @@ public final class PetsCommand implements BasicCommand {
         plugin.pets().rename(p, pet, name);
     }
 
-    private void release(Player p, String name) {
-        Pet pet = find(p, name);
-        if (pet == null) {
+    /** /pets release Mochi, Biscuit, Pebble: several at once, separated by commas. */
+    private void release(Player p, String names) {
+        if (names.isEmpty()) {
+            Msg.chat(p, Component.text("Usage: /pets release <name>[, <name>...] (or use Release pets in /pets)",
+                NamedTextColor.RED));
             return;
+        }
+        List<Pet> pets = new ArrayList<>();
+        for (String name : names.split(",")) {
+            if (name.isBlank()) {
+                continue;
+            }
+            Pet pet = find(p, name.trim());
+            if (pet == null) {
+                return;
+            }
+            if (!pets.contains(pet)) {
+                pets.add(pet);
+            }
+        }
+        if (pets.isEmpty()) {
+            return;
+        }
+        List<UUID> ids = new ArrayList<>();
+        List<String> shown = new ArrayList<>();
+        for (Pet pet : pets) {
+            ids.add(pet.id);
+            shown.add(pet.name);
         }
         long now = System.currentTimeMillis();
         PendingRelease pending = releases.get(p.getUniqueId());
-        if (pending == null || !pending.petId().equals(pet.id) || pending.until() < now) {
-            releases.put(p.getUniqueId(), new PendingRelease(pet.id, now + 15_000));
-            Msg.chat(p, Component.text("Release " + pet.name + " for good? Anything it carries comes back to you. "
-                + "Type the same command again within 15 seconds to confirm.", NamedTextColor.GOLD));
+        if (pending == null || !pending.petIds().equals(ids) || pending.until() < now) {
+            releases.put(p.getUniqueId(), new PendingRelease(ids, now + 15_000));
+            Msg.chat(p, Component.text("Release " + String.join(", ", shown) + " for good? Anything they carry "
+                + "comes back to you. Type the same command again within 15 seconds to confirm.", NamedTextColor.GOLD));
             return;
         }
         releases.remove(p.getUniqueId());
-        plugin.pets().release(p, pet);
-        Msg.chat(p, Component.text(pet.name + " said goodbye. Take care, " + pet.name + "!", NamedTextColor.GRAY));
+        for (Pet pet : pets) {
+            plugin.pets().release(p, pet);
+        }
+        Msg.chat(p, Component.text(String.join(", ", shown) + " said goodbye. Take care!", NamedTextColor.GRAY));
     }
 
     /** /pets give <player> <species> [level] */
@@ -196,10 +230,10 @@ public final class PetsCommand implements BasicCommand {
             style);
         pet.level = level;
         store.add(pet);
-        PetManager.give(target, Blooms.create(pet));
+        Blooms.giveToyIfMissing(target);
         plugin.menus().refresh(target);
         Msg.chat(target, Component.text("You got a new pet: " + pet.name + " the " + species.displayName()
-            + " (level " + level + "). Its Pet Bloom is in your inventory.", Msg.PINK));
+            + " (level " + level + "). Punch with your Pet Toy to see it.", Msg.PINK));
         if (sender != target) {
             sender.sendMessage(Component.text("Gave " + target.getName() + " " + pet.name + " the "
                 + species.displayName() + " (level " + level + ").", NamedTextColor.GREEN));
@@ -212,8 +246,10 @@ public final class PetsCommand implements BasicCommand {
             "/pets summon <name>  /pets dismiss",
             "/pets list  see all your pets",
             "/pets rename <new name>  rename the pet that's out",
+            "/pets toy  a new Pet Toy, if you lost yours",
             "/pets bloom [name]  get a pet's bloom back",
-            "/pets release <name>  say goodbye for good"));
+            "/pets guide  read the Pet Guide",
+            "/pets release <name>[, <name>...]  say goodbye for good"));
         if (sender.hasPermission(ADMIN)) {
             lines.add("/pets give <player> <species> [level]  /pets reload");
         }

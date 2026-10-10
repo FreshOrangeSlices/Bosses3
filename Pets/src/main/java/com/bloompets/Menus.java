@@ -44,13 +44,21 @@ public final class Menus implements Listener {
 
     private static final int PET_SLOTS = 45;
     private static final int DISMISS_SLOT = 45;
+    private static final int TOY_SLOT = 47;
     private static final int INFO_SLOT = 49;
+    private static final int CANCEL_SLOT = 51;
+    private static final int RELEASE_SLOT = 53;
 
     /** The pet menu. */
     static final class PetMenu implements InventoryHolder {
         final UUID owner;
         final List<UUID> pets = new ArrayList<>();
         Inventory inventory;
+        /** Release mode: click pets to pick them, then confirm twice. */
+        boolean releasing;
+        final java.util.Set<UUID> chosen = new java.util.LinkedHashSet<>();
+        boolean armed;
+        long armedAt;
 
         PetMenu(UUID owner) {
             this.owner = owner;
@@ -128,27 +136,49 @@ public final class Menus implements Listener {
         menu.pets.clear();
         List<Pet> pets = plugin.store().pets(menu.owner);
         long now = System.currentTimeMillis();
+        menu.chosen.removeIf(id -> pets.stream().noneMatch(pet -> pet.id.equals(id)));
         for (Pet pet : pets) {
             if (menu.pets.size() >= PET_SLOTS) {
                 break;
             }
-            inv.setItem(menu.pets.size(), icon(pet, now));
+            inv.setItem(menu.pets.size(), menu.releasing ? releaseIcon(pet, menu.chosen.contains(pet.id))
+                : icon(pet, now));
             menu.pets.add(pet.id);
         }
         ItemStack filler = filler();
         for (int slot = PET_SLOTS; slot < 54; slot++) {
             inv.setItem(slot, filler);
         }
+        Settings s = plugin.settings();
+        inv.setItem(INFO_SLOT, button(Material.BOOK, "Your Pets (" + pets.size() + "/" + s.maxPets + ")", Msg.PINK,
+            List.of("Click to read the Pet Guide.", "", "Sneak + feed an animal its favourite",
+                "food a few times to make a friend.")));
+        if (menu.releasing) {
+            int n = menu.chosen.size();
+            inv.setItem(CANCEL_SLOT, button(Material.ARROW, "Cancel", NamedTextColor.GRAY,
+                List.of("Back to your pets, nobody leaves.")));
+            if (n == 0) {
+                inv.setItem(RELEASE_SLOT, button(Material.FEATHER, "Pick pets to release", NamedTextColor.GOLD,
+                    List.of("Click pets above to pick them.")));
+            } else if (!menu.armed) {
+                inv.setItem(RELEASE_SLOT, button(Material.RED_DYE, "Release " + n + (n == 1 ? " pet" : " pets"),
+                    NamedTextColor.RED, List.of("Anything they carry comes back to you.", "Click to continue.")));
+            } else {
+                inv.setItem(RELEASE_SLOT, button(Material.RED_DYE, "Click again to say goodbye to " + n
+                    + (n == 1 ? " pet" : " pets"), NamedTextColor.DARK_RED, List.of("This can't be undone.")));
+            }
+            return;
+        }
         PetManager.Active active = plugin.pets().active(menu.owner);
         if (active != null) {
             inv.setItem(DISMISS_SLOT, button(Material.BARRIER, "Dismiss " + active.pet.name, NamedTextColor.RED,
-                List.of("Sends it back into its bloom.")));
+                List.of("Sends it home for a nap.")));
         }
-        Settings s = plugin.settings();
-        inv.setItem(INFO_SLOT, button(Material.BOOK, "Your Pets (" + pets.size() + "/" + s.maxPets + ")", Msg.PINK,
-            List.of("Sneak + feed an animal its favourite", "food a few times to bond with it.",
-                "", "Pets level up as you spend time together.",
-                "/pets for everything else.")));
+        inv.setItem(TOY_SLOT, toyButton());
+        if (!pets.isEmpty()) {
+            inv.setItem(RELEASE_SLOT, button(Material.FEATHER, "Release pets...", NamedTextColor.GRAY,
+                List.of("Say goodbye to one or more pets.")));
+        }
         if (pets.isEmpty()) {
             inv.setItem(22, button(Material.POPPY, "No pets yet", Msg.PINK,
                 List.of("Sneak + feed a Wolf some meat, a Fox", "berries, a Horse sugar, an Allay an",
@@ -165,6 +195,31 @@ public final class Menus implements Listener {
             pdc.remove(Keys.BLOOM);
             pdc.remove(Keys.BLOOM_OWNER);
         });
+        return item;
+    }
+
+    private static ItemStack toyButton() {
+        ItemStack item = Blooms.toy();
+        item.editPersistentDataContainer(pdc -> pdc.remove(Keys.TOY)); // a picture of the toy, not a real one
+        List<Component> lore = new ArrayList<>(item.lore() == null ? List.of() : item.lore());
+        lore.add(Component.empty());
+        lore.add(Component.text("Click: get a Pet Toy (if you lost yours)", NamedTextColor.GRAY)
+            .decoration(TextDecoration.ITALIC, false));
+        item.lore(lore);
+        return item;
+    }
+
+    /** A pet's icon in release mode: picked ones are marked in red. */
+    private ItemStack releaseIcon(Pet pet, boolean chosen) {
+        ItemStack item = icon(pet, System.currentTimeMillis());
+        item.setData(DataComponentTypes.ENCHANTMENT_GLINT_OVERRIDE, chosen);
+        item.setData(DataComponentTypes.ITEM_NAME, Component.text((chosen ? "✖ " : "") + pet.name,
+            chosen ? NamedTextColor.RED : pet.species.category().color()).decorate(TextDecoration.BOLD));
+        item.lore(List.of(
+            Component.text(pet.species.displayName() + " · Level " + pet.level, NamedTextColor.GRAY)
+                .decoration(TextDecoration.ITALIC, false),
+            Component.text(chosen ? "Will be released. Click to keep." : "Click to pick for release.",
+                chosen ? NamedTextColor.RED : NamedTextColor.DARK_GRAY).decoration(TextDecoration.ITALIC, false)));
         return item;
     }
 
@@ -187,8 +242,38 @@ public final class Menus implements Listener {
 
     private void clickPetMenu(Player p, PetMenu menu, int slot, ClickType click) {
         PetManager pets = plugin.pets();
+        if (slot == INFO_SLOT) {
+            Bukkit.getScheduler().runTask(plugin, () -> {
+                if (p.isOnline()) {
+                    p.closeInventory();
+                    p.openBook(Guide.book());
+                }
+            });
+            return;
+        }
+        if (menu.releasing) {
+            if (click != ClickType.DOUBLE_CLICK) {
+                clickRelease(p, menu, slot);
+            }
+            return;
+        }
         if (slot == DISMISS_SLOT && pets.active(menu.owner) != null) {
             pets.dismiss(p, true);
+            return;
+        }
+        if (slot == TOY_SLOT) {
+            if (Blooms.hasToy(p)) {
+                Msg.bar(p, "You already have a Pet Toy.", NamedTextColor.GRAY);
+            } else if (Blooms.giveToyIfMissing(p, true)) {
+                p.playSound(p.getLocation(), Sound.ENTITY_ITEM_PICKUP, 0.6f, 1.2f);
+            }
+            return;
+        }
+        if (slot == RELEASE_SLOT && !menu.pets.isEmpty()) {
+            menu.releasing = true;
+            menu.chosen.clear();
+            menu.armed = false;
+            render(menu, p);
             return;
         }
         if (slot < 0 || slot >= menu.pets.size()) {
@@ -213,6 +298,53 @@ public final class Menus implements Listener {
         }
     }
 
+    private void clickRelease(Player p, PetMenu menu, int slot) {
+        if (slot == CANCEL_SLOT) {
+            menu.releasing = false;
+            menu.chosen.clear();
+            menu.armed = false;
+            render(menu, p);
+            return;
+        }
+        if (slot == RELEASE_SLOT && !menu.chosen.isEmpty()) {
+            if (!menu.armed || System.currentTimeMillis() - menu.armedAt < 700) {
+                if (!menu.armed) {
+                    menu.armed = true;
+                    menu.armedAt = System.currentTimeMillis();
+                    p.playSound(p.getLocation(), Sound.UI_BUTTON_CLICK, 0.5f, 0.8f);
+                    render(menu, p);
+                }
+                return; // a fast double-click doesn't count as the second click
+            }
+            List<String> names = new ArrayList<>();
+            for (UUID id : List.copyOf(menu.chosen)) {
+                Pet pet = plugin.store().get(menu.owner, id);
+                if (pet != null) {
+                    names.add(pet.name);
+                    plugin.pets().release(p, pet);
+                }
+            }
+            menu.releasing = false;
+            menu.chosen.clear();
+            menu.armed = false;
+            render(menu, p);
+            if (!names.isEmpty()) {
+                Msg.chat(p, Component.text(String.join(", ", names) + " said goodbye. Take care!", NamedTextColor.GRAY));
+                p.playSound(p.getLocation(), Sound.BLOCK_AZALEA_LEAVES_BREAK, 0.8f, 1f);
+            }
+            return;
+        }
+        if (slot >= 0 && slot < menu.pets.size()) {
+            UUID id = menu.pets.get(slot);
+            if (!menu.chosen.remove(id)) {
+                menu.chosen.add(id);
+            }
+            menu.armed = false;
+            p.playSound(p.getLocation(), Sound.UI_BUTTON_CLICK, 0.4f, 1.6f);
+            render(menu, p);
+        }
+    }
+
     /** Hands out a pet's bloom, unless the player already carries one. */
     public void giveBloom(Player p, Pet pet) {
         PlayerInventory inv = p.getInventory();
@@ -221,6 +353,10 @@ public final class Menus implements Listener {
                 Msg.bar(p, "You already carry " + pet.name + "'s Pet Bloom.", NamedTextColor.GRAY);
                 return;
             }
+        }
+        if (!Blooms.mayHandOut(p, "bloom:" + pet.id)) {
+            Msg.bar(p, "You just took " + pet.name + "'s Pet Bloom. Try again in a minute.", NamedTextColor.GRAY);
+            return;
         }
         PetManager.give(p, Blooms.create(pet));
         p.playSound(p.getLocation(), Sound.ENTITY_ITEM_PICKUP, 0.6f, 1.2f);

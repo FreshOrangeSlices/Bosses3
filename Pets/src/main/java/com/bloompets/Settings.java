@@ -5,6 +5,7 @@ import org.bukkit.configuration.file.FileConfiguration;
 
 import java.util.EnumMap;
 import java.util.EnumSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -15,6 +16,8 @@ public final class Settings {
     public final Set<Species> enabled = EnumSet.noneOf(Species.class);
     private final Map<Species, Integer> feeds = new EnumMap<>(Species.class);
     public final int rideUnlockLevel;
+    /** Pets that can be ridden from level 1. */
+    public final Set<Species> rideFromStart = EnumSet.noneOf(Species.class);
     public final double hoverHeight;
     public final double minRiderScale;
     public final int restSeconds;
@@ -48,6 +51,14 @@ public final class Settings {
             feeds.put(s, Math.max(1, f == null ? fallback : f.getInt(s.id(), fallback)));
         }
         rideUnlockLevel = Math.max(1, Math.min(Pet.MAX_LEVEL, c.getInt("riding.unlock-level", 3)));
+        List<String> easy = c.isList("riding.ride-from-start") ? c.getStringList("riding.ride-from-start")
+            : List.of("cat", "wolf", "rabbit");
+        for (String id : easy) {
+            Species s = Species.parse(id);
+            if (s != null) {
+                rideFromStart.add(s);
+            }
+        }
         hoverHeight = Math.max(1, Math.min(8, c.getDouble("riding.hover-height", 3)));
         minRiderScale = Math.max(0.1, Math.min(1, c.getDouble("riding.smallest-rider-scale", 0.3)));
         restSeconds = Math.max(0, c.getInt("fainting.rest-seconds", 60));
@@ -60,6 +71,11 @@ public final class Settings {
         xpPetKill = Math.max(0, c.getInt("bond-xp.pet-kills-a-mob", 6));
         rideBlocksPerXp = Math.max(1, c.getInt("bond-xp.blocks-ridden-per-xp", 25));
         xpPerMinute = Math.max(0, c.getInt("bond-xp.per-minute-out", 2));
+    }
+
+    /** The level this species can be ridden from. */
+    public int rideLevel(Species species) {
+        return rideFromStart.contains(species) ? 1 : rideUnlockLevel;
     }
 
     public int feedsToTame(Species species) {

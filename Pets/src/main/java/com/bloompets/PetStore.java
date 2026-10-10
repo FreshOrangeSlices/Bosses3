@@ -36,6 +36,8 @@ public final class PetStore {
     private final Map<UUID, Map<UUID, Pet>> byOwner = new HashMap<>();
     /** Entries this version can't read (unknown species...). They are written back untouched, never dropped. */
     private final Map<UUID, Map<String, ConfigurationSection>> unreadable = new HashMap<>();
+    /** The pet each player summoned last: the one the Pet Toy calls. */
+    private final Map<UUID, UUID> lastPet = new HashMap<>();
 
     public PetStore(BloomPets plugin) {
         this.plugin = plugin;
@@ -78,6 +80,18 @@ public final class PetStore {
         save(pet.owner);
     }
 
+    /** The pet this player summoned last (if it's still theirs). */
+    public @Nullable Pet last(UUID owner) {
+        Map<UUID, Pet> pets = load(owner);
+        UUID id = lastPet.get(owner);
+        return id == null ? null : pets.get(id);
+    }
+
+    public void setLast(Pet pet) {
+        load(pet.owner);
+        lastPet.put(pet.owner, pet.id);
+    }
+
     public boolean nameTaken(UUID owner, String name) {
         return byName(owner, name) != null;
     }
@@ -86,6 +100,7 @@ public final class PetStore {
         save(owner);
         byOwner.remove(owner);
         unreadable.remove(owner);
+        lastPet.remove(owner);
     }
 
     public Collection<UUID> loadedOwners() {
@@ -115,6 +130,14 @@ public final class PetStore {
             plugin.getLogger().log(Level.SEVERE, "Could not read the pets of " + owner
                 + (kept ? "; the file was kept as " + broken.getName() : ""), ex);
             return pets;
+        }
+        String last = yml.getString("last-pet");
+        if (last != null && !last.isEmpty()) {
+            try {
+                lastPet.put(owner, UUID.fromString(last));
+            } catch (IllegalArgumentException ignored) {
+                // not a pet id
+            }
         }
         ConfigurationSection section = yml.getConfigurationSection("pets");
         if (section == null) {
@@ -167,6 +190,10 @@ public final class PetStore {
             return;
         }
         YamlConfiguration yml = new YamlConfiguration();
+        UUID last = lastPet.get(owner);
+        if (last != null && pets.containsKey(last)) {
+            yml.set("last-pet", last.toString());
+        }
         for (Pet pet : pets.values()) {
             String path = "pets." + pet.id;
             yml.set(path + ".name", pet.name);

@@ -131,7 +131,7 @@ public final class PetListener implements Listener {
                 pets.feed(p, a, EquipmentSlot.HAND);
             } else if (p.isSneaking()) {
                 plugin.menus().openPetInventory(p, a.pet);
-            } else if (Blooms.isBloom(hand)) {
+            } else if (Blooms.isPetItem(hand)) {
                 plugin.rides().tryMount(p, a);
             } else if (hand.getType() == Material.NAME_TAG && hand.getData(DataComponentTypes.CUSTOM_NAME) != null) {
                 String name = PlainTextComponentSerializer.plainText()
@@ -140,7 +140,11 @@ public final class PetListener implements Listener {
                     PetManager.consume(p, EquipmentSlot.HAND);
                 }
             } else {
-                pets.dismiss(p, true);
+                // swap to another pet (and a lost Pet Toy comes back)
+                if (Blooms.giveToyIfMissing(p)) {
+                    Msg.bar(p, "Here's a new Pet Toy!", Msg.PINK);
+                }
+                openMenu(p);
             }
             return;
         }
@@ -189,7 +193,7 @@ public final class PetListener implements Listener {
         }
         Player p = event.getPlayer();
         ItemStack item = event.getItem();
-        boolean bloom = Blooms.isBloom(item);
+        boolean bloom = Blooms.isPetItem(item);
         if (action.isRightClick() && recentClick(p)) {
             // the same click already went to a pet: don't also summon, eat the food, etc.
             event.setUseItemInHand(Event.Result.DENY);
@@ -198,7 +202,7 @@ public final class PetListener implements Listener {
         if (!bloom) {
             return;
         }
-        if (event.getHand() == EquipmentSlot.OFF_HAND && Blooms.isBloom(p.getInventory().getItemInMainHand())) {
+        if (event.getHand() == EquipmentSlot.OFF_HAND && Blooms.isPetItem(p.getInventory().getItemInMainHand())) {
             event.setUseItemInHand(Event.Result.DENY);
             return; // the main hand's bloom handles it
         }
@@ -213,14 +217,18 @@ public final class PetListener implements Listener {
         }
         event.setCancelled(true);
         if (click(p)) {
-            useBloom(p, item, event.getHand());
+            if (Blooms.isToy(item)) {
+                plugin.pets().toggleLast(p);
+            } else {
+                useBloom(p, item, event.getHand());
+            }
         }
     }
 
     @EventHandler(priority = EventPriority.HIGH)
     public void onPunchEntity(PrePlayerAttackEntityEvent event) {
         Player p = event.getPlayer();
-        if (Blooms.isBloom(p.getInventory().getItemInMainHand())) {
+        if (Blooms.isPetItem(p.getInventory().getItemInMainHand())) {
             event.setCancelled(true);
             openMenu(p);
         }
@@ -453,8 +461,8 @@ public final class PetListener implements Listener {
         List<ItemStack> kept = new ArrayList<>();
         for (Iterator<ItemStack> it = event.getDrops().iterator(); it.hasNext(); ) {
             ItemStack drop = it.next();
-            if (Blooms.isBloom(drop)
-                && me.equals(drop.getPersistentDataContainer().get(Keys.BLOOM_OWNER, PersistentDataType.STRING))) {
+            if (Blooms.isToy(drop) || (Blooms.isBloom(drop)
+                && me.equals(drop.getPersistentDataContainer().get(Keys.BLOOM_OWNER, PersistentDataType.STRING)))) {
                 kept.add(drop);
                 it.remove();
             }
@@ -501,7 +509,7 @@ public final class PetListener implements Listener {
     @EventHandler(priority = EventPriority.HIGH)
     public void onCraft(PrepareItemCraftEvent event) {
         for (ItemStack item : event.getInventory().getMatrix()) {
-            if (Blooms.isBloom(item)) {
+            if (Blooms.isPetItem(item)) {
                 event.getInventory().setResult(null);
                 return;
             }
@@ -512,7 +520,7 @@ public final class PetListener implements Listener {
     public void onCrafter(CrafterCraftEvent event) {
         if (event.getBlock().getState(false) instanceof Crafter crafter) {
             for (ItemStack item : crafter.getInventory().getContents()) {
-                if (Blooms.isBloom(item)) {
+                if (Blooms.isPetItem(item)) {
                     event.setCancelled(true);
                     return;
                 }
@@ -523,7 +531,7 @@ public final class PetListener implements Listener {
     @EventHandler(priority = EventPriority.HIGH)
     public void onPrepare(PrepareResultEvent event) {
         for (ItemStack item : event.getInventory().getContents()) {
-            if (Blooms.isBloom(item)) {
+            if (Blooms.isPetItem(item)) {
                 event.setResult(null);
                 return;
             }
@@ -534,7 +542,7 @@ public final class PetListener implements Listener {
     public void onPurchase(PlayerPurchaseEvent event) {
         Inventory top = event.getPlayer().getOpenInventory().getTopInventory();
         if (top.getType() == InventoryType.MERCHANT
-            && (Blooms.isBloom(top.getItem(0)) || Blooms.isBloom(top.getItem(1)))) {
+            && (Blooms.isPetItem(top.getItem(0)) || Blooms.isPetItem(top.getItem(1)))) {
             event.setCancelled(true);
         }
     }
@@ -546,10 +554,10 @@ public final class PetListener implements Listener {
         }
         ItemStack hotbar = event.getHotbarButton() >= 0
             ? event.getWhoClicked().getInventory().getItem(event.getHotbarButton()) : null;
-        if (Blooms.isBloom(event.getCurrentItem()) || Blooms.isBloom(event.getCursor()) || Blooms.isBloom(hotbar)) {
+        if (Blooms.isPetItem(event.getCurrentItem()) || Blooms.isPetItem(event.getCursor()) || Blooms.isPetItem(hotbar)) {
             event.setCancelled(true);
             if (event.getWhoClicked() instanceof Player p) {
-                Msg.error(p, "Pet Blooms can't be traded.");
+                Msg.error(p, "Pet Blooms and Toys can't be traded.");
             }
         }
     }
