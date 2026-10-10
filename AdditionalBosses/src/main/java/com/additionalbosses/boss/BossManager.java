@@ -125,6 +125,11 @@ public final class BossManager {
         if (!s.worldAllowed(entity.getWorld())) {
             return;
         }
+        // Bosses appear at about the height you're at, not deep in a cave far below (or high above) you.
+        // A structure mob that loads with nobody near its height gets its roll the next time it loads.
+        if (!nearPlayerHeight(entity, s.maxHeightDifference)) {
+            return;
+        }
         if (isWorldgen(reason)) {
             // Structure mobs (Elder Guardians, mansion illagers...) are rolled once, the first time they load.
             if (entity.getPersistentDataContainer().has(Keys.WORLDGEN_CHECKED, PersistentDataType.BYTE)) {
@@ -185,6 +190,26 @@ public final class BossManager {
     /** Paper gives mobs placed by structures/world generation the DEFAULT spawn reason. */
     public static boolean isWorldgen(@Nullable SpawnReason reason) {
         return reason == SpawnReason.DEFAULT;
+    }
+
+    /** Whether a player (not spectating) is around this mob, within {@code maxDy} blocks above or below it. */
+    private static boolean nearPlayerHeight(LivingEntity entity, int maxDy) {
+        if (maxDy <= 0) {
+            return true;
+        }
+        Location at = entity.getLocation();
+        for (Player p : entity.getWorld().getPlayers()) {
+            if (p.getGameMode() == org.bukkit.GameMode.SPECTATOR) {
+                continue;
+            }
+            Location pl = p.getLocation();
+            double dx = pl.getX() - at.getX();
+            double dz = pl.getZ() - at.getZ();
+            if (dx * dx + dz * dz <= 128 * 128 && Math.abs(pl.getY() - at.getY()) <= maxDy) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private boolean tooCloseToAnotherBoss(Location location) {

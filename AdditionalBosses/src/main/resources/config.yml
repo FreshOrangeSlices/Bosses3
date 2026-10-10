@@ -1,4 +1,4 @@
-config-version: 8   # used by the plugin to update this file; don't change
+config-version: 9   # used by the plugin to update this file; don't change
 # =====================================================================
 #  Additional Bosses - configuration
 # ---------------------------------------------------------------------
@@ -31,6 +31,10 @@ bosses:
   max-active: 15
   # A new boss can't appear within this many blocks of another boss.
   min-distance-between: 32
+  # Bosses only appear within this many blocks above or below a player,
+  # so they show up at your height instead of deep in a cave below you.
+  # 0 = any height.
+  max-height-difference: 20
   # Show the boss name above its head at all times (false = only when you
   # look at it; the boss bar shows it during a fight).
   always-show-name: false
