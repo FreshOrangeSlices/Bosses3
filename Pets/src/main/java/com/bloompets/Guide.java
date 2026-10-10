@@ -5,6 +5,7 @@ import io.papermc.paper.datacomponent.item.WrittenBookContent;
 import net.kyori.adventure.key.Key;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.TextComponent;
+import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextColor;
 import net.kyori.adventure.text.format.TextDecoration;
 import net.kyori.adventure.text.object.ObjectContents;
@@ -247,7 +248,9 @@ public final class Guide {
         return sprite("blocks", "block/" + texture);
     }
 
+    /** A picture. White, because text colour tints pictures (the book's brown ink turned them into silhouettes). */
     private static Component sprite(String atlas, String texture) {
-        return Component.object(ObjectContents.sprite(Key.key("minecraft", atlas), Key.key("minecraft", texture)));
+        return Component.object(ObjectContents.sprite(Key.key("minecraft", atlas), Key.key("minecraft", texture)))
+            .color(NamedTextColor.WHITE);
     }
 }
