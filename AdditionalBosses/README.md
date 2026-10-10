@@ -116,6 +116,7 @@ Aliases: `/ab`, `/boss`.
 Everything balance-related is in `config.yml`, with comments. Highlights:
 
 - `bosses.spawn-chance`: roll #1 (default 0.5%), plus caps, worlds and spawn reasons.
+- `bosses.max-height-difference`: a boss only appears within this many blocks above or below a player (default 20), so bosses show up at your height instead of deep in a cave far below. 0 = any height.
 - `ranks.<RANK>`: stats, trait count and power, XP, reward chances, Boss Gear materials and enchant ceilings, presentation.
 - `mob-categories`: which mobs can become bosses and their rank weights (roll #2). The Warden/Wither category exists but is off by default.
 - `mob-profiles`: how strongly rank stats apply to creepers, small, large and flying mobs.

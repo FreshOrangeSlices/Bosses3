@@ -43,6 +43,8 @@ public final class PluginSettings {
     public final Set<String> worlds;
     public final Set<EntityType> excludedMobs;
     public final int maxActive;
+    /** A boss only appears if a player is within this many blocks above or below (0 = any height). */
+    public final int maxHeightDifference;
     public final double minDistanceBetween;
     public final boolean alwaysShowName;
     public final boolean environmentalParticles;
@@ -114,6 +116,7 @@ public final class PluginSettings {
         }
         excludedMobs = parseMobs(c.getStringList("bosses.excluded-mobs"), log);
         maxActive = Math.max(0, c.getInt("bosses.max-active", 15));
+        maxHeightDifference = Math.max(0, c.getInt("bosses.max-height-difference", 20));
         minDistanceBetween = Math.max(0, c.getDouble("bosses.min-distance-between", 32));
         alwaysShowName = c.getBoolean("bosses.always-show-name", false);
         environmentalParticles = c.getBoolean("bosses.environmental-particles", true);

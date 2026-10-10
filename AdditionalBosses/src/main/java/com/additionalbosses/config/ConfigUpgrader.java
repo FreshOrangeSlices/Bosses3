@@ -23,7 +23,7 @@ import java.util.regex.Pattern;
  */
 public final class ConfigUpgrader {
 
-    public static final int CURRENT = 8;
+    public static final int CURRENT = 9;
     private static final Pattern VERSION = Pattern.compile("^config-version:\\s*(\\d+)\\s*(#.*)?$");
     private static final Pattern STORMCALLER = Pattern.compile("^(\\s+stormcaller:\\s*\\{.*\\bweight:\\s*)6(\\b.*)$");
     private static final Pattern STATUE_SCALE = Pattern.compile("^(\\s+)statue-scale:\\s*(1|1\\.0|0\\.125)(\\s.*)?$");
@@ -31,6 +31,7 @@ public final class ConfigUpgrader {
     private static final Pattern SHOW_NAME = Pattern.compile("^(\\s+always-show-name:\\s*)true(\\s.*)?$");
     private static final Pattern GRAY_TROPHY = Pattern.compile("^(\\s+)gray-trophy-chance:\\s*([0-9.]+).*$");
     private static final Pattern STATUE_SIZE = Pattern.compile("^(\\s+)statue-size:.*$");
+    private static final Pattern MIN_DISTANCE = Pattern.compile("^(\\s+)min-distance-between:.*$");
     private static final Pattern TOP_LEVEL = Pattern.compile("^([a-z][a-z0-9-]*):.*$");
 
     /** v7: runes carry one fixed amount per rank (old default ranges -> values). */
@@ -153,6 +154,20 @@ public final class ConfigUpgrader {
         if (version < 2 && m.matches()) {
             log.accept("config.yml: lowered the Stormcaller relic's weight from 6 to 2.");
             return m.group(1) + "2" + m.group(2);
+        }
+        // v9: bosses appear near the player's height (shown in the file so it can be tuned).
+        if (section.equals("bosses") && version < 9) {
+            Matcher distance = MIN_DISTANCE.matcher(line);
+            if (distance.matches()) {
+                log.accept("config.yml: bosses now appear within 20 blocks above or below a player "
+                    + "(bosses.max-height-difference).");
+                String indent = distance.group(1);
+                return line + "\n"
+                    + indent + "# Bosses only appear within this many blocks above or below a player,\n"
+                    + indent + "# so they show up at your height instead of deep in a cave below you.\n"
+                    + indent + "# 0 = any height.\n"
+                    + indent + "max-height-difference: 20";
+            }
         }
         // v8: statues are a fixed fraction of a normal mob (measuring them in blocks kept shrinking them).
         if (section.equals("nemesis") && version < 8) {
