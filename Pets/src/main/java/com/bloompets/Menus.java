@@ -47,6 +47,7 @@ public final class Menus implements Listener {
     private static final int TOY_SLOT = 47;
     private static final int INFO_SLOT = 49;
     private static final int CANCEL_SLOT = 51;
+    private static final int FETCH_SLOT = 51; // the cancel button only shows in release mode
     private static final int RELEASE_SLOT = 53;
 
     /** The pet menu. */
@@ -175,6 +176,8 @@ public final class Menus implements Listener {
                 List.of("Sends it home for a nap.")));
         }
         inv.setItem(TOY_SLOT, toyButton());
+        inv.setItem(FETCH_SLOT, button(Material.STICK, "Play fetch!", NamedTextColor.GOLD,
+            List.of("Get a Fetch Stick, then right-click", "to throw it for the pet that's out.")));
         if (!pets.isEmpty()) {
             inv.setItem(RELEASE_SLOT, button(Material.FEATHER, "Release pets...", NamedTextColor.GRAY,
                 List.of("Say goodbye to one or more pets.")));
@@ -266,6 +269,17 @@ public final class Menus implements Listener {
                 Msg.bar(p, "You already have a Pet Toy.", NamedTextColor.GRAY);
             } else if (Blooms.giveToyIfMissing(p, true)) {
                 p.playSound(p.getLocation(), Sound.ENTITY_ITEM_PICKUP, 0.6f, 1.2f);
+            }
+            return;
+        }
+        if (slot == FETCH_SLOT) {
+            if (Blooms.hasFetchStick(p)) {
+                Msg.bar(p, "You already have a Fetch Stick.", NamedTextColor.GRAY);
+            } else if (Blooms.mayHandOut(p, "fetch")) {
+                PetManager.give(p, Blooms.fetchStick());
+                p.playSound(p.getLocation(), Sound.ENTITY_ITEM_PICKUP, 0.6f, 1.2f);
+            } else {
+                Msg.bar(p, "You just got a Fetch Stick. Try again in a minute.", NamedTextColor.GRAY);
             }
             return;
         }
@@ -368,9 +382,9 @@ public final class Menus implements Listener {
 
     /** Storage (or the Vex's gear) of a pet that is out. */
     public void openPetInventory(Player p, Pet pet) {
-        PetManager.Active a = plugin.pets().active(pet.owner);
+        PetManager.Active a = plugin.pets().activeFor(pet);
         boolean vex = pet.species == Species.VEX;
-        if (a == null || a.pet != pet) {
+        if (a == null) {
             Msg.error(p, pet.name + " needs to be out to open its " + (vex ? "gear." : "storage."));
             return;
         }

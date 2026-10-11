@@ -98,9 +98,43 @@ public final class PetStore {
 
     public void unload(UUID owner) {
         save(owner);
+        Map<UUID, Pet> pets = byOwner.get(owner);
+        if (pets != null && pets.values().stream().anyMatch(Pet::stationed)) {
+            return; // stationed pets keep working while their owner is away
+        }
         byOwner.remove(owner);
         unreadable.remove(owner);
         lastPet.remove(owner);
+    }
+
+    /** Every stationed pet (of loaded owners; owners with stationed pets are loaded at startup and stay loaded). */
+    public List<Pet> stationed() {
+        List<Pet> out = new ArrayList<>();
+        for (Map<UUID, Pet> pets : byOwner.values()) {
+            for (Pet pet : pets.values()) {
+                if (pet.stationed()) {
+                    out.add(pet);
+                }
+            }
+        }
+        return out;
+    }
+
+    /** At startup: loads every player who has a stationed pet, so their pets work even while they're offline. */
+    public void loadStationed() {
+        File[] files = folder.listFiles((dir, name) -> name.endsWith(".yml"));
+        if (files == null) {
+            return;
+        }
+        for (File file : files) {
+            try {
+                if (Files.readString(file.toPath(), StandardCharsets.UTF_8).contains("station: ")) {
+                    load(UUID.fromString(file.getName().substring(0, file.getName().length() - 4)));
+                }
+            } catch (IOException | IllegalArgumentException ex) {
+                plugin.getLogger().warning("Couldn't check " + file.getName() + " for stationed pets: " + ex.getMessage());
+            }
+        }
     }
 
     public Collection<UUID> loadedOwners() {
@@ -168,6 +202,8 @@ public final class PetStore {
                 pet.xpBank = s.getInt("xp-bank", 0);
                 pet.order = s.getInt("order", pets.size());
                 pet.health = s.getDouble("health", -1);
+                String station = s.getString("station");
+                pet.station = station == null || station.isEmpty() ? null : station;
                 String snap = s.getString("snapshot");
                 pet.snapshot = snap == null || snap.isEmpty() ? null : Base64.getDecoder().decode(snap);
                 List<String> items = s.getStringList("storage");
@@ -205,6 +241,9 @@ public final class PetStore {
             yml.set(path + ".xp-bank", pet.xpBank);
             yml.set(path + ".order", pet.order);
             yml.set(path + ".health", pet.health);
+            if (pet.station != null) {
+                yml.set(path + ".station", pet.station);
+            }
             yml.set(path + ".snapshot", pet.snapshot == null ? "" : Base64.getEncoder().encodeToString(pet.snapshot));
             List<String> items = new ArrayList<>();
             for (ItemStack item : pet.storage) {

@@ -74,7 +74,14 @@ public enum Species {
     ARMADILLO(EntityType.ARMADILLO, Category.UTILITY, "Armadillo", of(Material.SPIDER_EYE), "pink_petals",
         Storage.SMALL, 2.6, 0, "Scutes: 20% less damage from arrows and other projectiles"),
     FROG(EntityType.FROG, Category.UTILITY, "Frog", of(Material.SLIME_BALL), "big_dripleaf", Storage.SMALL, 2.4, 0,
-        "Frog Kick: Dolphin's Grace while swimming");
+        "Frog Kick: Dolphin's Grace while swimming"),
+    PIG(EntityType.PIG, Category.UTILITY, "Pig", of(Material.CARROT, Material.POTATO, Material.BEETROOT), "brown_mushroom",
+        Storage.SMALL, 0, 0, "Lumberjack: chop a tree's bottom log with an axe and the whole tree comes down "
+        + "(huge mushrooms and nether trees too). Sneak to chop just one"),
+    AXOLOTL(EntityType.AXOLOTL, Category.UTILITY, "Axolotl", of(Material.TROPICAL_FISH_BUCKET, Material.TROPICAL_FISH),
+        "spore_blossom", Storage.SMALL, 2.6, 0, "Healing Touch: you slowly heal while hurt, faster in water"),
+    BAT(EntityType.BAT, Category.UTILITY, "Bat", of(Material.MELON_SLICE), "open_eyeblossom", Storage.SMALL, 3.0, 0,
+        "Echolocation: you can see in the dark");
 
     /** How much a pet carries. Sizes grow with level (see {@link #slots}). */
     public enum Storage {
@@ -192,18 +199,23 @@ public enum Species {
         return this != VEX;
     }
 
-    /** Bees and Allays hover a few blocks up when ridden; the Vex flies on its own. */
+    /** Bees, Allays and Bats hover a few blocks up when ridden; the Vex flies on its own. */
     public boolean hovers() {
-        return this == BEE || this == ALLAY;
+        return this == BEE || this == ALLAY || this == BAT;
     }
 
-    /** Turtles and Frogs are quick in water, following or ridden. */
+    /** Turtles, Frogs and Axolotls are quick in water, following or ridden. */
     public boolean swims() {
-        return this == TURTLE || this == FROG;
+        return this == TURTLE || this == FROG || this == AXOLOTL;
+    }
+
+    /** Pets that play fetch (animals, not the Vex or the Iron Golem). */
+    public boolean playsFetch() {
+        return this != VEX && this != IRON_GOLEM;
     }
 
     public boolean flies() {
-        return this == BEE || this == ALLAY || this == VEX;
+        return this == BEE || this == ALLAY || this == BAT || this == VEX;
     }
 
     public String bonus() {

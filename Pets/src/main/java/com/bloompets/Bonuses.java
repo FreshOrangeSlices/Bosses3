@@ -179,6 +179,7 @@ public final class Bonuses implements Listener {
     private void tick() {
         tick += 4;
         long now = System.currentTimeMillis();
+        postJobs(now);
         for (PetManager.Active a : plugin.pets().all()) {
             Player p = Bukkit.getPlayer(a.owner);
             if (p == null || p.isDead() || plugin.pets().fainting(a)) {
@@ -217,9 +218,20 @@ public final class Bonuses implements Listener {
                 }
                 case COW -> cow(p, pet, pw, now);
                 case BEE -> {
-                    int every = Math.max(4, (int) Math.round(100 / pw / 4) * 4); // every 5s, a bit faster with level
-                    if (tick % every == 0) {
-                        bee(p);
+                    if (tick % beeEvery(pw) == 0) {
+                        bee(p.getLocation(), plugin.settings().beeRadius, plugin.settings().beeCrops);
+                    }
+                }
+                case AXOLOTL -> {
+                    if (p.getHealth() < PetManager.maxHealth(p) - 0.01) {
+                        effect(p, PotionEffectType.REGENERATION, p.isInWater() ? 1 : 0);
+                    }
+                }
+                case BAT -> {
+                    // long enough that night vision never starts flickering
+                    PotionEffect nv = p.getPotionEffect(PotionEffectType.NIGHT_VISION);
+                    if (nv == null || (!nv.isInfinite() && nv.getDuration() < 300)) {
+                        p.addPotionEffect(new PotionEffect(PotionEffectType.NIGHT_VISION, 400, 0, true, false, true));
                     }
                 }
                 case ALLAY -> allay(p, a);
@@ -237,6 +249,94 @@ public final class Bonuses implements Listener {
                 default -> {
                 }
             }
+        }
+    }
+
+    /** Ticks between bee pulses (a little faster with level). */
+    private int beeEvery(double pw) {
+        return Math.max(4, (int) Math.round(plugin.settings().beeSeconds * 20 / pw / 4) * 4);
+    }
+
+    // =====================================================================
+    //  Jobs of stationed pets
+    // =====================================================================
+
+    private final Map<UUID, Long> postTimers = new HashMap<>();
+
+    private void postJobs(long now) {
+        for (PetManager.Active a : plugin.pets().postedPets()) {
+            Location home = a.home;
+            if (home == null || plugin.pets().fainting(a)) {
+                continue;
+            }
+            Pet pet = a.pet;
+            double pw = pet.power();
+            int extra = pet.maxed() ? 2 : 0;
+            switch (pet.species) {
+                case BEE -> {
+                    if (tick % beeEvery(pw) == 0) {
+                        bee(home, plugin.settings().beeRadius + 1 + extra, plugin.settings().beeCrops + 1);
+                    }
+                }
+                case ALLAY -> collect(a, home, 8 + 2 * extra);
+                case SNIFFER -> {
+                    if (now >= postTimers.computeIfAbsent(pet.id, k -> now + sniffGap(pw))) {
+                        postTimers.put(pet.id, now + sniffGap(pw));
+                        dig(Bukkit.getPlayer(pet.owner), a);
+                    }
+                }
+                case LLAMA -> {
+                    if (now >= postTimers.getOrDefault(pet.id, 0L)) {
+                        for (Entity e : home.getWorld().getNearbyEntities(home, 10, 5, 10)) {
+                            if (e instanceof Mob mob && e instanceof org.bukkit.entity.Enemy && !Keys.isPet(mob)) {
+                                postTimers.put(pet.id, now + 2000);
+                                spitAt(a, mob);
+                                break;
+                            }
+                        }
+                    }
+                }
+                default -> {
+                }
+            }
+        }
+    }
+
+    /** A stationed Allay gathers the drops (and loose XP, as bottles) around its post into its storage. */
+    private void collect(PetManager.Active a, Location home, int radius) {
+        Pet pet = a.pet;
+        if (pet.storageSlots() <= 0) {
+            return;
+        }
+        ItemStack bottle = ItemStack.of(Material.EXPERIENCE_BOTTLE);
+        boolean stored = false;
+        for (Entity e : home.getWorld().getNearbyEntities(home, radius, 4, radius)) {
+            if (e instanceof Item item) {
+                if (item.getThrower() != null || !item.canPlayerPickup() || item.getPickupDelay() > 0
+                    || Blooms.isPetItem(item.getItemStack())) {
+                    continue;
+                }
+                ItemStack left = plugin.menus().addToStorage(pet, item.getItemStack());
+                if (left == null) {
+                    item.remove();
+                    stored = true;
+                } else if (left.getAmount() != item.getItemStack().getAmount()) {
+                    item.setItemStack(left);
+                    stored = true;
+                }
+            } else if (e instanceof ExperienceOrb orb && plugin.settings().allayBottlesXp
+                && plugin.menus().hasRoom(pet, bottle)) {
+                pet.xpBank += orb.getExperience() * Math.max(1, orb.getCount());
+                orb.remove();
+            }
+        }
+        while (pet.xpBank >= XP_PER_BOTTLE && plugin.menus().hasRoom(pet, bottle)
+            && plugin.menus().addToStorage(pet, bottle.clone()) == null) {
+            pet.xpBank -= XP_PER_BOTTLE;
+            stored = true;
+        }
+        if (stored && tick % 20 == 0) {
+            a.entity.getWorld().playSound(a.entity.getLocation(), Sound.ENTITY_ALLAY_ITEM_TAKEN, 0.4f, 1.3f);
         }
     }
 
@@ -281,11 +381,11 @@ public final class Bonuses implements Listener {
     }
 
     /** Bee: a couple of crops around you grow a stage. */
-    private void bee(Player p) {
-        Block center = p.getLocation().getBlock();
+    private void bee(Location around, int radius, int count) {
+        Block center = around.getBlock();
         List<Block> crops = new ArrayList<>();
-        for (int x = -4; x <= 4; x++) {
-            for (int z = -4; z <= 4; z++) {
+        for (int x = -radius; x <= radius; x++) {
+            for (int z = -radius; z <= radius; z++) {
                 for (int y = -2; y <= 1; y++) {
                     Block b = center.getRelative(x, y, z);
                     Material type = b.getType();
@@ -297,7 +397,7 @@ public final class Bonuses implements Listener {
             }
         }
         Collections.shuffle(crops);
-        for (Block b : crops.subList(0, Math.min(2, crops.size()))) {
+        for (Block b : crops.subList(0, Math.min(count, crops.size()))) {
             BlockState state = b.getState();
             if (!(state.getBlockData() instanceof Ageable age)) {
                 continue;
@@ -419,12 +519,16 @@ public final class Bonuses implements Listener {
         if (now < llamaReady.getOrDefault(owner.getUniqueId(), 0L)) {
             return;
         }
+        llamaReady.put(owner.getUniqueId(), now + 1000);
+        spitAt(a, attacker);
+    }
+
+    private void spitAt(PetManager.Active a, LivingEntity attacker) {
         Mob llama = a.entity;
         if (llama.getWorld() != attacker.getWorld()
             || llama.getLocation().distanceSquared(attacker.getLocation()) > 16 * 16) {
             return;
         }
-        llamaReady.put(owner.getUniqueId(), now + 1000);
         Vector dir = attacker.getLocation().add(0, attacker.getHeight() * 0.6, 0).toVector()
             .subtract(llama.getEyeLocation().toVector());
         if (dir.lengthSquared() < 0.01) {
@@ -449,6 +553,17 @@ public final class Bonuses implements Listener {
     public void onTarget(EntityTargetLivingEntityEvent event) {
         if (!(event.getEntity() instanceof Mob mob) || Keys.isPet(mob)) {
             return;
+        }
+        if ((mob instanceof Creeper || mob instanceof Phantom) && event.getTarget() instanceof Player) {
+            for (PetManager.Active cat : plugin.pets().postedPets()) {
+                Species s = cat.pet.species;
+                double r = cat.pet.maxed() ? 36 : 24;
+                if ((s == Species.CAT || s == Species.OCELOT) && cat.home != null
+                    && cat.home.getWorld() == mob.getWorld() && cat.home.distanceSquared(mob.getLocation()) < r * r) {
+                    event.setCancelled(true);
+                    return;
+                }
+            }
         }
         PetManager.Active a = outFor(event.getTarget());
         if (a == null) {
@@ -521,11 +636,13 @@ public final class Bonuses implements Listener {
      * The Sniffer stops, sniffs the ground, digs, and pops up with a find (its own animation plays). Only on
      * ground it could dig in, and only while you're nearby.
      */
-    private void dig(Player p, PetManager.Active a) {
+    private void dig(@Nullable Player p, PetManager.Active a) {
         Mob m = a.entity;
+        boolean atPost = a.home != null;
+        boolean active = p != null && p.getIdleDuration().toMinutes() < 5; // no treasure for standing AFK
         if (!(m instanceof Sniffer sniffer) || !m.isOnGround() || plugin.rides().isRidden(a)
-            || p.getIdleDuration().toMinutes() >= 5 // no treasure for standing AFK
-            || m.getWorld() != p.getWorld() || m.getLocation().distanceSquared(p.getLocation()) > 12 * 12
+            || (!atPost && (!active || m.getWorld() != p.getWorld()
+                || m.getLocation().distanceSquared(p.getLocation()) > 12 * 12))
             || !DIGGABLE.contains(m.getLocation().add(0, -0.5, 0).getBlock().getType())) {
             return;
         }
@@ -543,7 +660,8 @@ public final class Bonuses implements Listener {
                 return;
             }
             sniffer.setState(Sniffer.State.RISING);
-            Material found = treasure(p.getUniqueId(), ThreadLocalRandom.current());
+            Material found = active ? treasure(a.owner, ThreadLocalRandom.current())
+                : plainFind(ThreadLocalRandom.current());
             double yaw = Math.toRadians(m.getLocation().getYaw());
             Location front = m.getLocation().add(-Math.sin(yaw) * 1.6, 0.4, Math.cos(yaw) * 1.6);
             m.getWorld().dropItemNaturally(front, ItemStack.of(found));
@@ -660,5 +778,10 @@ public final class Bonuses implements Listener {
         llamaReady.remove(id);
         wentToBed.remove(id);
         sniffNext.remove(id);
+    }
+
+    /** A released or recalled stationed pet's timers. */
+    public void forget(UUID petId) {
+        postTimers.remove(petId);
     }
 }

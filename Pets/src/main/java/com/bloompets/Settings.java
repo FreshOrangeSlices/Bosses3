@@ -29,6 +29,13 @@ public final class Settings {
     public final int xpPetKill;
     public final int rideBlocksPerXp;
     public final int xpPerMinute;
+    public final int walkBlocksPerXp;
+    public final int beeRadius;
+    public final int beeCrops;
+    public final double beeSeconds;
+    public final int stationLevel;
+    public final int maxStations;
+    public final double guardRadius;
     public final double healPercent;
 
     public Settings(FileConfiguration c) {
@@ -45,14 +52,14 @@ public final class Settings {
             int fallback = switch (s) {
                 case IRON_GOLEM -> 8;
                 case SNIFFER -> 6;
-                case VEX -> 3;
+                case VEX, BAT -> 3;
                 default -> def;
             };
             feeds.put(s, Math.max(1, f == null ? fallback : f.getInt(s.id(), fallback)));
         }
         rideUnlockLevel = Math.max(1, Math.min(Pet.MAX_LEVEL, c.getInt("riding.unlock-level", 3)));
         List<String> easy = c.isList("riding.ride-from-start") ? c.getStringList("riding.ride-from-start")
-            : List.of("cat", "wolf", "rabbit");
+            : List.of("cat", "wolf", "rabbit", "horse");
         for (String id : easy) {
             Species s = Species.parse(id);
             if (s != null) {
@@ -69,7 +76,14 @@ public final class Settings {
         xpFeed = Math.max(0, c.getInt("bond-xp.feeding", 10));
         xpOwnerKill = Math.max(0, c.getInt("bond-xp.you-kill-a-mob", 3));
         xpPetKill = Math.max(0, c.getInt("bond-xp.pet-kills-a-mob", 6));
-        rideBlocksPerXp = Math.max(1, c.getInt("bond-xp.blocks-ridden-per-xp", 25));
+        rideBlocksPerXp = Math.max(1, c.getInt("bond-xp.blocks-ridden-per-xp", 10));
+        walkBlocksPerXp = Math.max(1, c.getInt("bond-xp.blocks-walked-per-xp", 20));
+        beeRadius = Math.max(1, Math.min(16, c.getInt("bee.radius", 5)));
+        beeCrops = Math.max(1, Math.min(32, c.getInt("bee.crops-per-pulse", 3)));
+        beeSeconds = Math.max(0.5, c.getDouble("bee.seconds-between", 3));
+        stationLevel = Math.max(1, Math.min(Pet.MAX_LEVEL, c.getInt("stationing.unlock-level", 8)));
+        maxStations = Math.max(0, c.getInt("stationing.max-per-player", 3));
+        guardRadius = Math.max(4, Math.min(48, c.getDouble("stationing.guard-radius", 16)));
         xpPerMinute = Math.max(0, c.getInt("bond-xp.per-minute-out", 2));
     }
 

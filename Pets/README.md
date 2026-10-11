@@ -49,7 +49,33 @@ Right-click your pet with:
 
 Sneak + right-click your pet to open its storage (or the Vex's gear).
 
-Bees, Allays and the Vex flit beside your head while you walk, and stop and hover where they are when you stand still, so they're easy to reach.
+Bees, Allays, Bats and the Vex flit beside your head while you walk, and stop and hover where they are when you stand still, so they're easy to reach.
+
+**Play fetch:** take a Fetch Stick from the pet menu (or `/pets fetch`) and right-click to throw it. Your pet runs after it and brings it back for a little bond XP. Every pet except the Vex and the Iron Golem plays.
+
+## Stations (level 8+)
+
+Sneak and punch your pet with the Pet Toy to leave it at a **post** right where it stands (or use `/pets station`). You can then call out another pet. Up to 3 pets can keep posts at once.
+
+| Pet at its post | Job |
+|---|---|
+| Combat pets (Wolf, Iron Golem, Polar Bear, Goat, Panda, Vex) | Guard: they attack monsters within 16 blocks of their post |
+| Bee | Tends the crops around its post |
+| Allay | Collects drops and loose XP around its post into its storage |
+| Sniffer | Digs up finds around its post now and then |
+| Cat, Ocelot | Creepers and phantoms near the post leave everyone alone |
+| Llama | Spits at monsters that come close |
+| Others | Wait at their post |
+
+Stationed pets keep working while you're away, as long as their spot is loaded. One that faints comes back to its post after resting. Sneak + right-click a stationed pet to open its storage. To call it back, sneak + punch it with the Pet Toy, or left-click it in the pet menu.
+
+## Max level
+
+A level 10 pet:
+
+- sparkles a little and has a gold name;
+- gets a **second wind** once each time it comes out: the first blow that would make it faint leaves it at half health instead;
+- covers a bigger area at its post.
 
 Pets never die. When one runs out of health it **faints**, goes home and rests for 60 seconds. It comes back with half its health.
 
@@ -91,13 +117,16 @@ Storage grows with level:
 | Ocelot | Speedster | Tropical Fish | Creepers and phantoms leave you alone, and you often wake up to a gift (same as the Cat) |
 | Strider | Speedster | Warped Fungus | Fire Resistance in the Nether |
 | Cat | Utility | Cod | Creepers and phantoms leave you alone, and you often wake up to a gift (same as the Ocelot) |
-| Bee | Utility | Any flower | Crops around you grow faster |
+| Bee | Utility | Any flower | Crops within 5 blocks of you grow fast: 3 crops a stage every 3 seconds (faster with level; set in `bee:`) |
 | Allay | Utility | Amethyst Shard | Pulls nearby drops to you and bottles loose XP into its storage |
 | Chicken | Utility | Seeds | You glide down long drops |
 | Cow | Utility | Wheat | Clears one bad effect every 2 minutes |
 | Turtle | Utility | Seagrass | You can breathe underwater |
 | Armadillo | Utility | Spider Eye | 20% less damage from arrows and other projectiles |
 | Frog | Utility | Slime Ball | Dolphin's Grace while swimming |
+| Pig | Utility | Carrot, Potato or Beetroot | Lumberjack: chop a tree's bottom log with an axe and the whole tree comes down (huge mushrooms and nether trees too). Only trees that grew there; sneak to chop a single log |
+| Axolotl | Utility | Tropical Fish (or a bucket of it) | You slowly heal while hurt, faster in water |
+| Bat | Utility | Melon Slice | Night vision |
 
 Every bonus gets a little stronger as the pet levels up (about 45% stronger at level 10).
 
@@ -111,13 +140,13 @@ Every species can be turned off in `config.yml`.
 
 ## Riding
 
-**Cats, Wolves and Rabbits** can be ridden right away; every other pet from level 3. Use your Pet Toy on the pet to get on, steer with WASD, jump with space, sprint for a little extra speed, and sneak to get off. You don't need a saddle.
+**Cats, Wolves, Rabbits and Horses** can be ridden right away; every other pet from level 3. Use your Pet Toy on the pet to get on, steer with WASD, jump with space, sprint for a little extra speed, and sneak to get off. You don't need a saddle.
 
 Landings are soft, like on a horse: only half the fall counts, so ordinary jumps never hurt (also for a few seconds after you get off).
 
-- **Small pets** (Fox, Rabbit, Ocelot, Cat, Bee, Allay, Chicken, Turtle, Armadillo, Frog) either **grow** big enough to carry you, or **shrink you** to their size. This is decided once, at random, when you bond, and stays the same for that pet.
-- **Bees and Allays hover.** Hold jump to rise (3 blocks at most); let go to drift gently down.
-- **Turtles and Frogs swim** as fast as a boat. Look down to dive and up to rise, or hold jump to come up.
+- **Small pets** (Fox, Rabbit, Ocelot, Cat, Bee, Allay, Chicken, Turtle, Armadillo, Frog, Axolotl, Bat) either **grow** big enough to carry you, or **shrink you** to their size. This is decided once, at random, when you bond, and stays the same for that pet.
+- **Bees, Allays and Bats hover.** Hold jump to rise (3 blocks at most); let go to drift gently down.
+- **Turtles, Frogs and Axolotls swim** as fast as a boat. Look down to dive and up to rise, or hold jump to come up.
 - **Rabbits hop** along as they go.
 
 ## Levels
@@ -129,7 +158,9 @@ Level 1 to 10. Bond XP comes from:
 | Feeding it | 10 (at most every 30 seconds) |
 | It kills a mob | 6 |
 | You kill a hostile mob while it's out | 3 |
-| Riding it | 1 per 25 blocks |
+| Riding it | 1 per 10 blocks |
+| Walking around with it out | 1 per 20 blocks |
+| Playing fetch | 2 (at most every 15 seconds) |
 | Spending time together | 2 per minute |
 
 Going from level n to n+1 takes 40 + 30×n XP. Each level gives:
@@ -150,6 +181,8 @@ Going from level n to n+1 takes 40 + 30×n XP. Each level gives:
 | `/pets toy` | A new Pet Toy, if you lost yours |
 | `/pets bloom [name]` | A pet's own bloom |
 | `/pets guide` | Read the Pet Guide |
+| `/pets station` | Leave the pet that's out at a post (level 8+) |
+| `/pets fetch` | A Fetch Stick |
 | `/pets release <name>[, <name>...]` | Say goodbye to one or more pets for good (asks you to confirm). What they carry comes back to you |
 | `/pets give <player> <species> [level]` | Admin: give someone a pet |
 | `/pets reload` | Admin: reload `config.yml` |
@@ -173,7 +206,11 @@ Permissions:
 - fainting and rest time;
 - bond XP amounts;
 - whether other players can hurt your pets;
-- whether the Allay bottles XP or just pulls it to you.
+- whether the Allay bottles XP or just pulls it to you;
+- the Bee's area, crops per pulse and speed (`bee:`);
+- stations: the level they unlock at, how many per player, and how far guards chase (`stationing:`).
+
+Existing config files are updated automatically when the plugin starts (a backup is kept as `config.yml.before-v2`).
 
 Pets are saved per player in `plugins/BloomPets/players/<uuid>.yml`.
 

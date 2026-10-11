@@ -75,6 +75,13 @@ public final class Guide {
             .append(ink("Each has its own\n")).append(block("poppy")).append(ink(" Bloom, too!"))
             .build());
         pages.add(page()
+            .append(title("Playtime ✦")).append(nl()).append(nl())
+            .append(item("stick")).append(ink(" Grab a Fetch Stick\nfrom the pet menu\nand throw it!"))
+            .append(nl()).append(nl())
+            .append(ink("Big pets (level 8+)\ncan keep a post:\nsneak + punch them\nwith your toy.")).append(nl())
+            .append(soft("Guards guard, bees\nfarm, allays tidy."))
+            .build());
+        pages.add(page()
             .append(title("Growing Up ✦")).append(nl()).append(nl())
             .append(ink("Walks, snacks and\nadventures help\nyour pet grow up to\nlevel 10.")).append(nl()).append(nl())
             .append(ink("Bigger bags, more\nheart, and rides!")).append(nl()).append(nl())
@@ -152,6 +159,9 @@ public final class Guide {
             case TURTLE -> "Seagrass";
             case ARMADILLO -> "Spider Eyes";
             case FROG -> "Slime Balls";
+            case PIG -> "Carrots, Potatoes";
+            case AXOLOTL -> "Tropical Fish";
+            case BAT -> "Melon Slices";
         };
     }
 
@@ -180,6 +190,9 @@ public final class Guide {
             case TURTLE -> block("seagrass");
             case ARMADILLO -> item("spider_eye");
             case FROG -> item("slime_ball");
+            case PIG -> item("carrot");
+            case AXOLOTL -> item("tropical_fish_bucket");
+            case BAT -> item("melon_slice");
         };
     }
 
@@ -210,6 +223,9 @@ public final class Guide {
             case TURTLE -> "Breathe easy\nunderwater.";
             case ARMADILLO -> "Arrows? What\narrows?";
             case FROG -> "Swims like a dream.";
+            case PIG -> "Timber! Trees beware.";
+            case AXOLOTL -> "Kisses boo-boos\nbetter.";
+            case BAT -> "Lights? Who needs\nlights?";
         };
     }
 
