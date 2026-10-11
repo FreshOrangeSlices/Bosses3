@@ -131,7 +131,10 @@ public final class PetListener implements Listener {
                 pets.feed(p, a, EquipmentSlot.HAND);
             } else if (p.isSneaking()) {
                 plugin.menus().openPetInventory(p, a.pet);
-            } else if (Blooms.isPetItem(hand)) {
+            } else if (Blooms.isPetItem(hand) && a.home != null) {
+                Msg.bar(p, a.pet.name + " is keeping its post. Sneak + punch it with your Pet Toy to call it back.",
+                    NamedTextColor.GRAY);
+            } else if (Blooms.isPetItem(hand) && !Blooms.isFetchStick(hand)) {
                 plugin.rides().tryMount(p, a);
             } else if (hand.getType() == Material.NAME_TAG && hand.getData(DataComponentTypes.CUSTOM_NAME) != null) {
                 String name = PlainTextComponentSerializer.plainText()
@@ -202,6 +205,15 @@ public final class PetListener implements Listener {
         if (!bloom) {
             return;
         }
+        if (Blooms.isFetchStick(item)) {
+            if (action.isRightClick() && event.getHand() != null) {
+                event.setCancelled(true);
+                if (click(p) && plugin.pets().throwFetch(p, item)) {
+                    p.getInventory().setItem(event.getHand(), null);
+                }
+            }
+            return; // punching with it does nothing special
+        }
         if (event.getHand() == EquipmentSlot.OFF_HAND && Blooms.isPetItem(p.getInventory().getItemInMainHand())) {
             event.setUseItemInHand(Event.Result.DENY);
             return; // the main hand's bloom handles it
@@ -228,10 +240,24 @@ public final class PetListener implements Listener {
     @EventHandler(priority = EventPriority.HIGH)
     public void onPunchEntity(PrePlayerAttackEntityEvent event) {
         Player p = event.getPlayer();
-        if (Blooms.isPetItem(p.getInventory().getItemInMainHand())) {
-            event.setCancelled(true);
-            openMenu(p);
+        if (!Blooms.isPetItem(p.getInventory().getItemInMainHand())) {
+            return;
         }
+        event.setCancelled(true);
+        PetManager.Active a = plugin.pets().of(event.getAttacked());
+        if (p.isSneaking() && a != null && a.owner.equals(p.getUniqueId())) {
+            // sneak + punch your pet: it keeps a post right there (or comes back from one)
+            if (!click(p)) {
+                return;
+            }
+            if (a.home == null) {
+                plugin.pets().station(p, a);
+            } else {
+                plugin.pets().summon(p, a.pet, true);
+            }
+            return;
+        }
+        openMenu(p);
     }
 
     private void openMenu(Player p) {
@@ -280,9 +306,16 @@ public final class PetListener implements Listener {
             return;
         }
         switch (event.getCause()) {
-            case FALL, SUFFOCATION, DROWNING, CRAMMING, FLY_INTO_WALL -> {
+            case FALL, SUFFOCATION, DROWNING, CRAMMING, FLY_INTO_WALL, DRYOUT -> {
                 event.setCancelled(true);
                 return;
+            }
+            case FIRE, FIRE_TICK, LAVA, HOT_FLOOR, CAMPFIRE -> {
+                if (a.pet.species == Species.PIG && a.pet.maxed()) {
+                    event.setCancelled(true);
+                    e.setFireTicks(0);
+                    return;
+                }
             }
             default -> {
             }
@@ -298,8 +331,12 @@ public final class PetListener implements Listener {
                 return;
             }
             Player owner = Bukkit.getPlayer(a.owner);
-            if (owner != null && src instanceof LivingEntity attacker && !(src instanceof Player)) {
-                plugin.pets().engage(owner, attacker);
+            if (src instanceof LivingEntity attacker && !(src instanceof Player)) {
+                if (a.home != null) {
+                    plugin.pets().defend(a, attacker);
+                } else if (owner != null) {
+                    plugin.pets().engage(owner, attacker);
+                }
             }
         }
     }
@@ -461,7 +498,7 @@ public final class PetListener implements Listener {
         List<ItemStack> kept = new ArrayList<>();
         for (Iterator<ItemStack> it = event.getDrops().iterator(); it.hasNext(); ) {
             ItemStack drop = it.next();
-            if (Blooms.isToy(drop) || (Blooms.isBloom(drop)
+            if (Blooms.isToy(drop) || Blooms.isFetchStick(drop) || (Blooms.isBloom(drop)
                 && me.equals(drop.getPersistentDataContainer().get(Keys.BLOOM_OWNER, PersistentDataType.STRING)))) {
                 kept.add(drop);
                 it.remove();
@@ -535,6 +572,21 @@ public final class PetListener implements Listener {
                 event.setResult(null);
                 return;
             }
+        }
+    }
+
+    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
+    public void onHopper(org.bukkit.event.inventory.InventoryPickupItemEvent event) {
+        if (Blooms.isPetItem(event.getItem().getItemStack())) {
+            event.setCancelled(true);
+        }
+    }
+
+    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
+    public void onCombust(org.bukkit.event.entity.EntityCombustEvent event) {
+        PetManager.Active a = plugin.pets().of(event.getEntity());
+        if (a != null && a.pet.species == Species.PIG && a.pet.maxed()) {
+            event.setCancelled(true);
         }
     }
 

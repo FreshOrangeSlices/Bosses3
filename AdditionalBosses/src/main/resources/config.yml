@@ -1,4 +1,4 @@
-config-version: 9   # used by the plugin to update this file; don't change
+config-version: 10   # used by the plugin to update this file; don't change
 # =====================================================================
 #  Additional Bosses - configuration
 # ---------------------------------------------------------------------
@@ -16,7 +16,7 @@ bosses:
   # (Roll #2, the rank, uses the weights in mob-categories below.)
   # Hostile mobs spawn (and quietly despawn) constantly, so small values
   # go a long way. Raise it for more bosses, lower it for fewer.
-  spawn-chance: 15.0
+  spawn-chance: 5.0
   # Which spawns can become bosses. Spawners are left out on purpose so
   # mob farms can't farm bosses. Categories can override this list.
   spawn-reasons: [NATURAL, PATROL, RAID]
@@ -26,7 +26,7 @@ bosses:
     mode: blacklist
     list: []
   # These mobs never become bosses, even if listed in a category.
-  excluded-mobs: []
+  excluded-mobs: [CREEPER]
   # Most bosses that can be loaded at the same time (all worlds).
   max-active: 15
   # A new boss can't appear within this many blocks of another boss.
@@ -35,6 +35,8 @@ bosses:
   # so they show up at your height instead of deep in a cave below you.
   # 0 = any height.
   max-height-difference: 20
+  # A boss stuck inside blocks (suffocating) breaks them to get free.
+  break-free-when-stuck: true
   # Show the boss name above its head at all times (false = only when you
   # look at it; the boss bar shows it during a fight).
   always-show-name: false

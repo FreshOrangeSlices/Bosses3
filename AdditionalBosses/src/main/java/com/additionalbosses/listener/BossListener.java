@@ -47,6 +47,56 @@ public final class BossListener implements Listener {
         return plugin.bosses();
     }
 
+    /**
+     * A boss stuck in blocks doesn't choke to death: it breaks out of the blocks around its head (never its floor).
+     * Unbreakable and very hard blocks, block entities (chests, spawners...) and budding amethyst stay; it respects
+     * the mobGriefing game rule and protection plugins (EntityChangeBlockEvent); and blocks drop only what they
+     * would without a tool (no free ores).
+     */
+    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
+    public void onSuffocate(org.bukkit.event.entity.EntityDamageEvent event) {
+        if (event.getCause() != org.bukkit.event.entity.EntityDamageEvent.DamageCause.SUFFOCATION
+            || !plugin.settings().breakFreeWhenStuck || !(event.getEntity() instanceof LivingEntity boss)
+            || bosses().get(boss) == null
+            || Boolean.FALSE.equals(boss.getWorld().getGameRuleValue(org.bukkit.GameRules.MOB_GRIEFING))) {
+            return;
+        }
+        // like the game's own check: the blocks around its eyes, not the floor it stands on
+        org.bukkit.util.BoundingBox box = boss.getBoundingBox();
+        double eye = boss.getEyeLocation().getY();
+        double half = boss.getWidth() * 0.4;
+        double cx = boss.getX();
+        double cz = boss.getZ();
+        org.bukkit.World world = boss.getWorld();
+        boolean freed = false;
+        for (int x = (int) Math.floor(cx - half); x <= (int) Math.floor(cx + half); x++) {
+            for (int y = (int) Math.floor(Math.max(box.getMinY() + 0.6, eye - 0.3)); y <= (int) Math.floor(eye + 0.2); y++) {
+                for (int z = (int) Math.floor(cz - half); z <= (int) Math.floor(cz + half); z++) {
+                    org.bukkit.block.Block block = world.getBlockAt(x, y, z);
+                    org.bukkit.Material type = block.getType();
+                    float hardness = type.getHardness();
+                    if (block.isPassable() || block.isLiquid() || hardness < 0 || hardness >= 50
+                        || type == org.bukkit.Material.BUDDING_AMETHYST
+                        || block.getState(false) instanceof org.bukkit.block.TileState) {
+                        continue;
+                    }
+                    if (!new org.bukkit.event.entity.EntityChangeBlockEvent(boss, block,
+                        org.bukkit.Material.AIR.createBlockData()).callEvent()) {
+                        continue;
+                    }
+                    world.spawnParticle(org.bukkit.Particle.BLOCK, block.getLocation().add(0.5, 0.5, 0.5), 20,
+                        0.3, 0.3, 0.3, block.getBlockData());
+                    block.breakNaturally(org.bukkit.inventory.ItemStack.empty()); // drops as if broken by hand
+                    freed = true;
+                }
+            }
+        }
+        if (freed) {
+            event.setCancelled(true);
+            world.playSound(boss.getLocation(), org.bukkit.Sound.ENTITY_ZOMBIE_BREAK_WOODEN_DOOR, 0.8f, 0.8f);
+        }
+    }
+
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onSpawn(CreatureSpawnEvent event) {
         bosses().handleSpawn(event.getEntity(), event.getSpawnReason());

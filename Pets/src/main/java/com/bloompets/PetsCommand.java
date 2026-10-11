@@ -23,7 +23,7 @@ public final class PetsCommand implements BasicCommand {
 
     private static final String ADMIN = "bloompets.admin";
     private static final List<String> PLAYER_SUBS = List.of("summon", "dismiss", "list", "rename", "toy", "bloom",
-        "guide", "release", "help");
+        "guide", "station", "fetch", "release", "help");
     private static final List<String> ADMIN_SUBS = List.of("give", "reload");
 
     private record PendingRelease(List<UUID> petIds, long until) {
@@ -89,6 +89,23 @@ public final class PetsCommand implements BasicCommand {
                 }
             }
             case "guide" -> p.openBook(Guide.book());
+            case "station" -> {
+                PetManager.Active a = plugin.pets().active(p.getUniqueId());
+                if (a == null) {
+                    Msg.chat(p, Component.text("Call out the pet you want to station first.", NamedTextColor.RED));
+                } else {
+                    plugin.pets().station(p, a);
+                }
+            }
+            case "fetch" -> {
+                if (Blooms.hasFetchStick(p)) {
+                    Msg.bar(p, "You already have a Fetch Stick.", NamedTextColor.GRAY);
+                } else if (Blooms.mayHandOut(p, "fetch")) {
+                    PetManager.give(p, Blooms.fetchStick());
+                } else {
+                    Msg.bar(p, "You just got a Fetch Stick. Try again in a minute.", NamedTextColor.GRAY);
+                }
+            }
             default -> help(p);
         }
     }
@@ -249,6 +266,8 @@ public final class PetsCommand implements BasicCommand {
             "/pets toy  a new Pet Toy, if you lost yours",
             "/pets bloom [name]  get a pet's bloom back",
             "/pets guide  read the Pet Guide",
+            "/pets station  leave the pet that's out at a post (level 8+)",
+            "/pets fetch  a Fetch Stick to play with",
             "/pets release <name>[, <name>...]  say goodbye for good"));
         if (sender.hasPermission(ADMIN)) {
             lines.add("/pets give <player> <species> [level]  /pets reload");

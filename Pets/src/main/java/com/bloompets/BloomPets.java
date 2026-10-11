@@ -27,6 +27,8 @@ public final class BloomPets extends JavaPlugin {
     public void onEnable() {
         instance = this;
         saveDefaultConfig();
+        ConfigUpdate.run(this);
+        reloadConfig();
         Keys.init(this);
         settings = new Settings(getConfig());
         store = new PetStore(this);
@@ -40,6 +42,7 @@ public final class BloomPets extends JavaPlugin {
         pm.registerEvents(bonuses, this);
         pm.registerEvents(menus, this);
         pm.registerEvents(rides, this);
+        pm.registerEvents(new Timber(this), this);
 
         pets.start();
         rides.start();

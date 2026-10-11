@@ -14,6 +14,7 @@ public final class Keys {
     public static NamespacedKey BLOOM;        // string, pet id, on a Pet Bloom item
     public static NamespacedKey BLOOM_OWNER;  // string, owner uuid, on a Pet Bloom item
     public static NamespacedKey TOY;          // byte, on the Pet Toy item
+    public static NamespacedKey FETCH;        // byte, on the Fetch Stick item
     public static NamespacedKey MOD_LEVEL;
     public static NamespacedKey MOD_STEP;
     public static NamespacedKey MOD_RIDE_SCALE;
@@ -29,6 +30,7 @@ public final class Keys {
         BLOOM = new NamespacedKey(plugin, "bloom");
         BLOOM_OWNER = new NamespacedKey(plugin, "bloom_owner");
         TOY = new NamespacedKey(plugin, "toy");
+        FETCH = new NamespacedKey(plugin, "fetch_stick");
         MOD_LEVEL = new NamespacedKey(plugin, "pet_level");
         MOD_STEP = new NamespacedKey(plugin, "pet_step");
         MOD_RIDE_SCALE = new NamespacedKey(plugin, "ride_scale");

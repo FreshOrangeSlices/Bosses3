@@ -40,6 +40,39 @@ public final class Pet {
     public double health = -1;
     /** When feeding last gave bond XP (not saved; feeding gives XP at most every 30 seconds). */
     public long lastFeedXp;
+    /** When playing fetch last gave bond XP (not saved). */
+    public long lastFetchXp;
+    /** Where this pet is stationed ("world;x;y;z;yaw"), or null if it comes with its owner. */
+    public @Nullable String station;
+
+    public boolean stationed() {
+        return station != null;
+    }
+
+    /** The station as a location, or null if there is none (or its world isn't loaded). */
+    public @Nullable org.bukkit.Location stationLocation() {
+        if (station == null) {
+            return null;
+        }
+        String[] p = station.split(";");
+        if (p.length < 4) {
+            return null;
+        }
+        org.bukkit.World world = org.bukkit.Bukkit.getWorld(p[0]);
+        if (world == null) {
+            return null;
+        }
+        try {
+            return new org.bukkit.Location(world, Double.parseDouble(p[1]), Double.parseDouble(p[2]),
+                Double.parseDouble(p[3]), p.length > 4 ? Float.parseFloat(p[4]) : 0, 0);
+        } catch (NumberFormatException ex) {
+            return null;
+        }
+    }
+
+    public void stationAt(org.bukkit.Location at) {
+        station = at.getWorld().getName() + ";" + at.getX() + ";" + at.getY() + ";" + at.getZ() + ";" + at.getYaw();
+    }
     public byte @Nullable [] snapshot;
     public ItemStack[] storage;
 

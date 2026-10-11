@@ -72,6 +72,11 @@ public final class Blooms {
         if (menu && plugin != null && plugin.pets().isOut(pet)) {
             lore.add(line("● Out with you now", NamedTextColor.GREEN));
         }
+        org.bukkit.Location post = pet.stationLocation();
+        if (menu && pet.stationed()) {
+            lore.add(line("⚑ At its post" + (post == null ? "" : ": " + post.getBlockX() + ", " + post.getBlockY()
+                + ", " + post.getBlockZ()), NamedTextColor.GOLD));
+        }
         lore.add(line(pet.species.displayName() + " · " + pet.species.category().displayName()
             + " · Level " + pet.level, NamedTextColor.GRAY));
         if (pet.maxed()) {
@@ -96,7 +101,8 @@ public final class Blooms {
             lore.add(line(pet.species.displayName() + " pets are turned off on this server", NamedTextColor.RED));
         }
         if (menu) {
-            lore.add(line("Left-click: summon / dismiss", NamedTextColor.DARK_GRAY));
+            lore.add(line(pet.stationed() ? "Left-click: call it back from its post" : "Left-click: summon / dismiss",
+                NamedTextColor.DARK_GRAY));
             lore.add(line("Right-click: take its Pet Bloom", NamedTextColor.DARK_GRAY));
             if (pet.species == Species.VEX) {
                 lore.add(line("Shift-click: its gear (while it's out)", NamedTextColor.DARK_GRAY));
@@ -132,7 +138,8 @@ public final class Blooms {
             line("Punch: see all your pets and pick one", NamedTextColor.DARK_GRAY),
             line("Use it on your pet: ride", NamedTextColor.DARK_GRAY),
             line("Right-click your pet: swap to another", NamedTextColor.DARK_GRAY),
-            line("Sneak + right-click your pet: its bag", NamedTextColor.DARK_GRAY)));
+            line("Sneak + right-click your pet: its bag", NamedTextColor.DARK_GRAY),
+            line("Sneak + punch your pet: station it there (level 8+)", NamedTextColor.DARK_GRAY)));
         item.editPersistentDataContainer(pdc -> pdc.set(Keys.TOY, PersistentDataType.BYTE, (byte) 1));
         return item;
     }
@@ -141,9 +148,37 @@ public final class Blooms {
         return item != null && !item.isEmpty() && item.getPersistentDataContainer().has(Keys.TOY);
     }
 
-    /** A bloom or the toy: never crafted with, traded or lost on death. */
+    /** The Fetch Stick: right-click to throw it, and your pet brings it back. */
+    public static ItemStack fetchStick() {
+        ItemStack item = ItemStack.of(Material.PAPER);
+        item.setData(DataComponentTypes.ITEM_MODEL, Key.key("stick"));
+        item.setData(DataComponentTypes.MAX_STACK_SIZE, 1);
+        item.setData(DataComponentTypes.ITEM_NAME, Component.text("Fetch Stick", NamedTextColor.GOLD)
+            .decorate(TextDecoration.BOLD));
+        item.lore(List.of(
+            line("A very good stick.", NamedTextColor.GRAY),
+            Component.empty(),
+            line("Right-click: throw it for your pet", NamedTextColor.DARK_GRAY)));
+        item.editPersistentDataContainer(pdc -> pdc.set(Keys.FETCH, PersistentDataType.BYTE, (byte) 1));
+        return item;
+    }
+
+    public static boolean isFetchStick(@Nullable ItemStack item) {
+        return item != null && !item.isEmpty() && item.getPersistentDataContainer().has(Keys.FETCH);
+    }
+
+    public static boolean hasFetchStick(Player p) {
+        for (ItemStack item : p.getInventory().getContents()) {
+            if (isFetchStick(item)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** A bloom, the toy or the fetch stick: never crafted with, traded or lost on death. */
     public static boolean isPetItem(@Nullable ItemStack item) {
-        return isBloom(item) || isToy(item);
+        return isBloom(item) || isToy(item) || isFetchStick(item);
     }
 
     public static boolean hasToy(Player p) {

@@ -23,7 +23,7 @@ import java.util.regex.Pattern;
  */
 public final class ConfigUpgrader {
 
-    public static final int CURRENT = 9;
+    public static final int CURRENT = 10;
     private static final Pattern VERSION = Pattern.compile("^config-version:\\s*(\\d+)\\s*(#.*)?$");
     private static final Pattern STORMCALLER = Pattern.compile("^(\\s+stormcaller:\\s*\\{.*\\bweight:\\s*)6(\\b.*)$");
     private static final Pattern STATUE_SCALE = Pattern.compile("^(\\s+)statue-scale:\\s*(1|1\\.0|0\\.125)(\\s.*)?$");
@@ -31,6 +31,9 @@ public final class ConfigUpgrader {
     private static final Pattern SHOW_NAME = Pattern.compile("^(\\s+always-show-name:\\s*)true(\\s.*)?$");
     private static final Pattern GRAY_TROPHY = Pattern.compile("^(\\s+)gray-trophy-chance:\\s*([0-9.]+).*$");
     private static final Pattern STATUE_SIZE = Pattern.compile("^(\\s+)statue-size:.*$");
+    private static final Pattern SPAWN_CHANCE_15 = Pattern.compile("^(\\s+spawn-chance:\\s*)15(\\.0)?(\\s.*)?$");
+    private static final Pattern NO_EXCLUDED = Pattern.compile("^(\\s+excluded-mobs:\\s*)\\[\\s*\\](\\s.*)?$");
+    private static final Pattern HEIGHT = Pattern.compile("^(\\s+)max-height-difference:.*$");
     private static final Pattern MIN_DISTANCE = Pattern.compile("^(\\s+)min-distance-between:.*$");
     private static final Pattern TOP_LEVEL = Pattern.compile("^([a-z][a-z0-9-]*):.*$");
 
@@ -155,6 +158,24 @@ public final class ConfigUpgrader {
             log.accept("config.yml: lowered the Stormcaller relic's weight from 6 to 2.");
             return m.group(1) + "2" + m.group(2);
         }
+        // v10: fewer bosses (15% -> 5%), no creeper bosses, stuck bosses break free.
+        if (section.equals("bosses") && version < 10) {
+            Matcher chance = SPAWN_CHANCE_15.matcher(line);
+            if (chance.matches()) {
+                log.accept("config.yml: boss spawn chance lowered from 15% to 5%.");
+                return chance.group(1) + "5.0" + (chance.group(3) == null ? "" : chance.group(3));
+            }
+            Matcher excluded = NO_EXCLUDED.matcher(line);
+            if (excluded.matches()) {
+                log.accept("config.yml: creepers no longer become bosses (bosses.excluded-mobs).");
+                return excluded.group(1) + "[CREEPER]" + (excluded.group(2) == null ? "" : excluded.group(2));
+            }
+            Matcher height = HEIGHT.matcher(line);
+            if (height.matches() && version >= 9) {
+                return line + "\n" + height.group(1) + "# A boss stuck inside blocks (suffocating) breaks them to get free.\n"
+                    + height.group(1) + "break-free-when-stuck: true";
+            }
+        }
         // v9: bosses appear near the player's height (shown in the file so it can be tuned).
         if (section.equals("bosses") && version < 9) {
             Matcher distance = MIN_DISTANCE.matcher(line);
@@ -166,7 +187,9 @@ public final class ConfigUpgrader {
                     + indent + "# Bosses only appear within this many blocks above or below a player,\n"
                     + indent + "# so they show up at your height instead of deep in a cave below you.\n"
                     + indent + "# 0 = any height.\n"
-                    + indent + "max-height-difference: 20";
+                    + indent + "max-height-difference: 20\n"
+                    + indent + "# A boss stuck inside blocks (suffocating) breaks them to get free.\n"
+                    + indent + "break-free-when-stuck: true";
             }
         }
         // v8: statues are a fixed fraction of a normal mob (measuring them in blocks kept shrinking them).
