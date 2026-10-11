@@ -47,6 +47,46 @@ public final class BossListener implements Listener {
         return plugin.bosses();
     }
 
+    /**
+     * A boss stuck in blocks doesn't choke to death: it breaks out. Unbreakable and very hard blocks (bedrock,
+     * obsidian...) and containers stay, and protection plugins can stop it (EntityChangeBlockEvent).
+     */
+    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
+    public void onSuffocate(org.bukkit.event.entity.EntityDamageEvent event) {
+        if (event.getCause() != org.bukkit.event.entity.EntityDamageEvent.DamageCause.SUFFOCATION
+            || !plugin.settings().breakFreeWhenStuck || !(event.getEntity() instanceof LivingEntity boss)
+            || bosses().get(boss) == null) {
+            return;
+        }
+        org.bukkit.util.BoundingBox box = boss.getBoundingBox();
+        org.bukkit.World world = boss.getWorld();
+        boolean freed = false;
+        for (int x = (int) Math.floor(box.getMinX()); x <= (int) Math.floor(box.getMaxX() - 1.0E-4); x++) {
+            for (int y = (int) Math.floor(box.getMinY() + 0.1); y <= (int) Math.floor(box.getMaxY() - 1.0E-4); y++) {
+                for (int z = (int) Math.floor(box.getMinZ()); z <= (int) Math.floor(box.getMaxZ() - 1.0E-4); z++) {
+                    org.bukkit.block.Block block = world.getBlockAt(x, y, z);
+                    float hardness = block.getType().getHardness();
+                    if (block.isPassable() || block.isLiquid() || hardness < 0 || hardness >= 50
+                        || block.getState(false) instanceof org.bukkit.block.Container) {
+                        continue;
+                    }
+                    if (!new org.bukkit.event.entity.EntityChangeBlockEvent(boss, block,
+                        org.bukkit.Material.AIR.createBlockData()).callEvent()) {
+                        continue;
+                    }
+                    world.spawnParticle(org.bukkit.Particle.BLOCK, block.getLocation().add(0.5, 0.5, 0.5), 20,
+                        0.3, 0.3, 0.3, block.getBlockData());
+                    block.breakNaturally();
+                    freed = true;
+                }
+            }
+        }
+        if (freed) {
+            event.setCancelled(true);
+            world.playSound(boss.getLocation(), org.bukkit.Sound.ENTITY_ZOMBIE_BREAK_WOODEN_DOOR, 0.8f, 0.8f);
+        }
+    }
+
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onSpawn(CreatureSpawnEvent event) {
         bosses().handleSpawn(event.getEntity(), event.getSpawnReason());
