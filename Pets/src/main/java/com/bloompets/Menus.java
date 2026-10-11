@@ -388,6 +388,11 @@ public final class Menus implements Listener {
             Msg.error(p, pet.name + " needs to be out to open its " + (vex ? "gear." : "storage."));
             return;
         }
+        if (a.home != null && (a.entity.getWorld() != p.getWorld()
+            || a.entity.getLocation().distanceSquared(p.getLocation()) > 8 * 8)) {
+            Msg.error(p, "Go to " + pet.name + "'s post to open its " + (vex ? "gear." : "storage."));
+            return;
+        }
         if (vex) {
             openGear(p, a);
         } else {

@@ -243,7 +243,8 @@ public final class PetManager {
             }
             stash(current);
         }
-        if (pet.stationed()) {
+        String post = pet.station;
+        if (post != null) {
             // called back from its post
             Active atPost = posted.get(pet.id);
             pet.station = null;
@@ -253,9 +254,11 @@ public final class PetManager {
         }
         Mob mob = spawn(pet, spawnSpot(owner, pet.species));
         if (mob == null) {
+            pet.station = post; // couldn't come: it keeps its post
             Msg.error(owner, pet.name + " can't come out here.");
             return false;
         }
+        plugin.bonuses().forget(pet.id);
         track(owner, pet, mob);
         plugin.store().setLast(pet);
         if (announce) {
@@ -316,7 +319,9 @@ public final class PetManager {
         endFetch(a, false);
         untrack(a);
         if (a.entity.isValid()) {
-            a.pet.health = a.entity.getHealth() / maxHealth(a.entity);
+            if (!a.fainting) {
+                a.pet.health = a.entity.getHealth() / maxHealth(a.entity);
+            }
             snapshot(a);
         }
         plugin.store().save(a.owner);
@@ -663,8 +668,8 @@ public final class PetManager {
         plugin.store().save(a.owner);
         Player owner = Bukkit.getPlayer(a.owner);
         if (owner != null) {
-            Msg.chat(owner, Component.text(a.pet.name + " fainted and went back into its bloom to rest.",
-                NamedTextColor.GRAY));
+            Msg.chat(owner, Component.text(a.pet.name + (a.home != null ? " fainted at its post and will be back "
+                + "there after a rest." : " fainted and went back into its bloom to rest."), NamedTextColor.GRAY));
             plugin.menus().refresh(owner);
         }
     }
@@ -894,8 +899,12 @@ public final class PetManager {
         PlayerInventory inv = p.getInventory();
         ItemStack item = inv.getItem(hand);
         if (!item.isEmpty()) {
+            boolean bucket = item.getType() == Material.TROPICAL_FISH_BUCKET;
             item.setAmount(item.getAmount() - 1);
             inv.setItem(hand, item.getAmount() <= 0 ? null : item);
+            if (bucket) {
+                give(p, ItemStack.of(Material.WATER_BUCKET)); // like the game: the fish goes, the water stays
+            }
         }
     }
 
@@ -933,10 +942,10 @@ public final class PetManager {
 
     private void leveledUp(Pet pet, int before) {
         Player owner = Bukkit.getPlayer(pet.owner);
-        Active a = byOwner.get(pet.owner);
-        if (a != null && a.pet == pet) {
+        Active a = activeFor(pet);
+        if (a != null) {
             applyStats(a);
-            if (owner != null) {
+            if (owner != null && a.home == null) {
                 plugin.bonuses().apply(owner, a);
             }
             Mob m = a.entity;
@@ -1025,6 +1034,15 @@ public final class PetManager {
             && !(t instanceof Tameable tame && a.owner.equals(tame.getOwnerUniqueId()));
     }
 
+    /** Not creepers (they'd blow up the base), and neutral mobs only once they're angry. */
+    static boolean worthFighting(Mob mob) {
+        if (mob instanceof Creeper) {
+            return false;
+        }
+        boolean neutral = mob instanceof org.bukkit.entity.Enderman || mob instanceof org.bukkit.entity.PigZombie;
+        return !neutral || mob.getTarget() != null;
+    }
+
     double guardRadius(Active a) {
         return plugin.settings().guardRadius * (a.pet.maxed() ? 1.5 : 1);
     }
@@ -1041,7 +1059,7 @@ public final class PetManager {
         LivingEntity best = null;
         double bestDist = r * r;
         for (Entity e : a.home.getWorld().getNearbyEntities(a.home, r, Math.min(r, 8), r)) {
-            if (e instanceof Mob mob && e instanceof Enemy && validGuardTarget(a, mob)) {
+            if (e instanceof Mob mob && e instanceof Enemy && validGuardTarget(a, mob) && worthFighting(mob)) {
                 double d = mob.getLocation().distanceSquared(a.home);
                 if (d < bestDist) {
                     bestDist = d;
@@ -1127,8 +1145,9 @@ public final class PetManager {
         if (m instanceof IronGolem) {
             m.playEffect(EntityEffect.ENTITY_ATTACK);
         }
-        if (owner != null) {
-            t.setKiller(owner); // the kill counts as yours (XP, drops), like a tamed wolf's
+        if (owner != null && owner.getWorld() == t.getWorld()
+            && owner.getLocation().distanceSquared(t.getLocation()) < 32 * 32) {
+            t.setKiller(owner); // the kill counts as yours (XP, drops), like a tamed wolf's, when you're there
         }
         t.damage(base * a.pet.power(), DamageSource.builder(DamageType.MOB_ATTACK)
             .withCausingEntity(m).withDirectEntity(m).build());
@@ -1223,7 +1242,10 @@ public final class PetManager {
 
     /** Where the pet belongs: its post, or its owner. */
     private static Location anchor(Active a, @Nullable Player owner) {
-        return a.home != null || owner == null ? a.home : owner.getLocation();
+        if (a.home != null) {
+            return a.home;
+        }
+        return owner != null ? owner.getLocation() : a.entity.getLocation();
     }
 
     private void walk(Active a, @Nullable Player owner, @Nullable LivingEntity target) {
@@ -1359,7 +1381,7 @@ public final class PetManager {
             goal = target.getLocation().add(0, target.getHeight() * 0.5, 0);
         } else if (a.home != null || owner == null) {
             // at its post: hovers over the spot
-            goal = a.home.clone().add(0, 1.2 + Math.sin(a.ticks / 12.0) * 0.15, 0);
+            goal = anchor(a, owner).clone().add(0, 1.2 + Math.sin(a.ticks / 12.0) * 0.15, 0);
         } else {
             Location eye = owner.getEyeLocation();
             double near = pos.getWorld() == eye.getWorld() ? pos.distance(eye) : Double.MAX_VALUE;
@@ -1419,7 +1441,8 @@ public final class PetManager {
     private void teleportNear(Active a, @Nullable Player owner) {
         Mob m = a.entity;
         Location spot = a.home != null || owner == null
-            ? a.home.clone().add(0, a.pet.species.flies() ? 1.2 : 0, 0) : spawnSpot(owner, a.pet.species);
+            ? anchor(a, owner).clone().add(0, a.pet.species.flies() && a.home != null ? 1.2 : 0, 0)
+            : spawnSpot(owner, a.pet.species);
         m.setVelocity(new Vector());
         m.teleport(spot);
         a.path = null;
@@ -1579,6 +1602,7 @@ public final class PetManager {
         Item item = owner.getWorld().dropItem(eye, thrown, i -> {
             i.setCanPlayerPickup(false);
             i.setCanMobPickup(false);
+            i.setPersistent(false);
             i.setUnlimitedLifetime(true);
             i.setThrower(owner.getUniqueId());
             i.setVelocity(eye.getDirection().multiply(1.1).add(new Vector(0, 0.15, 0)));
@@ -1644,7 +1668,7 @@ public final class PetManager {
         return true;
     }
 
-    /** Fetch is over: the thrown stick disappears and (if {@code giveBack}) is back in its owner's inventory. */
+    /** Fetch is over: the thrown stick disappears and is back in its owner's inventory. */
     private void endFetch(Active a, boolean giveBack) {
         Item item = a.fetchItem;
         if (item == null) {
@@ -1657,8 +1681,8 @@ public final class PetManager {
             item.remove();
         }
         Player owner = Bukkit.getPlayer(a.owner);
-        if (owner != null && (giveBack || owner.isOnline())) {
-            give(owner, stick);
+        if (owner != null) {
+            give(owner, stick); // (an offline owner can take a new stick from the menu)
         }
     }
 
@@ -1680,8 +1704,10 @@ public final class PetManager {
         Location here = owner.getLocation();
         Location last = a.walkLast;
         a.walkLast = here;
-        if (last == null || last.getWorld() != here.getWorld() || owner.isInsideVehicle() || owner.isFlying()) {
-            return;
+        if (last == null || last.getWorld() != here.getWorld() || owner.isInsideVehicle() || owner.isFlying()
+            || owner.isGliding() || owner.isSwimming() || owner.isInWater()
+            || owner.getIdleDuration().toSeconds() >= 20) {
+            return; // walking, not drifting in a water stream or standing AFK
         }
         double dx = here.getX() - last.getX();
         double dz = here.getZ() - last.getZ();

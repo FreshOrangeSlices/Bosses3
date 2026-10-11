@@ -31,6 +31,31 @@ public final class Timber implements Listener {
 
     private enum Kind { LOG, MUSHROOM, FUNGUS }
 
+    /** How far a tree may spread sideways from its trunk. */
+    private static final int REACH = 6;
+
+    /** What a tree, huge mushroom or fungus grows on. */
+    private static final Set<Material> SOIL = java.util.EnumSet.of(Material.DIRT, Material.GRASS_BLOCK,
+        Material.COARSE_DIRT, Material.ROOTED_DIRT, Material.PODZOL, Material.MYCELIUM, Material.MUD,
+        Material.MOSS_BLOCK, Material.PALE_MOSS_BLOCK, Material.MANGROVE_ROOTS, Material.MUDDY_MANGROVE_ROOTS,
+        Material.FARMLAND, Material.SAND, Material.RED_SAND, Material.CLAY, Material.SNOW_BLOCK,
+        Material.CRIMSON_NYLIUM, Material.WARPED_NYLIUM, Material.NETHERRACK, Material.SOUL_SOIL);
+
+    /** The trunk stands on soil: follow it down from the cut (a log cabin's walls don't grow out of dirt). */
+    private static boolean rooted(Block start, Material trunk, Kind kind) {
+        Block b = start;
+        for (int i = 0; i < 40; i++) {
+            Block below = b.getRelative(0, -1, 0);
+            Material type = below.getType();
+            if (type == trunk || (kind == Kind.MUSHROOM && type == Material.MUSHROOM_STEM)) {
+                b = below;
+                continue;
+            }
+            return SOIL.contains(type);
+        }
+        return false;
+    }
+
     private final BloomPets plugin;
     private boolean felling;
 
@@ -61,16 +86,25 @@ public final class Timber implements Listener {
         }
         felling = true;
         try {
+            Material trunk = start.getType();
             for (Block b : tree) {
                 ItemStack tool = p.getInventory().getItemInMainHand();
                 if (!Tag.ITEMS_AXES.isTagged(tool.getType())) {
                     break; // the axe broke
                 }
-                if (!new BlockBreakEvent(b, p).callEvent()) {
+                if (!part(b.getType(), trunk, kind)) {
+                    continue; // already gone (another plugin felled it)
+                }
+                BlockBreakEvent each = new BlockBreakEvent(b, p);
+                if (!each.callEvent()) {
                     continue;
                 }
-                b.breakNaturally(tool, true, true);
-                if (p.getGameMode() != GameMode.CREATIVE) {
+                if (each.isDropItems()) {
+                    b.breakNaturally(tool, true, true);
+                } else {
+                    b.setType(Material.AIR);
+                }
+                if (b.getType().isAir() && p.getGameMode() != GameMode.CREATIVE) {
                     p.getInventory().setItemInMainHand(tool.damage(1, p)); // like chopping it yourself
                 }
             }
@@ -109,11 +143,15 @@ public final class Timber implements Listener {
      */
     private static List<Block> collect(Block start, Kind kind, int limit) {
         Material trunk = start.getType();
+        if (!rooted(start, trunk, kind)) {
+            return List.of();
+        }
         Set<Block> seen = new HashSet<>();
         Deque<Block> queue = new ArrayDeque<>();
         List<Block> found = new ArrayList<>();
         seen.add(start);
         queue.add(start);
+        int leaves = 0;
         boolean natural = false;
         while (!queue.isEmpty() && found.size() < limit) {
             Block b = queue.poll();
@@ -124,12 +162,14 @@ public final class Timber implements Listener {
                             continue;
                         }
                         Block n = b.getRelative(dx, dy, dz);
-                        if (n.getY() < start.getY()) {
-                            continue; // never below the cut
+                        if (n.getY() < start.getY() || Math.abs(n.getX() - start.getX()) > REACH
+                            || Math.abs(n.getZ() - start.getZ()) > REACH) {
+                            continue; // never below the cut, never far to the side (that's a build, not a tree)
                         }
                         Material type = n.getType();
-                        if (kind == Kind.LOG && n.getBlockData() instanceof Leaves leaves && !leaves.isPersistent()) {
-                            natural = true;
+                        if (kind == Kind.LOG && n.getBlockData() instanceof Leaves leaf && !leaf.isPersistent()
+                            && ++leaves >= 3) {
+                            natural = true; // leaves that grew there (placed leaves are "persistent")
                         }
                         if (kind != Kind.LOG && (type != trunk && part(type, trunk, kind))) {
                             natural = true; // caps or wart blocks: a real huge mushroom / fungus

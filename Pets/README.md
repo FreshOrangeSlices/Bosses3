@@ -59,15 +59,15 @@ Sneak and punch your pet with the Pet Toy to leave it at a **post** right where 
 
 | Pet at its post | Job |
 |---|---|
-| Combat pets (Wolf, Iron Golem, Polar Bear, Goat, Panda, Vex) | Guard: they attack monsters within 16 blocks of their post |
+| Combat pets (Wolf, Iron Golem, Polar Bear, Goat, Panda, Vex) | Guard: they attack monsters within 16 blocks of their post (not creepers; endermen and zombified piglins only once they're angry) |
 | Bee | Tends the crops around its post |
-| Allay | Collects drops and loose XP around its post into its storage |
+| Allay | Collects drops and loose XP around its post into its storage, while you're the nearest player |
 | Sniffer | Digs up finds around its post now and then |
 | Cat, Ocelot | Creepers and phantoms near the post leave everyone alone |
 | Llama | Spits at monsters that come close |
 | Others | Wait at their post |
 
-Stationed pets keep working while you're away, as long as their spot is loaded. One that faints comes back to its post after resting. Sneak + right-click a stationed pet to open its storage. To call it back, sneak + punch it with the Pet Toy, or left-click it in the pet menu.
+Stationed pets keep working while you're away, as long as their spot is loaded. One that faints comes back to its post after resting. Sneak + right-click a stationed pet to open its storage (you have to be at its post). To call it back, sneak + punch it with the Pet Toy, or left-click it in the pet menu.
 
 ## Max level
 
@@ -124,7 +124,7 @@ Storage grows with level:
 | Turtle | Utility | Seagrass | You can breathe underwater |
 | Armadillo | Utility | Spider Eye | 20% less damage from arrows and other projectiles |
 | Frog | Utility | Slime Ball | Dolphin's Grace while swimming |
-| Pig | Utility | Carrot, Potato or Beetroot | Lumberjack: chop a tree's bottom log with an axe and the whole tree comes down (huge mushrooms and nether trees too). Only trees that grew there; sneak to chop a single log |
+| Pig | Utility | Carrot, Potato or Beetroot | Lumberjack: chop a tree's bottom log with an axe and the whole tree comes down (huge mushrooms and nether trees too). Only trees that grew there (standing on soil, with natural leaves); sneak to chop a single log |
 | Axolotl | Utility | Tropical Fish (or a bucket of it) | You slowly heal while hurt, faster in water |
 | Bat | Utility | Melon Slice | Night vision |
 

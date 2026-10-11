@@ -286,9 +286,10 @@ public final class Bonuses implements Listener {
                     }
                 }
                 case LLAMA -> {
-                    if (now >= postTimers.getOrDefault(pet.id, 0L)) {
+                    if (tick % 20 == 0 && now >= postTimers.getOrDefault(pet.id, 0L)) {
                         for (Entity e : home.getWorld().getNearbyEntities(home, 10, 5, 10)) {
-                            if (e instanceof Mob mob && e instanceof org.bukkit.entity.Enemy && !Keys.isPet(mob)) {
+                            if (e instanceof Mob mob && e instanceof org.bukkit.entity.Enemy && !Keys.isPet(mob)
+                                && PetManager.worthFighting(mob)) {
                                 postTimers.put(pet.id, now + 2000);
                                 spitAt(a, mob);
                                 break;
@@ -305,7 +306,20 @@ public final class Bonuses implements Listener {
     /** A stationed Allay gathers the drops (and loose XP, as bottles) around its post into its storage. */
     private void collect(PetManager.Active a, Location home, int radius) {
         Pet pet = a.pet;
-        if (pet.storageSlots() <= 0) {
+        if (pet.storageSlots() <= 0 || tick % 8 != 0) {
+            return;
+        }
+        // only for its owner: they must be the nearest player around (no vacuuming a neighbour's farm)
+        Player nearest = null;
+        double best = 48 * 48;
+        for (Player p : home.getWorld().getPlayers()) {
+            double d = p.getLocation().distanceSquared(home);
+            if (d < best && p.getGameMode() != GameMode.SPECTATOR) {
+                best = d;
+                nearest = p;
+            }
+        }
+        if (nearest == null || !nearest.getUniqueId().equals(pet.owner)) {
             return;
         }
         ItemStack bottle = ItemStack.of(Material.EXPERIENCE_BOTTLE);

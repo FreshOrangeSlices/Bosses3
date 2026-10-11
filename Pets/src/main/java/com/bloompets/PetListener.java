@@ -498,7 +498,7 @@ public final class PetListener implements Listener {
         List<ItemStack> kept = new ArrayList<>();
         for (Iterator<ItemStack> it = event.getDrops().iterator(); it.hasNext(); ) {
             ItemStack drop = it.next();
-            if (Blooms.isToy(drop) || (Blooms.isBloom(drop)
+            if (Blooms.isToy(drop) || Blooms.isFetchStick(drop) || (Blooms.isBloom(drop)
                 && me.equals(drop.getPersistentDataContainer().get(Keys.BLOOM_OWNER, PersistentDataType.STRING)))) {
                 kept.add(drop);
                 it.remove();

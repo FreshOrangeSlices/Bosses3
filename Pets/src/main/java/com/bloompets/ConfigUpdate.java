@@ -113,22 +113,25 @@ public final class ConfigUpdate {
             }
             out.add(line);
         }
-        out.add("");
-        out.addAll(List.of(
-            "# The Bee's crop growing (around you, or around its post).",
-            "bee:",
-            "  radius: 5               # blocks out from the centre (5 = an 11x11 square)",
-            "  crops-per-pulse: 3",
-            "  seconds-between: 3      # at level 1; a little faster with every level",
-            "",
-            "# Stationed pets keep a post: sneak + punch your pet with the Pet Toy.",
-            "# Combat pets guard it, Bees tend crops, Allays collect drops, Sniffers",
-            "# dig, Cats keep creepers and phantoms away, Llamas spit at monsters.",
-            "# A pet that faints at its post comes back there after resting.",
-            "stationing:",
-            "  unlock-level: 8",
-            "  max-per-player: 3",
-            "  guard-radius: 16        # how far guards chase monsters from their post"));
+        if (lines.stream().noneMatch(l -> l.startsWith("bee:"))) {
+            out.addAll(List.of("",
+                "# The Bee's crop growing (around you, or around its post).",
+                "bee:",
+                "  radius: 5               # blocks out from the centre (5 = an 11x11 square)",
+                "  crops-per-pulse: 3",
+                "  seconds-between: 3      # at level 1; a little faster with every level"));
+        }
+        if (lines.stream().noneMatch(l -> l.startsWith("stationing:"))) {
+            out.addAll(List.of("",
+                "# Stationed pets keep a post: sneak + punch your pet with the Pet Toy.",
+                "# Combat pets guard it, Bees tend crops, Allays collect drops, Sniffers",
+                "# dig, Cats keep creepers and phantoms away, Llamas spit at monsters.",
+                "# A pet that faints at its post comes back there after resting.",
+                "stationing:",
+                "  unlock-level: 8",
+                "  max-per-player: 3",
+                "  guard-radius: 16        # how far guards chase monsters from their post"));
+        }
         log.accept("config.yml: added the bee and stationing settings.");
         return out;
     }
