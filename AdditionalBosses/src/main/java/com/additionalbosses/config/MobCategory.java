@@ -20,12 +20,18 @@ public record MobCategory(
     boolean enabled,
     double spawnChanceMultiplier,
     Map<BossRank, Double> weights,
+    @Nullable Map<BossRank, Double> netherWeights,
     Set<EntityType> mobs,
     @Nullable Set<CreatureSpawnEvent.SpawnReason> spawnReasons
 ) {
 
     public BossRank rollRank() {
-        BossRank rank = Rng.weighted(weights);
+        return rollRank(false);
+    }
+
+    /** {@code nether}: the mob spawned in the Nether (uses nether-weights if this category has them). */
+    public BossRank rollRank(boolean nether) {
+        BossRank rank = Rng.weighted(nether && netherWeights != null ? netherWeights : weights);
         return rank == null ? BossRank.GRAY : rank;
     }
 

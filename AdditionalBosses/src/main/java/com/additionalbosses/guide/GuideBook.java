@@ -78,7 +78,9 @@ public final class GuideBook {
         w.text("When a hostile mob spawns, it has a small chance (" + Text.num(s.spawnChance)
             + "%) to rise as a boss.", INK);
         w.blank();
-        w.text("A second, separate roll decides its rank. Some mobs lean toward stronger ranks than others.", INK);
+        w.text("A second, separate roll decides its rank. Nightmare and Legendary bosses are as rare as ancient"
+            + " debris in the wild; the Nether breeds tougher ones. To fight harder bosses on purpose, use"
+            + " Boss Totems and Souls.", INK);
         w.blank();
         w.text("You'll know one when you see it:", INK);
         w.add(Component.text("★★★★★ Legendary Undying Zombie", BossRank.GOLD.bookColor()).decorate(TextDecoration.BOLD), true);
@@ -87,6 +89,14 @@ public final class GuideBook {
             + " and shimmer faintly. Fight one and its health bar appears at the top of your screen.", INK);
         w.blank();
         w.text("At most " + s.maxActive + " bosses can be loaded at once.", SOFT);
+        if (s.glowWithin > 0) {
+            w.text("A boss glows in its rank's colour while you're within " + Math.round(s.glowWithin) + " blocks.", SOFT);
+        }
+        if (s.despawnAfterKills > 0) {
+            w.blank();
+            w.text("A boss that has killed " + s.despawnAfterKills + " players leaves. Don't throw yourself at one you"
+                + " aren't ready for.", INK);
+        }
         w.newPage();
 
         // ---------------- Ranks ----------------
@@ -142,6 +152,9 @@ public final class GuideBook {
             }
             odds.append(Component.text(" %", SOFT));
             w.add(odds.build(), false);
+            if (category.netherWeights() != null) {
+                w.text("Higher in the Nether.", SOFT);
+            }
             if (!category.description().isBlank()) {
                 w.text(category.description(), SOFT);
             }
@@ -204,8 +217,12 @@ public final class GuideBook {
         w.newPage();
         w.heading("Boss Tells", TITLE);
         w.text("Big attacks are telegraphed. Watch for them and move:", INK);
+        if (s.areaDamageCap > 0) {
+            w.text("(No area attack hits for more than " + Text.num(s.areaDamageCap) + " damage.)", SOFT);
+        }
         w.blank();
-        w.entry("Quaking", TITLE, "it rears up and a red ring shows where the slam lands.", INK);
+        w.entry("Quaking", TITLE, "it rears up and a red ring shows where the slam lands. Get out!", INK);
+        w.entry("Shadowed", TITLE, "dark smoke gathers before it blinds those close by.", INK);
         w.entry("Gravitic", TITLE, "a violet ring and a low hum before the pull.", INK);
         w.entry("Leaping", TITLE, "it crouches and scrapes the ground before it jumps.", INK);
         w.entry("Charging", TITLE, "it roars before it rushes you.", INK);
@@ -222,7 +239,6 @@ public final class GuideBook {
         w.text((lsRanks.length() == 0 ? "Nemesis" : lsRanks + " bosses and every Nemesis") + " make a Last Stand once, at "
             + Text.num(f.lastStandHealthPercent) + "% health:", INK);
         w.text("- traits " + Text.num(f.lastStandPowerBonus) + "% stronger", INK);
-        w.text("- " + Text.num(f.lastStandSpeedBonus) + "% faster", INK);
         if (f.lastStandDormantTrait) {
             w.text("- a dormant trait awakens", INK);
         }
@@ -243,6 +259,13 @@ public final class GuideBook {
             w.add(Component.text(rs.title(), rank.bookColor()).decorate(TextDecoration.BOLD), true);
             w.text("Gear " + Text.num(r.bossGear()) + "%  Rune " + Text.num(r.empowerment()) + "%", INK);
             String line = "Relic " + Text.num(r.relic()) + "%";
+            if (!r.extraRelics().isEmpty()) {
+                StringJoiner more = new StringJoiner("/");
+                for (double extra : r.extraRelics()) {
+                    more.add(Text.num(extra));
+                }
+                line += " (+" + more + "% more)";
+            }
             if (s.catalystEnabled && r.relicCatalyst() > 0) {
                 line += "  Catalyst " + Text.num(r.relicCatalyst()) + "%";
             }
@@ -265,7 +288,9 @@ public final class GuideBook {
         w.text("A boss can drop one piece of special equipment, shown with its rank colour and stars:", INK);
         w.add(Component.text("★★★★ Nightmare Diamond Sword", BossRank.PURPLE.bookColor()), false);
         w.blank();
-        w.text("Higher ranks bring better materials, more enchantments and higher levels.", INK);
+        w.text("Higher ranks bring better materials, more enchantments and higher levels. Weaker bosses mostly"
+            + " drop armor and tools, stronger ones weapons, and Ascendants an even mix. Boss armor favours"
+            + " Protection.", INK);
         StringJoiner overMax = new StringJoiner(", ");
         for (BossRank rank : BossRank.values()) {
             RankSettings.Gear g = s.rank(rank).gear();
@@ -349,7 +374,7 @@ public final class GuideBook {
         sections.put("Curses", w.currentPage());
         w.heading("Corruption", CURSE);
         w.text("Every Relic always has its good effect. But " + Text.num(s.corruptionChance)
-            + "% are corrupted and carry a Curse as well.", INK);
+            + "% are corrupted and carry a Curse as well. Any boss can drop any relic; tougher ones just drop more.", INK);
         w.blank();
         w.text(s.revealCorruption ? "Corrupted relics are marked before you bind them."
             : "You only find out when you bind it...", INK);
@@ -412,9 +437,11 @@ public final class GuideBook {
         }
         if (f.totemEnabled) {
             w.add(Component.text("Boss Totem", TITLE).decorate(TextDecoration.BOLD), true);
-            w.text("A rare drop (" + Text.num(f.totemDropChance.getOrDefault(BossRank.GRAY, 0.0)) + "-"
-                + Text.num(f.totemDropChance.getOrDefault(BossRank.GOLD, 0.0)) + "% per boss). Right-click it and,"
-                + " after a short ritual, a boss arrives to fight you.", INK);
+            w.text("A drop (" + Text.num(f.totemDropChance.getOrDefault(BossRank.GRAY, 0.0)) + "-"
+                + Text.num(f.totemDropChance.getOrDefault(BossRank.ASCENDANT, 0.0)) + "% per boss) that calls a boss"
+                + " of the dropper's rank (sometimes higher). Right-click it and, after a short ritual, it arrives to"
+                + " fight you. The way to pick a harder fight on purpose.", INK);
+            w.text("Summoned bosses never drop Totems or Souls.", SOFT);
             w.blank();
         }
         if (f.escalationEnabled) {
@@ -428,8 +455,9 @@ public final class GuideBook {
         if (f.soulsEnabled) {
             w.reserve(5);
             w.add(Component.text("Boss Souls", TITLE).decorate(TextDecoration.BOLD), true);
-            w.text("Bosses sometimes leave a Boss Soul of their rank (Gold bosses and every Nemesis always do)."
-                + " They stack. Offer one to a boss to make it rise.", INK);
+            w.text("Bosses often leave Boss Souls of their rank (" + Text.num(f.soulChance.getOrDefault(BossRank.GRAY, 0.0))
+                + "% even for Hard ones; every Nemesis always does). They stack. Offer one to a boss to make it rise:"
+                + " farm the easy ones, then raise the boss you want to fight.", INK);
         }
         w.newPage();
 
@@ -440,9 +468,15 @@ public final class GuideBook {
             + Math.round((f.difficultyDamage - 1) * 100) + "% harder than their rank alone.", INK);
         if (f.threatEnabled) {
             w.blank();
-            w.text("When a fight starts, the boss sizes up the best-geared player nearby. Strong gear means up to +"
+            w.text("When a fight starts, the boss counts the Boss Gear the players nearby wear or hold (not what's"
+                + " in their bag). " + Math.round(f.threatFullPieces) + " pieces means up to +"
                 + Math.round(f.threatMaxHealth) + "% health and +" + Math.round(f.threatMaxDamage)
                 + "% damage, but also up to +" + Math.round(f.threatRewardBonus) + "% better reward odds.", INK);
+        }
+        if (f.overflowArmor) {
+            w.blank();
+            w.text("Armor past " + Math.round(f.overflowArmorFrom) + " points isn't wasted: each point over it is "
+                + Text.num(f.overflowArmorPerPoint) + "% less damage from bosses.", INK);
         }
         w.newPage();
 
@@ -503,24 +537,35 @@ public final class GuideBook {
         if (f.nemesisEnabled) {
             sections.put("Nemesis", w.currentPage());
             w.heading("Nemesis", CURSE);
-            w.text("A boss that kills you becomes your Nemesis. Flee from a " + s.rank(f.nemesisEscapeMinRank).name()
-                + "+ boss after a real fight and it may too.", INK);
+            w.text("A boss that kills you may become your Nemesis (" + Text.num(f.nemesisKillChance) + "%). Flee from a "
+                + s.rank(f.nemesisEscapeMinRank).name() + "+ boss after a real fight and it may too ("
+                + Text.num(f.nemesisEscapeChance) + "%).", INK);
             w.blank();
             w.text("It gets a name of its own, like \"Returned Scrawl the Bulwark\", shown with a single white star.", INK);
             w.blank();
             w.text("Then it slinks off" + (f.nemesisProwlMinutes > 0 ? " and prowls for " + Text.num(f.nemesisProwlMinutes)
                 + " minutes, hunting other mobs" : "") + ", and returns for you after " + Text.num(f.nemesisReturnDays)
-                + " Minecraft days. It ignores the boss cap and never despawns.", INK);
+                + " Minecraft days. It ignores the boss cap."
+                + (s.despawnAfterKills > 0 ? " After it has killed " + s.despawnAfterKills
+                + " players in one outing it leaves again." : ""), INK);
+            w.newPage();
+            w.heading("Its Challenge", CURSE);
+            w.text("When it kills you, you wake up holding its Challenge. Right-click it and the Nemesis comes for"
+                + " you right away, no waiting.", INK);
+            w.blank();
+            w.text("The note also names its Terms of Surrender: die that way while carrying it, and the feud is over"
+                + " for good (no reward). Lose the note and there's no new one until it kills you again.", INK);
             w.newPage();
             w.heading("It Remembers", CURSE);
-            w.text("- every death to it: +" + f.nemesisLevelsOnKill + " levels", INK);
+            w.text("- every player it kills: +" + f.nemesisLevelsOnKill + " levels", INK);
             w.text("- every escape: +" + f.nemesisLevelsOnEscape + " level", INK);
             if (f.nemesisKillLevelsPerOuting > 0) {
                 w.text("- every mob it kills: +1 level (up to " + f.nemesisKillLevelsPerOuting + " each time it's out)", INK);
             }
             w.text("- a rank every " + f.nemesisLevelsPerRank + " levels, a new trait every "
                 + f.nemesisLevelsPerTrait + " (up to level " + f.nemesisMaxLevel + ")", INK);
-            w.text("- it adapts: archers face wards, brawlers face thorns, runners face speed", INK);
+            w.text("- it learns how you fight. Watch for a puff of smoke when it levels up...", INK);
+            w.text("- with friends, whoever hurts it most can draw it away", INK);
             w.blank();
             w.text("It earns titles: Returned, Twice-Fled, Relentless, Unbroken... Its gear never looks worse"
                 + " than the boss it came from, and it keeps its look (baby or not) every time.", SOFT);
@@ -549,7 +594,7 @@ public final class GuideBook {
             w.heading("Admin", TITLE);
             command(w, "/bosses spawn <mob> [rank] [traits]", "Spawn a boss.");
             command(w, "/bosses give <player> <gear|rune|relic|catalyst|compass|totem|waystone|guide>", "Create items.");
-            command(w, "/bosses nemesis list|summon|clear <player>", "Manage Nemeses.");
+            command(w, "/bosses nemesis list|summon|challenge|clear <player>", "Manage Nemeses.");
             command(w, "/bosses escalate <player>", "Trigger an Escalation.");
             command(w, "/bosses promote [ranks]", "Promote the boss you look at.");
             command(w, "/bosses give <player> waystone [amount]", "Give waystones.");

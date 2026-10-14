@@ -47,7 +47,7 @@ import java.util.UUID;
  */
 public final class ItemService {
 
-    public enum Kind { GEAR, RUNE, RELIC, CATALYST, GUIDE, COMPASS, TOTEM, TROPHY, STATUE, WAYSTONE, SOUL }
+    public enum Kind { GEAR, RUNE, RELIC, CATALYST, GUIDE, COMPASS, TOTEM, TROPHY, STATUE, WAYSTONE, SOUL, CHALLENGE }
 
     /** Lore lines are wrapped to about this many characters so tooltips stay on screen. */
     private static final int LORE_WIDTH = 38;
@@ -258,7 +258,8 @@ public final class ItemService {
         List<Component> lore = new ArrayList<>();
         lore.add(Text.line(rank == null ? "Calls a boss of a random rank." : "Calls a " + settings().rank(rank).name()
             + " boss.", NamedTextColor.GRAY));
-        lore.add(Text.line("Right-click to begin the ritual.", NamedTextColor.GRAY));
+        lore.add(Text.line("Right-click (or use it on the ground)", NamedTextColor.GRAY));
+        lore.add(Text.line("to begin the ritual.", NamedTextColor.GRAY));
         lore.add(Component.empty());
         lore.add(Text.line("The boss arrives a few blocks away", NamedTextColor.DARK_GRAY));
         lore.add(Text.line("after 3 seconds. Be ready.", NamedTextColor.DARK_GRAY));
@@ -432,9 +433,29 @@ public final class ItemService {
         return rank == null ? BossRank.GRAY : rank;
     }
 
+    /**
+     * The Soul this gear breaks down into: the rank of the boss as it was found in the wild (a boss raised with Souls
+     * doesn't pay back more than went in), or null for gear from a boss someone summoned (no Souls from those).
+     */
+    public @Nullable BossRank salvageRank(ItemStack gear) {
+        String raw = gear.getPersistentDataContainer().get(Keys.GEAR_SALVAGE, PersistentDataType.STRING);
+        if (raw == null) {
+            return gearRank(gear); // gear from before this rule
+        }
+        return BossRank.parse(raw);
+    }
+
+    /** Marks boss-dropped gear with the Soul it may salvage into (null: none). */
+    public void setSalvageRank(ItemStack item, @Nullable BossRank rank) {
+        if (kind(item) == Kind.GEAR) {
+            item.editPersistentDataContainer(pdc ->
+                pdc.set(Keys.GEAR_SALVAGE, PersistentDataType.STRING, rank == null ? "NONE" : rank.name()));
+        }
+    }
+
     /** Breaking gear down destroys it, so it asks for a second click within 10 seconds. Null once confirmed. */
     public @Nullable Component salvagePrompt(Player player, ItemStack gear, String where) {
-        String token = "SALVAGE:" + gear.getType() + ":" + gearRank(gear) + ":" + where;
+        String token = "SALVAGE:" + gear.getType() + ":" + salvageRank(gear) + ":" + where;
         int now = Bukkit.getCurrentTick();
         Pending p = pending.get(player.getUniqueId());
         if (p != null && p.token().equals(token) && now <= p.expiresAt()) {
@@ -443,7 +464,8 @@ public final class ItemService {
         }
         pending.put(player.getUniqueId(), new Pending(token, now + 200));
         return settings().messages.get("confirm-salvage", Placeholder.component("item", gear.effectiveName()),
-            Placeholder.component("soul", createSoul(gearRank(gear), 1).effectiveName()));
+            Placeholder.component("soul", createSoul(salvageRank(gear) == null ? gearRank(gear) : salvageRank(gear), 1)
+                .effectiveName()));
     }
 
     /** Applies the consumable to the target (call {@link #validate} first). Returns the message to show. */

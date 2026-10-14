@@ -186,6 +186,20 @@ public final class FeatureListener implements Listener {
                     }
                 }
             }
+            case CHALLENGE -> {
+                EquipmentSlot hand = event.getHand();
+                Block clicked = event.getClickedBlock();
+                if (action == Action.RIGHT_CLICK_BLOCK && clicked != null && usable(clicked) && !player.isSneaking()) {
+                    return; // let chests, doors and buttons work normally
+                }
+                if (rightClick && hand != null) {
+                    event.setCancelled(true);
+                    if (hand == EquipmentSlot.HAND
+                        || items().kind(player.getInventory().getItemInMainHand()) != ItemService.Kind.CHALLENGE) {
+                        plugin.nemesis().useChallenge(player, item, hand);
+                    }
+                }
+            }
             case COMPASS -> {
                 // Binding it to a lodestone would stop it tracking bosses.
                 if (action == Action.RIGHT_CLICK_BLOCK && event.getClickedBlock() != null
@@ -307,6 +321,7 @@ public final class FeatureListener implements Listener {
         Fx.particle(spot.clone().add(0, 1, 0), Particle.LARGE_SMOKE, 30, 0.5, 0.05);
         Boss boss = plugin.bosses().summon(type, spot, rank, null, true, BossMobs.categoryId(plugin, type));
         if (boss != null) {
+            com.additionalbosses.boss.BossManager.markCreated(boss, "totem");
             plugin.bosses().engage(boss, player);
             if (boss.entity() instanceof Mob mob) {
                 mob.setTarget(player);

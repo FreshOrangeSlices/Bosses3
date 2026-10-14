@@ -69,6 +69,18 @@ public final class PlayerListener implements Listener {
     @EventHandler
     public void onRespawn(PlayerRespawnEvent event) {
         refreshNextTick(event.getPlayer());
+        Player player = event.getPlayer();
+        Bukkit.getScheduler().runTask(plugin, () -> {
+            if (player.isOnline() && !player.isDead()) {
+                plugin.nemesis().giveChallenges(player); // a Nemesis that killed you leaves its Challenge
+            }
+        });
+    }
+
+    /** Dying by a Nemesis's Terms of Surrender while carrying its Challenge ends the feud. */
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    public void onDeath(org.bukkit.event.entity.PlayerDeathEvent event) {
+        plugin.nemesis().checkSurrender(event);
     }
 
     private void refreshNextTick(Player player) {

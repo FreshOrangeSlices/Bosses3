@@ -1,4 +1,4 @@
-config-version: 10   # used by the plugin to update this file; don't change
+config-version: 11   # used by the plugin to update this file; don't change
 # =====================================================================
 #  Additional Bosses - configuration
 # ---------------------------------------------------------------------
@@ -29,6 +29,14 @@ bosses:
   excluded-mobs: [CREEPER]
   # Most bosses that can be loaded at the same time (all worlds).
   max-active: 15
+  # A boss that has killed this many players (any mix of players) leaves,
+  # so nobody can throw themselves at a boss they aren't ready for over and
+  # over. 0 = never.
+  despawn-after-player-kills: 2
+  # Bosses glow (in their rank's colour) while a player is within this many
+  # blocks, so you can spot one nearby. 0 = never glow.
+  glow-within: 30
+  glow-rank-colors: true
   # A new boss can't appear within this many blocks of another boss.
   min-distance-between: 32
   # Bosses only appear within this many blocks above or below a player,
@@ -65,12 +73,15 @@ presentation:
 
 # =====================================================================
 #  RANKS
-#  stats:  health/damage/speed are multipliers; armor, armor-toughness,
+#  stats:  health/damage/speed are multipliers (speed stays 1.0: bosses
+#          don't outrun you, they leap, charge and blink instead); armor, armor-toughness,
 #          knockback-resistance and size are added on top. min-health and
 #          min-damage are floors: the least max health the boss has, and the
 #          least its melee hits deal (a Warden has 500 health and hits for 30).
 #  traits: how many traits the boss rolls, and how strong they are.
 #  rewards: independent chances, each rolled separately on death.
+#          extra-relics: chances for a 2nd, 3rd... relic on top of the first.
+#          Any rank can drop any relic; higher ranks just drop more of them.
 #  gear:   what Boss Gear looks like for this rank. Material (CHAINMAIL,
 #          IRON, GOLD, DIAMOND, NETHERITE...) and quality (CRUDE, STANDARD,
 #          FINE, MASTERWORK) are separate rolls. Quality changes how many
@@ -86,7 +97,7 @@ ranks:
     stats: { health: 1.6, damage: 1.2, armor: 2, armor-toughness: 0, knockback-resistance: 0.1, speed: 1.0, size: 0.15 }
     traits: { min: 1, max: 1, power: 1.0 }
     xp: { multiplier: 3, bonus: 10 }
-    rewards: { boss-gear: 20, empowerment: 10, relic: 2, relic-catalyst: 0 }
+    rewards: { boss-gear: 20, empowerment: 10, relic: 70, extra-relics: [], relic-catalyst: 0 }
     gear:
       materials: { CHAINMAIL: 40, IRON: 40, GOLD: 20 }
       quality: { CRUDE: 35, STANDARD: 50, FINE: 13, MASTERWORK: 2 }
@@ -99,10 +110,10 @@ ranks:
 
   GREEN:
     name: Very Hard
-    stats: { health: 2.0, damage: 1.35, armor: 4, armor-toughness: 1, knockback-resistance: 0.2, speed: 1.05, size: 0.22 }
+    stats: { health: 2.0, damage: 1.35, armor: 4, armor-toughness: 1, knockback-resistance: 0.2, speed: 1.0, size: 0.22 }
     traits: { min: 1, max: 2, power: 1.15 }
     xp: { multiplier: 4, bonus: 25 }
-    rewards: { boss-gear: 30, empowerment: 18, relic: 4, relic-catalyst: 0 }
+    rewards: { boss-gear: 30, empowerment: 18, relic: 70, extra-relics: [10], relic-catalyst: 0 }
     gear:
       materials: { IRON: 55, GOLD: 25, DIAMOND: 20 }
       quality: { CRUDE: 25, STANDARD: 50, FINE: 20, MASTERWORK: 5 }
@@ -115,10 +126,10 @@ ranks:
 
   RED:
     name: Brutal
-    stats: { health: 2.75, damage: 1.55, armor: 6, armor-toughness: 2, knockback-resistance: 0.3, speed: 1.08, size: 0.3 }
+    stats: { health: 2.75, damage: 1.55, armor: 6, armor-toughness: 2, knockback-resistance: 0.3, speed: 1.0, size: 0.3 }
     traits: { min: 2, max: 2, power: 1.3 }
     xp: { multiplier: 6, bonus: 50 }
-    rewards: { boss-gear: 45, empowerment: 28, relic: 8, relic-catalyst: 0 }
+    rewards: { boss-gear: 45, empowerment: 28, relic: 75, extra-relics: [35], relic-catalyst: 0 }
     gear:
       materials: { IRON: 45, DIAMOND: 55 }
       quality: { CRUDE: 15, STANDARD: 45, FINE: 30, MASTERWORK: 10 }
@@ -131,10 +142,10 @@ ranks:
 
   PURPLE:
     name: Nightmare
-    stats: { health: 3.5, damage: 1.8, armor: 8, armor-toughness: 4, knockback-resistance: 0.45, speed: 1.1, size: 0.4 }
+    stats: { health: 3.5, damage: 1.8, armor: 8, armor-toughness: 4, knockback-resistance: 0.45, speed: 1.0, size: 0.4 }
     traits: { min: 2, max: 3, power: 1.5 }
     xp: { multiplier: 8, bonus: 100 }
-    rewards: { boss-gear: 65, empowerment: 40, relic: 15, relic-catalyst: 1.5 }
+    rewards: { boss-gear: 65, empowerment: 40, relic: 80, extra-relics: [40, 10], relic-catalyst: 1.5 }
     gear:
       materials: { DIAMOND: 85, NETHERITE: 15 }
       quality: { CRUDE: 5, STANDARD: 40, FINE: 40, MASTERWORK: 15 }
@@ -147,10 +158,10 @@ ranks:
 
   GOLD:
     name: Legendary
-    stats: { health: 6.0, damage: 2.4, armor: 10, armor-toughness: 6, knockback-resistance: 0.6, speed: 1.12, size: 0.5, min-health: 500, min-damage: 20 }
+    stats: { health: 6.0, damage: 2.4, armor: 10, armor-toughness: 6, knockback-resistance: 0.6, speed: 1.0, size: 0.5, min-health: 500, min-damage: 20 }
     traits: { min: 3, max: 4, power: 1.75 }
     xp: { multiplier: 12, bonus: 300 }
-    rewards: { boss-gear: 100, empowerment: 60, relic: 30, relic-catalyst: 5 }
+    rewards: { boss-gear: 100, empowerment: 60, relic: 90, extra-relics: [60, 20], relic-catalyst: 5 }
     gear:
       materials: { DIAMOND: 50, NETHERITE: 50 }
       quality: { CRUDE: 0, STANDARD: 25, FINE: 45, MASTERWORK: 30 }
@@ -165,10 +176,10 @@ ranks:
     # Never spawns naturally: a boss only becomes Ascendant when souls
     # promote it past Legendary. Drops waystones (see waystones below).
     name: Ascendant
-    stats: { health: 10.0, damage: 3.0, armor: 14, armor-toughness: 8, knockback-resistance: 0.8, speed: 1.15, size: 0.65, min-health: 800, min-damage: 30 }
+    stats: { health: 10.0, damage: 3.0, armor: 14, armor-toughness: 8, knockback-resistance: 0.8, speed: 1.0, size: 0.65, min-health: 800, min-damage: 30 }
     traits: { min: 4, max: 5, power: 2.1 }
     xp: { multiplier: 20, bonus: 800 }
-    rewards: { boss-gear: 100, empowerment: 100, relic: 60, relic-catalyst: 15 }
+    rewards: { boss-gear: 100, empowerment: 100, relic: 100, extra-relics: [100, 50], relic-catalyst: 15 }
     gear:
       materials: { NETHERITE: 100 }
       quality: { FINE: 30, MASTERWORK: 70 }
@@ -182,6 +193,7 @@ ranks:
 # =====================================================================
 #  MOB CATEGORIES - which mobs can become bosses, and their rank odds.
 #  weights: roll #2 (rank). They don't have to add up to 100.
+#  nether-weights (optional): used instead for spawns in the Nether.
 #  spawn-chance-multiplier: scales roll #1 for this category.
 #  spawn-reasons (optional): replaces the global list for this category.
 #  display-name / description: shown in the guide book.
@@ -189,36 +201,42 @@ ranks:
 mob-categories:
   common-overworld:
     display-name: Common Overworld
-    weights: { GRAY: 40, GREEN: 30, RED: 18, PURPLE: 9, GOLD: 3 }
+    # Nightmare and Legendary bosses are ancient-debris rare in the wild
+    # (about 1 in 200 and 1 in 1000 bosses). Boss Totems and Souls are the
+    # way to bring on harder fights on purpose.
+    weights: { GRAY: 55, GREEN: 30, RED: 14.4, PURPLE: 0.5, GOLD: 0.1 }
+    # Used instead when one of these spawns in the Nether (Soul Sand Valley
+    # skeletons...): the Nether breeds tougher bosses.
+    nether-weights: { GRAY: 40, GREEN: 35, RED: 23.5, PURPLE: 1.2, GOLD: 0.3 }
     # Rideable mobs (skeleton/zombie horses, camel husks...) can't be bosses.
     mobs: [BOGGED, BREEZE, CAVE_SPIDER, CREEPER, DROWNED, ENDERMAN, ENDERMITE, GUARDIAN, HUSK,
            PARCHED, PHANTOM, PILLAGER, SILVERFISH, SLIME, SPIDER, STRAY, VINDICATOR, WITCH,
-           ZOMBIE_VILLAGER]
-
-  zombie-skeleton:
-    display-name: Zombie & Skeleton
-    description: The most basic mobs are strangely likely to be Legendary.
-    weights: { GRAY: 37, GREEN: 28, RED: 18, PURPLE: 9, GOLD: 8 }
-    mobs: [ZOMBIE, SKELETON]
+           ZOMBIE_VILLAGER, ZOMBIE, SKELETON]
 
   nether:
     display-name: Nether
-    weights: { GRAY: 15, GREEN: 35, RED: 30, PURPLE: 15, GOLD: 5 }
-    mobs: [BLAZE, GHAST, HOGLIN, MAGMA_CUBE, WITHER_SKELETON, ZOGLIN]
+    weights: { GRAY: 40, GREEN: 35, RED: 23.5, PURPLE: 1.2, GOLD: 0.3 }
+    mobs: [GHAST, HOGLIN, MAGMA_CUBE, ZOGLIN]
 
-  nether-crowd:
-    display-name: Nether Crowds
+  nether-elite:
+    display-name: Nether Elite
+    description: Blazes, Wither Skeletons and Piglins breed the toughest bosses of the Nether.
+    weights: { GRAY: 35, GREEN: 37, RED: 25.5, PURPLE: 2.0, GOLD: 0.5 }
+    mobs: [BLAZE, WITHER_SKELETON, PIGLIN]
+
+  zombified-piglins:
+    display-name: Zombified Piglins
     description: They spawn in huge numbers, so they roll lower.
     spawn-chance-multiplier: 0.5
-    weights: { GRAY: 30, GREEN: 35, RED: 23, PURPLE: 10, GOLD: 2 }
-    mobs: [PIGLIN, ZOMBIFIED_PIGLIN]
+    weights: { GRAY: 60, GREEN: 30, RED: 9.88, PURPLE: 0.1, GOLD: 0.02 }
+    mobs: [ZOMBIFIED_PIGLIN]
 
   dangerous:
     display-name: Dangerous
     # DEFAULT lets structure mobs (Elder Guardians, Piglin Brutes in bastions,
     # mansion illagers) roll once, the first time their chunk loads.
     spawn-reasons: [NATURAL, PATROL, RAID, DEFAULT]
-    weights: { GRAY: 5, GREEN: 20, RED: 35, PURPLE: 30, GOLD: 10 }
+    weights: { GRAY: 10, GREEN: 35, RED: 53.8, PURPLE: 1.0, GOLD: 0.2 }
     mobs: [PIGLIN_BRUTE, ELDER_GUARDIAN, RAVAGER, EVOKER, ILLUSIONER]
 
   native-bosses:
@@ -278,6 +296,9 @@ mob-profiles:
 #  Higher ranks multiply most numbers below by their trait "power".
 # =====================================================================
 traits:
+  # Area attacks (Quaking's slam, Ascendant shockwaves...) never hit a
+  # player for more than this, however strong the boss.
+  area-damage-cap: 8
   # Pairs that can never appear on the same boss.
   incompatible:
     - [leaping, blinking]
@@ -285,7 +306,7 @@ traits:
     - [blinking, charging]
 
   # ---- Offense ----
-  berserk:      { enabled: true, weight: 10, health-threshold: 50, damage-bonus: 35, speed-bonus: 20 }
+  berserk:      { enabled: true, weight: 10, health-threshold: 50, damage-bonus: 35, speed-bonus: 8 }
   vampiric:     { enabled: true, weight: 10, heal-percent: 25 }
   venomous:     { enabled: true, weight: 8, effect-seconds: 4, amplifier: 1 }
   executioner:  { enabled: true, weight: 8, health-threshold: 40, damage-bonus: 50 }
@@ -298,15 +319,21 @@ traits:
   undying:      { enabled: true, weight: 6, revive-health-percent: 50 }
   thorned:      { enabled: true, weight: 8, reflect-percent: 20 }
   # ---- Movement ----
-  swift:        { enabled: true, weight: 10, speed-bonus: 25 }
+  # Swift only made bosses run faster, which made them impossible to fight
+  # well, so it is off. Leaping, Blinking and Charging still close the gap.
+  swift:        { enabled: false, weight: 10, speed-bonus: 25 }
   leaping:      { enabled: true, weight: 8, cooldown-seconds: 6, min-distance: 4, max-distance: 14, strength: 1.0 }
   blinking:     { enabled: true, weight: 6, cooldown-seconds: 8, min-distance: 7 }
   charging:     { enabled: true, weight: 6, cooldown-seconds: 10, duration-seconds: 2.5, damage-bonus: 30, knockback: 1.0 }
   # ---- Control ----
   frostbound:   { enabled: true, weight: 8, effect-seconds: 3, amplifier: 1 }
-  shadowed:     { enabled: true, weight: 6, effect-seconds: 4 }
+  # Shadowed: dark smoke gathers around it for a few seconds (the warning),
+  # then everyone close by is wrapped in Darkness.
+  shadowed:     { enabled: true, weight: 6, cooldown-seconds: 12, warning-seconds: 3, radius: 6, effect-seconds: 3 }
   gravitic:     { enabled: true, weight: 5, cooldown-seconds: 8, radius: 10, strength: 0.9 }
-  quaking:      { enabled: true, weight: 6, cooldown-seconds: 9, radius: 5, damage: 4, knockback: 1.1 }
+  # Quaking: it rears up and a red ring marks the zone for warning-seconds,
+  # then it slams the ground.
+  quaking:      { enabled: true, weight: 6, cooldown-seconds: 9, warning-seconds: 4, radius: 5, damage: 4, knockback: 1.1 }
   # ---- Special ----
   summoner:     { enabled: true, weight: 6, minions: 2, health-thresholds: [75, 50, 25] }
   volatile:     { enabled: true, weight: 25, explosion-radius-bonus: 2, fuse-reduction: 30 }   # creepers only
@@ -316,7 +343,16 @@ traits:
 #  BOSS GEAR - the one special equipment item a boss can drop.
 # =====================================================================
 boss-gear:
-  # How often each kind of item is chosen.
+  # First a category is picked by the boss's rank: weaker bosses mostly drop
+  # armor and tools, stronger ones weapons, and Ascendants an even mix.
+  category-weights:
+    GRAY:      { ARMOR: 60, TOOL: 30, WEAPON: 10 }
+    GREEN:     { ARMOR: 60, TOOL: 30, WEAPON: 10 }
+    RED:       { ARMOR: 34, TOOL: 33, WEAPON: 33 }
+    PURPLE:    { ARMOR: 30, TOOL: 0, WEAPON: 70 }
+    GOLD:      { ARMOR: 30, TOOL: 0, WEAPON: 70 }
+    ASCENDANT: { ARMOR: 34, TOOL: 33, WEAPON: 33 }
+  # Then the item inside that category. How often each kind is chosen:
   item-weights: { SWORD: 20, AXE: 12, SPEAR: 8, MACE: 2, BOW: 8, CROSSBOW: 5, TRIDENT: 2,
                   HELMET: 11, CHESTPLATE: 11, LEGGINGS: 11, BOOTS: 11,
                   PICKAXE: 6, SHOVEL: 4, HOE: 3 }
@@ -337,6 +373,8 @@ boss-gear:
     WITHER_SKELETON: { SWORD: 30 }
     BREEZE: { MACE: 15 }
   allow-curse-enchantments: false
+  # Boss armor rolls Protection this many times as often as other enchantments.
+  protection-weight: 3
   # From this rank up, enchantments that normally exclude each other can
   # roll together (Sharpness + Smite, Protection + Blast Protection...).
   # NONE to turn off.
@@ -449,7 +487,7 @@ empowerment:
 # =====================================================================
 relics:
   base-slots: 1
-  corruption-chance: 10
+  corruption-chance: 25
   # false = you only discover a curse when you bind the relic.
   reveal-corruption: false
   # Binding is permanent, so ask the player to confirm (click twice).
@@ -522,23 +560,13 @@ relics:
 
 # =====================================================================
 #  LAST STAND - Purple and Gold bosses (and every Nemesis) fight harder
-#  once, when they drop low: stronger traits, faster, and a dormant trait
-#  wakes up.
+#  once, when they drop low: stronger traits, and a dormant trait wakes up.
 # =====================================================================
 last-stand:
   ranks: [PURPLE, GOLD, ASCENDANT]
   health-percent: 25
   trait-power-bonus: 50   # % stronger traits
-  speed-bonus: 15         # % faster
   awaken-dormant-trait: true
-
-# =====================================================================
-#  RANK PERSONALITY - Red and higher bosses surge after a target that
-#  backs off (Purple, Gold and Nemesis bosses harder). Higher ranks also
-#  notice players from further away.
-# =====================================================================
-rank-personality:
-  pursuit: true
 
 # =====================================================================
 #  ANTI-TRAP - bosses can't be put in boats/minecarts or leashed, and a
@@ -566,18 +594,23 @@ hunters-compass:
     - {range: 600, reveal-rank-within: 600}
 
 # =====================================================================
-#  BOSS TOTEM - a rare drop. Right-click it to summon a boss (3 second
-#  ritual). Totems dropped by bosses call a random rank.
+#  BOSS TOTEM - right-click it to summon a boss (3 second ritual): the
+#  way to pick a harder fight on purpose. A boss drops a Totem of its own
+#  rank (an Ascendant drops a Legendary one), sometimes one rank higher.
+#  Bosses that were summoned (Totems, Escalation, commands) never drop
+#  Totems or Souls, so they can't feed themselves.
 # =====================================================================
 boss-totem:
   enabled: true
   drop-chance:      # % per boss kill
-    GRAY: 1
-    GREEN: 1.5
-    RED: 2.5
-    PURPLE: 4
-    GOLD: 8
-  rank-weights:     # rank of the summoned boss
+    GRAY: 15
+    GREEN: 15
+    RED: 17
+    PURPLE: 20
+    GOLD: 25
+    ASCENDANT: 30
+  higher-rank-chance: 20   # % that the Totem is one rank higher (up to Legendary)
+  rank-weights:     # rank called by old Totems that don't have one
     GRAY: 0
     GREEN: 30
     RED: 35
@@ -599,42 +632,53 @@ escalation:
     GOLD: 30
 
 # =====================================================================
-#  BOSS SOULS - a stackable soul of the boss's rank. Chance per kill; a
-#  Nemesis always drops one. Offer it to a boss to promote it (below).
+#  BOSS SOULS - stackable souls of the boss's rank. Chance per kill; a
+#  Nemesis always drops them. Offer one to a boss to promote it (below).
+#  Low-rank bosses are the everyday source: farm Souls, then raise a boss.
 # =====================================================================
 souls:
   enabled: true
   chance:
-    GRAY: 4
-    GREEN: 7
-    RED: 12
-    PURPLE: 25
-    GOLD: 100
+    GRAY: 30
+    GREEN: 30
+    RED: 35
+    PURPLE: 40
+    GOLD: 60
     ASCENDANT: 100
+  count:            # [min, max] souls when it drops
+    GRAY: [1, 1]
+    GREEN: [1, 1]
+    RED: [1, 2]
+    PURPLE: [2, 2]
+    GOLD: [2, 3]
+    ASCENDANT: [3, 3]
 
 # =====================================================================
 #  NEMESIS - a boss that kills you (or that you flee from after a real
-#  fight) becomes YOUR Nemesis, with a name of its own ("Scrawl the
-#  Bulwark"). It prowls off, grows, earns titles and counter-traits, and
-#  comes back for you after a few Minecraft days.
-#  It ignores the boss cap and never despawns while it is out. Killing
-#  it drops guaranteed loot plus a Nemesis Statue of it.
+#  fight) may become YOUR Nemesis, with a name of its own ("Scrawl the
+#  Bulwark"). It prowls off, grows, learns how you fight, and comes back
+#  for you after a while. Once it has killed 2 players in one outing it
+#  leaves. It ignores the boss cap. Killing it drops guaranteed loot plus a
+#  Nemesis Statue of it.
+#  When it kills you, you wake up with its Challenge: a note that calls it
+#  to you right away (bypassing the wait), and that names its Terms of
+#  Surrender: die that way while carrying the note to end the feud for good.
 # =====================================================================
 nemesis:
   enabled: true
-  become-on-kill-chance: 100      # % when a boss kills you
-  become-on-escape-chance: 50     # % when you flee from a boss
+  become-on-kill-chance: 30       # % when a boss kills you
+  become-on-escape-chance: 30     # % when you flee from a boss
   escape-min-rank: RED            # fleeing only counts against Red or higher
   escape-min-damage-percent: 25   # ...after you dealt this % of its health
   escape-distance: 80             # an active Nemesis loses you past this
   max-per-player: 5
-  max-level: 50
-  levels-when-it-kills-you: 3
+  max-level: 15
+  levels-when-it-kills-you: 2     # (any player it kills counts)
   levels-when-you-flee: 1
   levels-per-rank-up: 4           # it climbs one rank every N levels
   levels-per-new-trait: 3         # and learns a new trait every N levels
   max-traits: 7
-  returns-after-days: 3
+  returns-after-days: 10
   health-per-level: 8             # % extra health per level
   damage-per-level: 4             # % extra damage per level
   max-damage-multiplier: 5
@@ -646,12 +690,26 @@ nemesis:
   statue-scale: 0.5               # placed Nemesis Statues: 0.5 = half the size of a normal mob of that kind
   prowl-minutes: 1                # after it lets you go, it roams nearby hunting other mobs before vanishing
   levels-from-kills-per-outing: 5 # each mob it kills is +1 level, up to this many per outing
+  # Team fights: another player who out-damages its current target by this
+  # % of its max health (over the last 10 seconds) pulls its attention.
+  aggro-switch-percent: 10
+  # How it learns: each time it levels up from a fight, it adapts to the
+  # kind of damage hurting it most (melee, arrows, magic, fire, explosions,
+  # pets). The first time it resists it; if you keep at it, it becomes
+  # immune (at most max-immunities, fire doesn't count). Pets: it takes
+  # less from pets and hits them harder, never full immunity.
+  adaptation:
+    enabled: true
+    resisted-damage-percent: 65   # a resisted kind of damage does this much
+    max-immunities: 2
+    pet-damage-taken-percent: 50
+    pet-damage-dealt-bonus: 50
 
 # =====================================================================
 #  DIFFICULTY - on top of the rank stats. Threat Scaling: the first time a
-#  boss is engaged it sizes up the best-geared player nearby (armor,
-#  enchantments, runes, relics) and gets stronger to match, and pays
-#  better too. A fully kitted player scores about full-gear-score.
+#  boss is engaged it counts the Boss Gear (dropped by bosses) the players
+#  nearby are wearing and holding, and gets stronger to match, and pays
+#  better too. Boss Gear in your bag doesn't count, only what you use.
 # =====================================================================
 difficulty:
   health-multiplier: 1.3
@@ -661,8 +719,14 @@ difficulty:
     max-health-bonus: 60     # %
     max-damage-bonus: 30     # %
     max-reward-bonus: 25     # % better reward odds
-    full-gear-score: 110
+    full-gear-pieces: 6      # this many pieces (armor + both hands) = the full bonus
     radius: 32
+  # Armor past the point where it stops helping (20) isn't wasted: every
+  # point over it is 5% less damage from bosses.
+  overflow-armor:
+    enabled: true
+    from: 20
+    boss-damage-reduction-per-point: 5
 
 # =====================================================================
 #  REWARD FLOOR - from this rank up, a boss always drops at least one
@@ -798,6 +862,12 @@ messages:
   nemesis-return-title: "<dark_red>☠ NEMESIS ☠</dark_red>"
   nemesis-return-subtitle: "<boss> <gray>has returned for you</gray>"
   nemesis-slain: "<player> <gray>has slain their Nemesis</gray> <boss><gray>!</gray>"
+  nemesis-challenge-received: "<dark_red>☠</dark_red> <gray>You wake clutching a note from</gray> <boss><gray>: its Challenge. Use it to call it back, or read its Terms of Surrender.</gray>"
+  nemesis-challenge-gone: "<gray>The note crumbles. That feud is already over.</gray>"
+  nemesis-challenge-not-yours: "<red>This Challenge was written for someone else.</red>"
+  nemesis-challenge-out: "<boss> <red>is already out hunting you.</red>"
+  nemesis-challenge-blocked: "<red>Nothing answers the Challenge here.</red>"
+  nemesis-surrendered: "<boss> <gray>accepts your surrender. The feud is over.</gray>"
   revenge: "<gold><bold>REVENGE!</bold></gold> <yellow>Bonus rewards for avenging your death.</yellow>"
   escalation-title: "<dark_red><bold>⚠ ESCALATION ⚠</bold></dark_red>"
   escalation-subtitle: "<red>Your hunting has drawn something worse...</red>"

@@ -16,6 +16,7 @@ import org.bukkit.util.Vector;
 public final class QuakingTrait extends BaseTrait {
 
     private double cooldown = 9;
+    private double warning = 4;
     private double radius = 5;
     private double damage = 4;
     private double knockback = 1.1;
@@ -27,6 +28,7 @@ public final class QuakingTrait extends BaseTrait {
     @Override
     public void load(ConfigurationSection s) {
         cooldown = s.getDouble("cooldown-seconds", 9);
+        warning = Math.max(0.5, s.getDouble("warning-seconds", 4));
         radius = s.getDouble("radius", 5);
         damage = s.getDouble("damage", 4);
         knockback = s.getDouble("knockback", 1.1);
@@ -34,8 +36,8 @@ public final class QuakingTrait extends BaseTrait {
 
     @Override
     public String description() {
-        return "Every " + Text.num(cooldown) + "s it rears up (a red ring marks the zone), then slams the ground,"
-            + " hitting players within " + Text.num(radius) + " blocks and knocking them away.";
+        return "Every " + Text.num(cooldown) + "s it rears up and a red ring marks the zone for " + Text.num(warning)
+            + "s, then it slams the ground, hitting players within " + Text.num(radius) + " blocks and knocking them away.";
     }
 
     @Override
@@ -55,7 +57,7 @@ public final class QuakingTrait extends BaseTrait {
             if (!e.isOnGround() || boss.nearbyPlayers(radius + 1.5).isEmpty()) {
                 return;
             }
-            startTell(boss, "quake", now, 20);
+            startTell(boss, "quake", now, (int) Math.round(warning * 20));
             e.setVelocity(e.getVelocity().setY(0.35));
             Fx.play(e.getLocation(), "entity.ravager.stunned", 0.9f, 0.6f);
             ring(e.getLocation(), radius, Color.fromRGB(0xD03020), 1.4f);
@@ -63,7 +65,11 @@ public final class QuakingTrait extends BaseTrait {
             return;
         }
         if (!tellDone(boss, "quake", now)) {
-            ring(e.getLocation(), radius, Color.fromRGB(0xFF5030), 1.6f);
+            boolean soon = boss.cooldownUntil("quake:tell") - now <= 20;
+            ring(e.getLocation(), radius, Color.fromRGB(soon ? 0xFF2010 : 0xFF5030), soon ? 2.0f : 1.6f);
+            if (soon) {
+                Fx.particle(e.getLocation().add(0, 0.1, 0), Particle.DUST_PLUME, 6, radius / 3.0, 0.02);
+            }
             return;
         }
         boss.cooldown("quake", now, (int) Math.round(cooldown * 20));
@@ -71,7 +77,7 @@ public final class QuakingTrait extends BaseTrait {
         Fx.particle(e.getLocation().add(0, 0.2, 0), Particle.EXPLOSION, 4, radius / 3.0, 0);
         Fx.particle(e.getLocation().add(0, 0.2, 0), Particle.CLOUD, 30, radius / 2.0, 0.05);
         for (Player p : boss.nearbyPlayers(radius)) {
-            p.damage(damage * boss.power(), e);
+            com.additionalbosses.combat.AreaDamage.hit(p, damage * boss.power(), e); // capped: dangerous, not instant
             Vector away = p.getLocation().toVector().subtract(e.getLocation().toVector()).setY(0);
             if (away.lengthSquared() < 0.01) {
                 away = new Vector(0.1, 0, 0);

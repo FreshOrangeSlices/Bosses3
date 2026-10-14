@@ -23,7 +23,7 @@ import java.util.regex.Pattern;
  */
 public final class ConfigUpgrader {
 
-    public static final int CURRENT = 10;
+    public static final int CURRENT = 11;
     private static final Pattern VERSION = Pattern.compile("^config-version:\\s*(\\d+)\\s*(#.*)?$");
     private static final Pattern STORMCALLER = Pattern.compile("^(\\s+stormcaller:\\s*\\{.*\\bweight:\\s*)6(\\b.*)$");
     private static final Pattern STATUE_SCALE = Pattern.compile("^(\\s+)statue-scale:\\s*(1|1\\.0|0\\.125)(\\s.*)?$");
@@ -146,6 +146,15 @@ public final class ConfigUpgrader {
         }
         if (versionLine < 0) {
             out.add(0, "config-version: " + CURRENT + "   # used by the plugin to update this file; don't change");
+        }
+        if (version < 11) {
+            // the lines above may hold several lines each (inserted settings): split them first
+            List<String> split = new ArrayList<>();
+            for (String line : out) {
+                split.addAll(List.of(line.split("\n", -1)));
+            }
+            out = split;
+            ConfigPatchV11.apply(out, log);
         }
         return out;
     }
