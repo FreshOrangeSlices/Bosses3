@@ -530,10 +530,9 @@ public final class ItemService {
             });
             target.setData(DataComponentTypes.ENCHANTMENT_GLINT_OVERRIDE, true);
             refreshLore(target);
+            PlayerData.addRelicBound(player);
             if (c.has(Keys.RELIC_STARTER)) {
-                QuestFlags.mark(player, "relic_bound"); // (a gift, so it isn't counted as a relic found and bound)
-            } else {
-                PlayerData.addRelicBound(player);
+                PlayerData.addStarterRelicBound(player); // (a gift: bound, but not a relic "found")
             }
             Fx.play(player.getLocation(), "block.end_portal_frame.fill", 1.0f, 0.8f);
             Component msg = m.get("relic-bound", Placeholder.component("item", itemName),

@@ -110,6 +110,16 @@ public final class FeatureListener implements Listener {
         }
     }
 
+    /** Quest Book: items that came from a chest, a hopper or a command count too. */
+    @EventHandler(priority = EventPriority.MONITOR)
+    public void onCloseForQuests(org.bukkit.event.inventory.InventoryCloseEvent event) {
+        if (event.getPlayer() instanceof Player player) {
+            for (ItemStack item : player.getInventory().getContents()) {
+                questFlagFor(player, item);
+            }
+        }
+    }
+
     /** The Quest Book flag for having this item (Boss Gear, a found Relic, a Soul), if any. */
     public void questFlagFor(Player player, @org.jetbrains.annotations.Nullable ItemStack item) {
         ItemService.Kind kind = items().kind(item);

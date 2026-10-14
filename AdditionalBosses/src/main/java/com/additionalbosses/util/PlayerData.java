@@ -34,6 +34,18 @@ public final class PlayerData {
         return player.getPersistentDataContainer().getOrDefault(Keys.PLAYER_RELICS_BOUND, PersistentDataType.INTEGER, 0);
     }
 
+    /** Gift relics (the Quest Book's welcome) among the relics bound. */
+    public static int starterRelicsBound(Player player) {
+        return player.getPersistentDataContainer().getOrDefault(STARTER_BOUND, PersistentDataType.INTEGER, 0);
+    }
+
+    public static void addStarterRelicBound(Player player) {
+        player.getPersistentDataContainer().set(STARTER_BOUND, PersistentDataType.INTEGER, starterRelicsBound(player) + 1);
+    }
+
+    private static final org.bukkit.NamespacedKey STARTER_BOUND =
+        java.util.Objects.requireNonNull(org.bukkit.NamespacedKey.fromString("additionalbosses:starter_relics_bound"));
+
     public static void addRelicBound(Player player) {
         QuestFlags.mark(player, "relic_bound");
         player.getPersistentDataContainer().set(Keys.PLAYER_RELICS_BOUND, PersistentDataType.INTEGER, relicsBound(player) + 1);

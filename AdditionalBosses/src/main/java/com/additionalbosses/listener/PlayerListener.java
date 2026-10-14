@@ -40,7 +40,9 @@ public final class PlayerListener implements Listener {
         }
         if (PlayerData.relicsBound(player) > 0) {
             com.additionalbosses.util.QuestFlags.markOnce(player, "relic_bound");
-            com.additionalbosses.util.QuestFlags.markOnce(player, "relic_found");
+        }
+        if (PlayerData.relicsBound(player) > PlayerData.starterRelicsBound(player)) {
+            com.additionalbosses.util.QuestFlags.markOnce(player, "relic_found"); // bound one that wasn't a gift
         }
         for (org.bukkit.inventory.ItemStack item : player.getInventory().getContents()) {
             var kind = plugin.items().kind(item);

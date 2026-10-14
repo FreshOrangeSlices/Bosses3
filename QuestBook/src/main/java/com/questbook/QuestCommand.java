@@ -67,6 +67,11 @@ final class QuestCommand implements BasicCommand {
                     return;
                 }
                 PlayerStore.State s = plugin.store().get(target.getUniqueId());
+                if (s.locked) {
+                    sender.sendMessage(Component.text(target.getName() + "'s quest file couldn't be read: fix or delete "
+                        + "plugins/QuestBook/players/" + target.getUniqueId() + ".yml first.", NamedTextColor.RED));
+                    return;
+                }
                 s.claimed.clear();
                 s.done.clear();
                 s.milestones.clear();

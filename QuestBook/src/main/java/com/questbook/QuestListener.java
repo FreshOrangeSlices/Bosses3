@@ -53,6 +53,8 @@ public final class QuestListener implements Listener {
                 .append(Component.text(".", NamedTextColor.BLACK)))
             .build());
         book.setData(DataComponentTypes.ITEM_NAME, Component.text(title, Msg.GOLD));
+        book.setData(DataComponentTypes.TOOLTIP_DISPLAY, io.papermc.paper.datacomponent.item.TooltipDisplay
+            .tooltipDisplay().addHiddenComponents(DataComponentTypes.WRITTEN_BOOK_CONTENT).build()); // no "Copy of a copy"
         book.lore(List.of(Component.text("Right-click to open", NamedTextColor.GRAY)
             .decoration(net.kyori.adventure.text.format.TextDecoration.ITALIC, false)));
         book.editPersistentDataContainer(pdc -> pdc.set(Keys.BOOK, PersistentDataType.BYTE, (byte) 1));
@@ -77,13 +79,13 @@ public final class QuestListener implements Listener {
         if (!event.getAction().isRightClick() || !isBook(event.getItem())) {
             return;
         }
-        if (event.getHand() == org.bukkit.inventory.EquipmentSlot.OFF_HAND
-            && !event.getPlayer().getInventory().getItemInMainHand().isEmpty()) {
-            return; // the book in the off hand: right-clicks with a tool or weapon do their own thing
-        }
-        event.setUseItemInHand(Event.Result.DENY);
+        event.setUseItemInHand(Event.Result.DENY); // never the plain book screen, a lectern or a bookshelf
         event.setUseInteractedBlock(Event.Result.DENY);
         event.setCancelled(true);
+        if (event.getHand() == org.bukkit.inventory.EquipmentSlot.OFF_HAND
+            && !event.getPlayer().getInventory().getItemInMainHand().isEmpty()) {
+            return; // the book in the off hand: the right-click was for the tool or weapon in the main hand
+        }
         plugin.menus().openHub(event.getPlayer());
     }
 
