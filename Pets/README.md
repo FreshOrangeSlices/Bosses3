@@ -34,6 +34,8 @@ Holds all your pets (up to 27 by default), each shown as its own flower.
 - **Shift-click** a pet to open its storage while it's out.
 - **Right-click** a pet to take its **Pet Bloom**: an optional flower that calls just that pet. Blooms only work for their owner, and you keep them when you die.
 - **The book** opens the Pet Guide.
+- **The wool** turns pet PvP on (green) or off (red): whether your combat pet joins your fights with other players. Off by default.
+- Each pet shows its **mood** as 1 to 10 hearts.
 - **Release pets...** lets you pick any number of pets and say goodbye to all of them at once (it asks twice). Anything they carry comes back to you.
 
 ## Your pet
@@ -47,7 +49,7 @@ Right-click your pet with:
 - **Your Pet Toy (or its bloom):** ride it.
 - **Anything else:** opens the pet menu, to swap to another pet.
 
-Sneak + right-click your pet to open its storage (or the Vex's gear).
+Sneak + right-click your pet **with an empty hand** to pet it. Sneak + right-click it **holding anything else** (the Pet Toy too) to open its storage (or the Vex's gear).
 
 Bees, Allays, Bats and the Vex flit beside your head while you walk, and stop and hover where they are when you stand still, so they're easy to reach.
 
@@ -67,7 +69,51 @@ Sneak and punch your pet with the Pet Toy to leave it at a **post** right where 
 | Llama | Spits at monsters that come close |
 | Others | Wait at their post |
 
-Stationed pets keep working while you're away, as long as their spot is loaded. One that faints comes back to its post after resting. Sneak + right-click a stationed pet to open its storage (you have to be at its post). To call it back, sneak + punch it with the Pet Toy, or left-click it in the pet menu.
+Stationed pets stroll around within a few blocks of their post, head off to deal with trouble, and come back afterwards. They keep working while you're away, as long as their spot is loaded. One that faints comes back to its post after resting. Sneak + right-click a stationed pet to open its storage (you have to be at its post). To call it back, sneak + punch it with the Pet Toy, or left-click it in the pet menu.
+
+## Happiness
+
+Every pet has a mood, shown as 1 to 10 hearts in the pet menu, in `/pets list`, and when you feed or pet it. The colour tells you how it's doing: red is sad, gold and yellow are okay, green is happy, and pink means it loves you.
+
+| | |
+|---|---|
+| Feeding it | Cheers it up a lot (at most once a minute, even when it isn't hurt) |
+| Playing fetch | Cheers it up |
+| Petting it (sneak + right-click with an empty hand) | Cheers it up a little (every 30 seconds) |
+| Resting in its bloom | Cheers it up quickly |
+| Being out with you | Slowly brings it down (a bit faster at a post) |
+
+- **Tired:** after about an hour and a half out with you, a pet gets tired and its mood drops three times as fast. A few minutes resting in its bloom fixes that.
+- **Loves you:** fill its hearts all the way by feeding, petting or fetch, and it loves you for 30 minutes: its mood drops much slower, and hearts float around it. Fainting ends this early.
+- **Sad:** a sad pet droops under a little rain cloud. Until it cheers up, its bonus, its job at a post, its mcMMO skills and its storage are off. Nothing is lost, and it all comes back as soon as it feels better. It still follows you and still fights.
+
+## mcMMO Taming skills
+
+With mcMMO on the server, the combat pets (Iron Golem, Vex, Polar Bear, Goat and Panda) learn skills from **your mcMMO Taming level**, not from the pet's level. They work like mcMMO's wolf skills, with the same numbers, but every animal has its own names and a starting and special skill of its own. Wolves keep mcMMO's own wolf skills. `/pets taming <animal>` lists them with what you've unlocked.
+
+| Taming | Iron Golem | Vex | Polar Bear | Goat | Panda | What it does |
+|---|---|---|---|---|---|---|
+| 1 | Iron Colossus | Double Strike | Unyielding | Momentum | Bamboo Blessing | See below |
+| 100 | Construct Awareness | Phantom Awareness | Arctic Awareness | Mountain Awareness | Bamboo Sense | Steps out of fire, lava and cacti back to you; no fall damage |
+| 150 | Crushing Blow | Spectral Rend | Mauling Blow | Headbutt | Heavy Paw | Chance of double damage (Taming / 10 %) |
+| 200 | Guardian Intervention | Phase Strike | Crushing Presence | Ram | Soothing Presence | See below |
+| 200 | Self Repair | Soul Siphon | Feast | Graze | Snack Break | 50% chance to heal by the damage it deals |
+| 250 | Iron Plating | Ethereal Form | Thick Hide | Thick Horns | Dense Fur | Half damage from attacks and arrows (the golem: fire too); shakes off burning |
+| 350 | Arcane Core | Voidfed | Winterborn | Mountain Spirit | Inner Balance | Magic, poison and wither heal it instead |
+| 500 | Reinforced Frame | Stormproof | Avalanche Proof | Rock Solid | Unshaken | 1/6 damage from explosions and lightning |
+| 750 | Forged Fists | Spectral Blade | Rending Claws | Hardened Horns | Heavy Paws | +2 damage on every hit |
+
+- **Iron Colossus:** a walking fortress with 100+ health. **Guardian Intervention:** once per Minecraft day, a blow that would kill you leaves you at half a heart with Resistance II for 20 seconds. Only while the golem follows you (not while it guards a post), and a totem in your hand goes first.
+- **Double Strike:** 2% chance to hit twice as hard at Taming 50, +2% every 50 levels, up to 10%. **Phase Strike:** its strikes ignore 25% of the target's armor (50% from Taming 500).
+- **Unyielding:** the bear can't be knocked back, slowed or frozen (on top of its bonus for you). **Crushing Presence:** its hits slow (II) and weaken (I) for 5 seconds; Slowness IV and Weakness II from Taming 500.
+- **Momentum:** every third hit lands 30% harder. **Ram:** that third hit also launches the target about 6 blocks into the air (players too, with pet PvP on).
+- **Bamboo Blessing:** when the panda wins a fight, it and you get Regeneration I for 8 seconds. **Soothing Presence:** a chance on every hit (15% at Taming 200, rising to 60% at 1000) to heal the panda, you and friends within 6 blocks, and hurt the undead: 3 health at 200, +1 every 100 levels, up to 9 at 800.
+
+Your combat pet's hits also give you Taming XP, worked out the way mcMMO does it for a wolf. A pet at its post only earns XP while you're within 30 blocks. A sad pet's skills rest until it cheers up. All the numbers and unlock levels are in the config (`mcmmo:`). On mcMMO's Standard scale (0-100) the levels are divided by 10 automatically. Without mcMMO, none of this does anything.
+
+## Pets in PvP
+
+Pets stay out of fights with other players unless you turn **pet PvP** on with the wool in the pet menu. With it on, your combat pet joins in once a hit between you and another player actually lands (so worlds with PvP off and protected areas still count), and that player can hit your pet back. Pets at a post never attack players, and pets never fight other pets.
 
 ## Max level
 
@@ -161,6 +207,7 @@ Level 1 to 10. Bond XP comes from:
 | Riding it | 1 per 10 blocks |
 | Walking around with it out | 1 per 20 blocks |
 | Playing fetch | 2 (at most every 15 seconds) |
+| Every hit it lands in a fight | 1, or 2 for a big hit (at most every 1.5 seconds). A pet at its post only earns while you're within 30 blocks. The fastest way to level up |
 | Spending time together | 2 per minute |
 
 Going from level n to n+1 takes 40 + 30×n XP. Each level gives:
@@ -183,6 +230,7 @@ Going from level n to n+1 takes 40 + 30×n XP. Each level gives:
 | `/pets guide` | Read the Pet Guide |
 | `/pets station` | Leave the pet that's out at a post (level 8+) |
 | `/pets fetch` | A Fetch Stick |
+| `/pets taming <animal>` | A combat pet's mcMMO Taming skills, and which ones you've unlocked |
 | `/pets release <name>[, <name>...]` | Say goodbye to one or more pets for good (asks you to confirm). What they carry comes back to you |
 | `/pets give <player> <species> [level]` | Admin: give someone a pet |
 | `/pets reload` | Admin: reload `config.yml` |
@@ -208,9 +256,12 @@ Permissions:
 - whether other players can hurt your pets;
 - whether the Allay bottles XP or just pulls it to you;
 - the Bee's area, crops per pulse and speed (`bee:`);
-- stations: the level they unlock at, how many per player, and how far guards chase (`stationing:`).
+- stations: the level they unlock at, how many per player, how far guards chase, and how far pets stroll around their post (`stationing:`);
+- whether players get the pet PvP button (`pet-pvp:`);
+- every happiness number (`happiness:`);
+- the mcMMO Taming skills: unlock levels, chances, damage and every animal's numbers (`mcmmo:`).
 
-Existing config files are updated automatically when the plugin starts (a backup is kept as `config.yml.before-v2`).
+Existing config files are updated automatically when the plugin starts (a backup is kept as `config.yml.before-v3`).
 
 Pets are saved per player in `plugins/BloomPets/players/<uuid>.yml`.
 
@@ -219,3 +270,4 @@ Pets are saved per player in `plugins/BloomPets/players/<uuid>.yml`.
 - Additional Bosses never turns a pet into a boss. Nemesis bosses don't hunt pets, and the Pariah and Matador curses leave them alone.
 - Bosses, boss minions and statues can't be tamed.
 - Pet messages above the hotbar make mcMMO's ability bar wait its turn, just like Additional Bosses' messages do.
+- mcMMO is optional. With it, combat pets get Taming skills and give Taming XP (see above). BloomPets only uses mcMMO's public API and never changes mcMMO.

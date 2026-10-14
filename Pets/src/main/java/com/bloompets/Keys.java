@@ -19,6 +19,7 @@ public final class Keys {
     public static NamespacedKey MOD_STEP;
     public static NamespacedKey MOD_RIDE_SCALE;
     public static NamespacedKey MOD_BONUS;
+    public static NamespacedKey PVP;          // boolean, on a player: their pets join PvP fights
 
     private Keys() {
     }
@@ -35,6 +36,7 @@ public final class Keys {
         MOD_STEP = new NamespacedKey(plugin, "pet_step");
         MOD_RIDE_SCALE = new NamespacedKey(plugin, "ride_scale");
         MOD_BONUS = new NamespacedKey(plugin, "pet_bonus");
+        PVP = new NamespacedKey(plugin, "pet_pvp");
     }
 
     public static boolean isPet(Entity entity) {

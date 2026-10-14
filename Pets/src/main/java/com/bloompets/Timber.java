@@ -70,7 +70,7 @@ public final class Timber implements Listener {
             return;
         }
         PetManager.Active a = plugin.pets().active(p.getUniqueId());
-        if (a == null || a.pet.species != Species.PIG || plugin.pets().fainting(a)) {
+        if (a == null || a.pet.species != Species.PIG || plugin.pets().fainting(a) || plugin.happiness().sad(a.pet)) {
             return;
         }
         Block start = event.getBlock();

@@ -18,6 +18,9 @@ public final class BloomPets extends JavaPlugin {
     private RideController rides;
     private Bonuses bonuses;
     private Menus menus;
+    private McMMO mcmmo;
+    private Skills skills;
+    private Happiness happiness;
 
     public static BloomPets get() {
         return instance;
@@ -36,6 +39,10 @@ public final class BloomPets extends JavaPlugin {
         rides = new RideController(this);
         pets = new PetManager(this);
         menus = new Menus(this);
+        mcmmo = new McMMO(this);
+        mcmmo.hook();
+        skills = new Skills(this);
+        happiness = new Happiness(this);
 
         var pm = getServer().getPluginManager();
         pm.registerEvents(new PetListener(this), this);
@@ -43,10 +50,13 @@ public final class BloomPets extends JavaPlugin {
         pm.registerEvents(menus, this);
         pm.registerEvents(rides, this);
         pm.registerEvents(new Timber(this), this);
+        pm.registerEvents(skills, this);
 
         pets.start();
         rides.start();
         bonuses.start();
+        skills.start();
+        happiness.start();
         registerCommand("pets", "Your pets: summon, dismiss, rename and more", List.of("pet"), new PetsCommand(this));
         getLogger().info("BloomPets ready: " + settings.enabled.size() + " species can be tamed.");
     }
@@ -67,6 +77,13 @@ public final class BloomPets extends JavaPlugin {
     public void reloadSettings() {
         reloadConfig();
         settings = new Settings(getConfig());
+        // happiness may have been switched on or off: owner bonuses follow
+        for (PetManager.Active a : pets.all()) {
+            org.bukkit.entity.Player owner = getServer().getPlayer(a.owner);
+            if (owner != null) {
+                bonuses.apply(owner, a);
+            }
+        }
     }
 
     public Settings settings() {
@@ -91,5 +108,17 @@ public final class BloomPets extends JavaPlugin {
 
     public Menus menus() {
         return menus;
+    }
+
+    public McMMO mcmmo() {
+        return mcmmo;
+    }
+
+    public Skills skills() {
+        return skills;
+    }
+
+    public Happiness happiness() {
+        return happiness;
     }
 }

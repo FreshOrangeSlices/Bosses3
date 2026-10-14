@@ -89,7 +89,13 @@ public final class Blooms {
                 .append(Component.text("■".repeat(10 - filled), NamedTextColor.DARK_GRAY))
                 .append(Component.text(" " + pet.xp + "/" + need, NamedTextColor.GRAY)));
         }
+        if (menu && plugin != null && plugin.settings().happiness) { // (a bloom in your bag would go stale)
+            lore.add(plugin.happiness().line(pet, now));
+        }
         lore.add(line(pet.species.bonus(), NamedTextColor.DARK_AQUA));
+        if (plugin != null && Skills.hasSkills(pet.species) && plugin.skills().on()) {
+            lore.add(line("Taming skills: /pets taming " + pet.species.id(), NamedTextColor.DARK_AQUA));
+        }
         if (pet.storageSlots() > 0) {
             lore.add(line("Storage: " + pet.storageSlots() + " slots", NamedTextColor.GRAY));
         }

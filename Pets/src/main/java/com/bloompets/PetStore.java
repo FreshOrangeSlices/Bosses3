@@ -202,6 +202,10 @@ public final class PetStore {
                 pet.xpBank = s.getInt("xp-bank", 0);
                 pet.order = s.getInt("order", pets.size());
                 pet.health = s.getDouble("health", -1);
+                pet.happiness = Math.max(0, Math.min(100, s.getDouble("happiness", plugin.settings().happyStart)));
+                pet.tiredMillis = Math.max(0, s.getLong("tired-millis", 0));
+                pet.stashedAt = Math.max(0, s.getLong("stashed-at", 0));
+                pet.lovedUntil = Math.max(0, s.getLong("loved-until", 0));
                 String station = s.getString("station");
                 pet.station = station == null || station.isEmpty() ? null : station;
                 String snap = s.getString("snapshot");
@@ -241,6 +245,10 @@ public final class PetStore {
             yml.set(path + ".xp-bank", pet.xpBank);
             yml.set(path + ".order", pet.order);
             yml.set(path + ".health", pet.health);
+            yml.set(path + ".happiness", Math.round(pet.happiness * 100) / 100.0);
+            yml.set(path + ".tired-millis", pet.tiredMillis);
+            yml.set(path + ".stashed-at", pet.stashedAt);
+            yml.set(path + ".loved-until", pet.lovedUntil);
             if (pet.station != null) {
                 yml.set(path + ".station", pet.station);
             }

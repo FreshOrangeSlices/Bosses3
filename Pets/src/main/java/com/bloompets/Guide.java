@@ -70,7 +70,7 @@ public final class Guide {
         pages.add(page()
             .append(title("More Tricks ✦")).append(nl()).append(nl())
             .append(ink("Click your pet to\nswap to another.")).append(nl()).append(nl())
-            .append(ink("Sneak + click it to\npeek in its bag.")).append(nl()).append(nl())
+            .append(ink("Sneak + click with\nan item: its bag.")).append(nl()).append(nl())
             .append(ink("Feed it its snack\nto heal it up.")).append(nl()).append(nl())
             .append(ink("Each has its own\n")).append(block("poppy")).append(ink(" Bloom, too!"))
             .build());
@@ -81,6 +81,22 @@ public final class Guide {
             .append(ink("Big pets (level 8+)\ncan keep a post:\nsneak + punch them\nwith your toy.")).append(nl())
             .append(soft("Guards guard, bees\nfarm, allays tidy."))
             .build());
+        pages.add(page()
+            .append(title("Happy Pets ♥")).append(nl()).append(nl())
+            .append(ink("Sneak + click your\npet with an empty\nhand to give it a\npat.")).append(nl()).append(nl())
+            .append(ink("Snacks, pats and\nfetch make it happy.\nTired pets love a\nnap in their bloom.")).append(nl()).append(nl())
+            .append(soft("Fill its hearts and\nit'll love you!"))
+            .build());
+        BloomPets running = BloomPets.get();
+        if (running != null && running.skills() != null && running.skills().on()) { // only with mcMMO
+            pages.add(page()
+                .append(title("Brave Skills ⚔")).append(nl()).append(nl())
+                .append(ink("Golems, Vexes,\nBears, Goats and\nPandas learn tricks\nas your Taming\nskill grows."))
+                .append(nl()).append(nl())
+                .append(ink("/pets taming\nshows them all.")).append(nl()).append(nl())
+                .append(soft("A sad pet won't\nshow off, though."))
+                .build());
+        }
         pages.add(page()
             .append(title("Growing Up ✦")).append(nl()).append(nl())
             .append(ink("Walks, snacks and\nadventures help\nyour pet grow up to\nlevel 10.")).append(nl()).append(nl())
