@@ -50,10 +50,7 @@ public final class Pet {
     public long stashedAt;
     /** Until when it "loves you" (its mood drops slower). Lost if it faints. */
     public long lovedUntil;
-    // not saved: cooldowns and what the owner was last told
-    public long lastPetted;
-    public long lastFeedHappy;
-    public long lastFetchHappy;
+    // not saved: a cooldown and what the owner was last told
     public long lastCombatXp;
     public @Nullable Boolean wasSad;
     public @Nullable Boolean wasTired;

@@ -213,7 +213,8 @@ public final class Settings {
 
     /** The mcMMO Taming level this skill slot unlocks at (on RetroMode's 0-1000 scale; Standard is a tenth). */
     public int unlock(Skills.Slot slot, double scale) {
-        return (int) Math.round(unlocks.getOrDefault(slot.key, slot.defaultLevel) * scale);
+        int raw = unlocks.getOrDefault(slot.key, slot.defaultLevel);
+        return Math.max(raw > 0 ? 1 : 0, (int) Math.round(raw * scale)); // level 1 stays 1 on Standard
     }
 
     /** The level this species can be ridden from. */

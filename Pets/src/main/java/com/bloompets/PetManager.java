@@ -116,6 +116,8 @@ public final class PetManager {
         int stuck;
         /** Hits landed this outing (the Goat's every-third-hit Momentum). */
         int hits;
+        /** When a hit between the owner and the player this pet fights last went through. */
+        long pvpAt;
         /** A stationed pet strolls around its post: where it's headed, and when it picks a new spot. */
         @Nullable Location roamSpot;
         int roamNext;
@@ -132,6 +134,11 @@ public final class PetManager {
     private static final double TARGET_RANGE = 24;
     private static final long ATTACK_COOLDOWN = 1000;
     private static final long FEED_XP_COOLDOWN = 30_000;
+    /**
+     * A pet keeps fighting a player only this long after the last hit between them and its owner went through, so
+     * a player who escapes into a protected area (where the owner can't hit them) is left alone.
+     */
+    private static final long PVP_MEMORY = 6000;
 
     private final BloomPets plugin;
     private final Map<UUID, Active> byOwner = new HashMap<>();
@@ -306,7 +313,7 @@ public final class PetManager {
         plugin.rides().eject(a);
         endFetch(a, false);
         untrack(a);
-        plugin.happiness().wentIn(a.pet);
+        plugin.happiness().wentIn(a);
         Mob mob = a.entity;
         if (mob.isValid()) {
             if (!a.fainting) {
@@ -329,7 +336,7 @@ public final class PetManager {
         plugin.rides().eject(a);
         endFetch(a, false);
         untrack(a);
-        plugin.happiness().wentIn(a.pet);
+        plugin.happiness().wentIn(a);
         if (a.entity.isValid()) {
             if (!a.fainting) {
                 a.pet.health = a.entity.getHealth() / maxHealth(a.entity);
@@ -342,7 +349,7 @@ public final class PetManager {
     /** The pet entity disappeared without us (another plugin removed it). Its last saved state is kept. */
     public void lost(Active a) {
         untrack(a);
-        plugin.happiness().wentIn(a.pet);
+        plugin.happiness().wentIn(a);
         plugin.store().save(a.owner);
     }
 
@@ -681,7 +688,7 @@ public final class PetManager {
         plugin.menus().closeFor(a.pet);
         plugin.rides().eject(a);
         untrack(a);
-        plugin.happiness().wentIn(a.pet);
+        plugin.happiness().wentIn(a);
         plugin.store().save(a.owner);
         Player owner = Bukkit.getPlayer(a.owner);
         if (owner != null) {
@@ -1116,7 +1123,8 @@ public final class PetManager {
     /** Whether the pet {@code a} may hurt this player right now (it's fighting them, and PvP is on). */
     public boolean mayHurt(Active a, Player victim) {
         Player owner = Bukkit.getPlayer(a.owner);
-        return owner != null && a.home == null && victim.equals(a.target) && fairGame(owner, victim);
+        return owner != null && a.home == null && victim.equals(a.target) && fairGame(owner, victim)
+            && System.currentTimeMillis() - a.pvpAt < PVP_MEMORY;
     }
 
     /** The owner is fighting this mob (they hit it, or it hit them or their pet): combat pets join in. */
@@ -1125,18 +1133,21 @@ public final class PetManager {
         if (a == null || !a.pet.species.combat() || a.fainting || plugin.rides().isRidden(a)) {
             return;
         }
-        if (target != a.entity && validTarget(target, owner)) {
+        if (target instanceof Player) {
+            a.pvpAt = System.currentTimeMillis(); // a hit between you and them just went through
+        }
+        if (target != a.entity && validTarget(a, target, owner)) {
             a.target = target;
         }
     }
 
-    private boolean validTarget(LivingEntity t, Player owner) {
+    private boolean validTarget(Active a, LivingEntity t, Player owner) {
         if (!t.isValid() || t.isDead() || t.getWorld() != owner.getWorld()
             || t.getLocation().distanceSquared(owner.getLocation()) > TARGET_RANGE * TARGET_RANGE) {
             return false;
         }
         if (t instanceof Player victim) {
-            return fairGame(owner, victim);
+            return fairGame(owner, victim) && System.currentTimeMillis() - a.pvpAt < PVP_MEMORY;
         }
         if (t instanceof ArmorStand || Keys.isPet(t) || Keys.isStatue(t) || t.isInvulnerable()) {
             return false;
@@ -1145,7 +1156,7 @@ public final class PetManager {
     }
 
     private void updateTarget(Active a, Player owner) {
-        if (a.target != null && !validTarget(a.target, owner)) {
+        if (a.target != null && !validTarget(a, a.target, owner)) {
             a.target = null;
         }
         if (a.target != null || a.ticks % 10 != 0) {
@@ -1156,7 +1167,7 @@ public final class PetManager {
         double bestDist = 12 * 12;
         for (Entity e : owner.getNearbyEntities(12, 6, 12)) {
             if (e instanceof Mob mob && e instanceof Enemy && !(e instanceof Creeper)
-                && owner.equals(mob.getTarget()) && validTarget(mob, owner)) {
+                && owner.equals(mob.getTarget()) && validTarget(a, mob, owner)) {
                 double d = mob.getLocation().distanceSquared(owner.getLocation());
                 if (d < bestDist) {
                     bestDist = d;
@@ -1202,6 +1213,10 @@ public final class PetManager {
             t.setKiller(owner); // the kill counts as yours (XP, drops), like a tamed wolf's, when you're there
         }
         Skills.Hit hit = plugin.skills().before(a, t, base * a.pet.power());
+        boolean earns = earns(a, owner);
+        boolean tamingXp = earns && plugin.settings().tamingXp && plugin.skills().on()
+            && Skills.hasSkills(sp) && owner != null;
+        boolean queued = tamingXp && plugin.mcmmo().queueHitXp(owner, t); // mcMMO pays for what this hit takes off
         double before = t.getHealth() + t.getAbsorptionAmount();
         t.damage(hit.damage, DamageSource.builder(DamageType.MOB_ATTACK)
             .withCausingEntity(m).withDirectEntity(m).build());
@@ -1215,30 +1230,26 @@ public final class PetManager {
             t.setVelocity(t.getVelocity().add(new Vector(0, 0.4, 0)));
         }
         plugin.skills().after(a, owner, t, hit, dealt);
-        combatRewards(a, owner, t, hit, dealt);
+        if (earns) {
+            // bond XP for every hit that lands (more for a big one): fighting is the fastest way to level
+            Settings s = plugin.settings();
+            if (now - a.pet.lastCombatXp >= s.combatXpCooldown) {
+                a.pet.lastCombatXp = now;
+                addXp(a.pet, hit.critical ? s.xpCombatCrit : s.xpCombatHit);
+            }
+            if (tamingXp && !queued) {
+                plugin.mcmmo().hitXp(owner, t, dealt);
+            }
+        }
     }
 
-    /**
-     * Bond XP for every hit that lands (more for a big one), and mcMMO Taming XP for the owner like a wolf's hits
-     * give. A pet guarding its post only earns while its owner is nearby.
-     */
-    private void combatRewards(Active a, @Nullable Player owner, LivingEntity t, Skills.Hit hit, double dealt) {
-        Settings s = plugin.settings();
+    /** Whether this pet's fighting earns XP now: its owner is online, and close by if the pet guards a post. */
+    boolean earns(Active a, @Nullable Player owner) {
         if (owner == null || !owner.isOnline() || owner.getWorld() != a.entity.getWorld()) {
-            return;
+            return false;
         }
-        if (a.home != null
-            && owner.getLocation().distanceSquared(a.entity.getLocation()) > s.guardOwnerRange * s.guardOwnerRange) {
-            return;
-        }
-        long now = System.currentTimeMillis();
-        if (now - a.pet.lastCombatXp >= s.combatXpCooldown) {
-            a.pet.lastCombatXp = now;
-            addXp(a.pet, hit.critical ? s.xpCombatCrit : s.xpCombatHit);
-        }
-        if (s.tamingXp && plugin.skills().on() && Skills.hasSkills(a.pet.species)) {
-            plugin.mcmmo().hitXp(owner, t, dealt);
-        }
+        double r = plugin.settings().guardOwnerRange;
+        return a.home == null || owner.getLocation().distanceSquared(a.entity.getLocation()) <= r * r;
     }
 
     private static double reach(Mob m, LivingEntity t) {
@@ -1345,7 +1356,7 @@ public final class PetManager {
         double dz = goal.getZ() - pos.getZ();
         double dy = goal.getY() - pos.getY();
         double flat = Math.sqrt(dx * dx + dz * dz);
-        if (target == null && spot == null && (flat > TELEPORT_DISTANCE || Math.abs(dy) > 8)) {
+        if (target == null && spot == null && (flat > teleportDistance(a) || Math.abs(dy) > 8)) {
             teleportNear(a, owner);
             return;
         }
@@ -1486,7 +1497,7 @@ public final class PetManager {
         }
         Vector d = goal.toVector().subtract(pos.toVector());
         double len = d.length();
-        if (target == null && spot == null && len > TELEPORT_DISTANCE) {
+        if (target == null && spot == null && len > teleportDistance(a)) {
             teleportNear(a, owner);
             return;
         }
@@ -1519,6 +1530,11 @@ public final class PetManager {
             a.stuck = Math.max(0, a.stuck - 1);
         }
         a.lastPos = pos;
+    }
+
+    /** How far behind a pet may fall before it pops over (a strolling guard may cross its whole area). */
+    private double teleportDistance(Active a) {
+        return a.home == null ? TELEPORT_DISTANCE : TELEPORT_DISTANCE + 2 * plugin.settings().roamRadius;
     }
 
     /** Environmentally Aware and friends: out of the fire, back to its owner (or its post). */

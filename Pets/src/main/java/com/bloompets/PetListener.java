@@ -485,7 +485,9 @@ public final class PetListener implements Listener {
         DamageSource source = event.getDamageSource();
         PetManager.Active byPet = source.getDirectEntity() == null ? null : plugin.pets().of(source.getDirectEntity());
         if (byPet != null) {
-            plugin.pets().addXp(byPet.pet, s.xpPetKill);
+            if (plugin.pets().earns(byPet, Bukkit.getPlayer(byPet.owner))) { // a guard only with you nearby
+                plugin.pets().addXp(byPet.pet, s.xpPetKill);
+            }
             plugin.skills().killed(byPet);
             return;
         }

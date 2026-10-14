@@ -30,6 +30,11 @@ public final class Happiness {
 
     private final BloomPets plugin;
     private int tick;
+    /** Cooldowns by pet id (kept here so they survive the owner relogging). */
+    private final java.util.Map<java.util.UUID, long[]> cooldowns = new java.util.HashMap<>();
+    private static final int FEED = 0;
+    private static final int FETCH = 1;
+    private static final int PAT = 2;
 
     public Happiness(BloomPets plugin) {
         this.plugin = plugin;
@@ -53,7 +58,7 @@ public final class Happiness {
             return 100;
         }
         double h = pet.happiness;
-        if (pet.stashedAt > 0 && now > pet.stashedAt && plugin.pets().activeFor(pet) == null) {
+        if (pet.stashedAt > 0 && now > pet.stashedAt) { // (0 while it's out)
             h += s().restPerMinute * (now - pet.stashedAt) / 60_000.0;
         }
         return Math.max(0, Math.min(100, h));
@@ -75,7 +80,7 @@ public final class Happiness {
 
     private long tiredMillis(Pet pet, long now) {
         long t = pet.tiredMillis;
-        if (pet.stashedAt > 0 && now > pet.stashedAt && plugin.pets().activeFor(pet) == null) {
+        if (pet.stashedAt > 0 && now > pet.stashedAt) {
             t -= (long) ((now - pet.stashedAt) * (s().tiredAfter / (s().minutesToRest * 60_000.0)));
         }
         return Math.max(0, t);
@@ -141,12 +146,19 @@ public final class Happiness {
             pet.happiness = Math.min(100, Math.max(pet.happiness, current(pet, now)));
         }
         pet.stashedAt = 0;
+        pet.wasSad = s().happiness && pet.happiness < s().sadBelow;
     }
 
-    /** It went back into its bloom (put away, fainted, unloaded): it starts resting. */
-    public void wentIn(Pet pet) {
-        if (pet.stashedAt == 0) {
-            pet.stashedAt = System.currentTimeMillis();
+    /**
+     * It went back into its bloom (put away, fainted, unloaded): it starts resting. Not a pet that keeps its post
+     * (its chunk unloading, or a restart, isn't a rest); unless it fainted there.
+     */
+    public void wentIn(PetManager.Active a) {
+        if (a.home != null && !plugin.pets().fainting(a)) {
+            return;
+        }
+        if (a.pet.stashedAt == 0) {
+            a.pet.stashedAt = System.currentTimeMillis();
         }
     }
 
@@ -156,26 +168,30 @@ public final class Happiness {
     }
 
     /** Feeding: true if it cheered up (at most once a minute). */
+    private long[] cooldowns(Pet pet) {
+        return cooldowns.computeIfAbsent(pet.id, k -> new long[3]);
+    }
+
     public boolean fed(Player owner, PetManager.Active a) {
         long now = System.currentTimeMillis();
-        if (!s().happiness || now - a.pet.lastFeedHappy < s().happyFeedCooldown) {
+        if (!canFeedCheer(a.pet)) {
             return false;
         }
-        a.pet.lastFeedHappy = now;
+        cooldowns(a.pet)[FEED] = now;
         cheer(owner, a, s().happyFeed, false);
         return true;
     }
 
     public boolean canFeedCheer(Pet pet) {
-        return s().happiness && System.currentTimeMillis() - pet.lastFeedHappy >= s().happyFeedCooldown;
+        return s().happiness && System.currentTimeMillis() - cooldowns(pet)[FEED] >= s().happyFeedCooldown;
     }
 
     public void fetched(Player owner, PetManager.Active a) {
         long now = System.currentTimeMillis();
-        if (!s().happiness || now - a.pet.lastFetchHappy < s().happyFetchCooldown) {
+        if (!s().happiness || now - cooldowns(a.pet)[FETCH] < s().happyFetchCooldown) {
             return;
         }
-        a.pet.lastFetchHappy = now;
+        cooldowns(a.pet)[FETCH] = now;
         cheer(owner, a, s().happyFetch, false);
     }
 
@@ -190,11 +206,11 @@ public final class Happiness {
             Msg.bar(owner, Component.text(a.pet.name + " loves the attention! ♥", Msg.PINK));
             return;
         }
-        if (now - a.pet.lastPetted < s().happyPettingCooldown) {
+        if (now - cooldowns(a.pet)[PAT] < s().happyPettingCooldown) {
             Msg.bar(owner, Component.text(a.pet.name + " enjoys the pat  ", Msg.PINK).append(bar(a.pet, now)));
             return;
         }
-        a.pet.lastPetted = now;
+        cooldowns(a.pet)[PAT] = now;
         cheer(owner, a, s().happyPetting, true);
     }
 
@@ -250,7 +266,7 @@ public final class Happiness {
         Pet pet = a.pet;
         Player owner = Bukkit.getPlayer(a.owner);
         if (following) {
-            pet.tiredMillis += 1000;
+            pet.tiredMillis = Math.min(s().tiredAfter, pet.tiredMillis + 1000); // (so 5 minutes' rest always does it)
         }
         boolean tired = following && pet.tiredMillis >= s().tiredAfter;
         if (following || owner != null || s().postDropsOffline) {
@@ -281,12 +297,14 @@ public final class Happiness {
             }
         }
         pet.wasSad = sad;
-        if (pet.wasTired != null && !pet.wasTired && tired && owner != null) {
-            Msg.chat(owner, Component.text(pet.name + " is getting tired. ", NamedTextColor.GOLD)
-                .append(Component.text("Let it rest in its bloom for a few minutes, or it'll get grumpy fast.",
-                    NamedTextColor.GRAY)));
+        if (following) {
+            if (pet.wasTired != null && !pet.wasTired && tired && owner != null) {
+                Msg.chat(owner, Component.text(pet.name + " is getting tired. ", NamedTextColor.GOLD)
+                    .append(Component.text("Let it rest in its bloom for a few minutes, or it'll get grumpy fast.",
+                        NamedTextColor.GRAY)));
+            }
+            pet.wasTired = tired;
         }
-        pet.wasTired = tired;
     }
 
     private void gotSad(Player owner, PetManager.Active a) {

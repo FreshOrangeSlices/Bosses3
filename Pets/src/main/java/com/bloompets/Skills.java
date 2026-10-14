@@ -227,8 +227,8 @@ public final class Skills implements Listener {
             }
             case GOAT -> {
                 if (unlocked(level, Slot.FIRST)) {
-                    a.hits++;
-                    if (a.hits % s.momentumEvery == 0) {
+                    // counted when a hit lands (in after), so blocked swings don't use up the third hit
+                    if ((a.hits + 1) % s.momentumEvery == 0) {
                         hit.damage *= 1 + s.momentumBonus / 100;
                         hit.critical = true;
                         hit.ram = unlocked(level, Slot.SPECIAL);
@@ -271,6 +271,9 @@ public final class Skills implements Listener {
         }
         Settings s = plugin.settings();
         Mob m = a.entity;
+        if (a.pet.species == Species.GOAT && unlocked(level, Slot.FIRST)) {
+            a.hits++;
+        }
         if (unlocked(level, Slot.FAST_FOOD) && roll(s.fastFoodChance)) {
             double max = PetManager.maxHealth(m);
             if (m.getHealth() < max) {
@@ -308,7 +311,10 @@ public final class Skills implements Listener {
         }
     }
 
-    /** Soothing Presence: heals the panda, its owner and friends nearby, and hurts the undead. */
+    /**
+     * Soothing Presence: heals the panda, its owner and friends nearby, and hurts undead monsters. Other players
+     * only count as friends while its owner has pet PvP off (no healing the other side of a fight).
+     */
     private void soothe(PetManager.Active a, double amount) {
         Mob panda = a.entity;
         double r = plugin.settings().soothRadius;
@@ -316,20 +322,25 @@ public final class Skills implements Listener {
         at.getWorld().spawnParticle(Particle.HAPPY_VILLAGER, at.clone().add(0, 1, 0), 24, r / 2, 0.6, r / 2, 0);
         at.getWorld().playSound(at, Sound.ENTITY_PANDA_EAT, 0.8f, 1.2f);
         heal(panda, amount);
+        Player owner = Bukkit.getPlayer(a.owner);
+        boolean pvpOn = owner != null && plugin.pets().pvp(owner);
         for (Entity e : panda.getNearbyEntities(r, r / 2 + 1, r)) {
             if (!(e instanceof LivingEntity le) || le.isDead() || e.equals(a.target)) {
                 continue;
             }
             if (Tag.ENTITY_TYPES_UNDEAD.isTagged(e.getType())) {
-                if (e instanceof Mob && !Keys.isPet(e) && !Keys.isStatue(e)
-                    && !(e instanceof Tameable tame && a.owner.equals(tame.getOwnerUniqueId()))) {
+                // undead monsters only: not someone's skeleton horse, a named mob, or a villager being cured
+                if (e instanceof org.bukkit.entity.Monster && !Keys.isPet(e) && !Keys.isStatue(e)
+                    && e.customName() == null && !(e instanceof Tameable tame && tame.isTamed())
+                    && !(e instanceof org.bukkit.entity.ZombieVillager zv && zv.isConverting())) {
                     le.damage(amount, DamageSource.builder(DamageType.INDIRECT_MAGIC)
                         .withCausingEntity(panda).withDirectEntity(panda).build());
                 }
                 continue;
             }
-            boolean friend = e instanceof Player || Keys.isPet(e)
-                || (e instanceof Tameable tame && a.owner.equals(tame.getOwnerUniqueId()));
+            boolean friend = e.getUniqueId().equals(a.owner) || Keys.isPet(e)
+                || (e instanceof Tameable tame && a.owner.equals(tame.getOwnerUniqueId()))
+                || (e instanceof Player && !pvpOn);
             if (friend) {
                 heal(le, amount);
             }
@@ -489,7 +500,8 @@ public final class Skills implements Listener {
             || inv.getItemInOffHand().getType() == Material.TOTEM_OF_UNDYING) {
             return; // the totem saves you; the golem's help is kept for later
         }
-        long day = p.getWorld().getFullTime() / 24000;
+        // the main world's clock (the Nether and End keep their own, which would allow a second save)
+        long day = Bukkit.getWorlds().get(0).getFullTime() / 24000;
         Long used = p.getPersistentDataContainer().get(guardianDay, PersistentDataType.LONG);
         if (used != null && used == day) {
             return;

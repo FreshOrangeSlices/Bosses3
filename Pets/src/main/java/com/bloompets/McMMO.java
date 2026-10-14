@@ -35,6 +35,10 @@ public final class McMMO {
     private @Nullable Method combatXp;
     private @Nullable Method animalsXp;
     private @Nullable Method pvpXp;
+    // mcMMO's own combat XP (the same call a wolf's hit makes), when available
+    private @Nullable Method userOf;
+    private @Nullable Method processCombatXp;
+    private @Nullable Object taming;
     private boolean retro = true;
     private boolean warned;
 
@@ -42,6 +46,7 @@ public final class McMMO {
     private final Map<UUID, Integer> levels = new ConcurrentHashMap<>();
     private final Map<UUID, Long> checkedAt = new HashMap<>();
     private final Set<UUID> lookingUp = new HashSet<>();
+    private final Map<UUID, Long> retryLookup = new HashMap<>();
 
     public McMMO(BloomPets plugin) {
         this.plugin = plugin;
@@ -80,6 +85,17 @@ public final class McMMO {
                 pvpXp = config.getMethod("getPlayerVersusPlayerXP");
             } catch (ReflectiveOperationException | RuntimeException ex) {
                 expConfig = null; // fall back to mcMMO's default numbers
+            }
+            try {
+                Class<?> skill = Class.forName("com.gmail.nossr50.datatypes.skills.PrimarySkillType", true, loader);
+                Class<?> user = Class.forName("com.gmail.nossr50.datatypes.player.McMMOPlayer", true, loader);
+                userOf = Class.forName("com.gmail.nossr50.util.player.UserManager", true, loader)
+                    .getMethod("getPlayer", Player.class);
+                processCombatXp = Class.forName("com.gmail.nossr50.util.skills.CombatUtils", true, loader)
+                    .getMethod("processCombatXP", user, LivingEntity.class, skill, double.class);
+                taming = skill.getMethod("valueOf", String.class).invoke(null, SKILL);
+            } catch (ReflectiveOperationException | RuntimeException ex) {
+                processCombatXp = null; // use the public API with our own copy of the formula
             }
             plugin.getLogger().info("Hooked into mcMMO " + mcmmo.getPluginMeta().getVersion()
                 + ": combat pets use their owner's Taming level" + (retro ? "" : " (Standard mode: levels / 10)") + ".");
@@ -138,19 +154,62 @@ public final class McMMO {
         }
     }
 
-    /** A stationed pet's owner is offline and we never saw them: ask mcMMO's database once, off the main thread. */
+    /**
+     * A stationed pet's owner is offline and we never saw them: ask mcMMO's database, off the main thread (again
+     * after a few minutes if it failed).
+     */
     private void lookUpOffline(UUID owner) {
         Method offline = getLevelOffline;
-        if (offline == null || !lookingUp.add(owner)) {
+        long now = System.currentTimeMillis();
+        if (offline == null || now < retryLookup.getOrDefault(owner, 0L) || !lookingUp.add(owner)) {
             return;
         }
         Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
+            Integer found = null;
             try {
-                levels.putIfAbsent(owner, (int) offline.invoke(null, owner, SKILL));
+                found = (int) offline.invoke(null, owner, SKILL);
             } catch (ReflectiveOperationException | RuntimeException ex) {
-                levels.putIfAbsent(owner, 0); // never played with mcMMO
+                // not in mcMMO's database (yet), or the database is busy
             }
+            Integer level = found;
+            Bukkit.getScheduler().runTask(plugin, () -> {
+                lookingUp.remove(owner);
+                if (level != null) {
+                    levels.putIfAbsent(owner, level);
+                } else {
+                    retryLookup.put(owner, System.currentTimeMillis() + 300_000);
+                }
+            });
         });
+    }
+
+    /**
+     * Before a combat pet's hit: has mcMMO itself award Taming XP for it, exactly like a tamed wolf's hit (same
+     * formula, same rules for spawner mobs, bosses, PvP and parties). mcMMO notes the target's health now and pays
+     * for whatever the hit took off. False if that isn't available (then {@link #hitXp} is used after the hit).
+     */
+    public boolean queueHitXp(Player owner, LivingEntity target) {
+        Method process = processCombatXp;
+        Method user = userOf;
+        if (process == null || user == null || taming == null || getLevel == null
+            || !owner.hasPermission("mcmmo.skills.taming")) {
+            return process != null; // (no permission: no XP, and no fallback either)
+        }
+        try {
+            Object mmoPlayer = user.invoke(null, owner);
+            if (mmoPlayer != null) {
+                process.invoke(null, mmoPlayer, target, taming, plugin.settings().tamingXpMultiplier);
+            }
+            return true;
+        } catch (ReflectiveOperationException | RuntimeException ex) {
+            if (!warned) {
+                warned = true;
+                plugin.getLogger().log(Level.WARNING, "mcMMO's combat XP didn't work for a pet; using the API "
+                    + "instead (shown once)", ex);
+            }
+            processCombatXp = null;
+            return false;
+        }
     }
 
     /**
@@ -201,7 +260,7 @@ public final class McMMO {
         try {
             Object v = type == null ? m.invoke(expConfig) : m.invoke(expConfig, type);
             double d = v instanceof Number n ? n.doubleValue() : fallback;
-            return d > 0 ? d : fallback;
+            return d >= 0 ? d : fallback;
         } catch (ReflectiveOperationException | RuntimeException ex) {
             return fallback;
         }

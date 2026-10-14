@@ -77,6 +77,13 @@ public final class BloomPets extends JavaPlugin {
     public void reloadSettings() {
         reloadConfig();
         settings = new Settings(getConfig());
+        // happiness may have been switched on or off: owner bonuses follow
+        for (PetManager.Active a : pets.all()) {
+            org.bukkit.entity.Player owner = getServer().getPlayer(a.owner);
+            if (owner != null) {
+                bonuses.apply(owner, a);
+            }
+        }
     }
 
     public Settings settings() {
