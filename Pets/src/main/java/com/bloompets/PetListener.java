@@ -129,8 +129,10 @@ public final class PetListener implements Listener {
             ItemStack hand = p.getInventory().getItemInMainHand();
             if (a.pet.species.likes(hand.getType())) {
                 pets.feed(p, a, EquipmentSlot.HAND);
+            } else if (p.isSneaking() && hand.isEmpty()) {
+                plugin.happiness().pet(p, a); // a pat on the head
             } else if (p.isSneaking()) {
-                plugin.menus().openPetInventory(p, a.pet);
+                plugin.menus().openPetInventory(p, a.pet); // with anything in hand (the Pet Toy too): its bag
             } else if (Blooms.isPetItem(hand) && a.home != null) {
                 Msg.bar(p, a.pet.name + " is keeping its post. Sneak + punch it with your Pet Toy to call it back.",
                     NamedTextColor.GRAY);
@@ -322,23 +324,25 @@ public final class PetListener implements Listener {
         }
         if (event instanceof EntityDamageByEntityEvent byEntity) {
             Entity src = source(byEntity.getDamager());
-            if (src == null) {
-                return;
-            }
-            if (src.getUniqueId().equals(a.owner) || Keys.isPet(src)
-                || (src instanceof Player && plugin.settings().protectFromPlayers)) {
-                event.setCancelled(true);
-                return;
-            }
-            Player owner = Bukkit.getPlayer(a.owner);
-            if (src instanceof LivingEntity attacker && !(src instanceof Player)) {
-                if (a.home != null) {
-                    plugin.pets().defend(a, attacker);
-                } else if (owner != null) {
-                    plugin.pets().engage(owner, attacker);
+            if (src != null) {
+                // other players can't hurt your pet, unless it's in a PvP fight with them (pet PvP turned on)
+                if (src.getUniqueId().equals(a.owner) || Keys.isPet(src)
+                    || (src instanceof Player attacker && plugin.settings().protectFromPlayers
+                        && !plugin.pets().mayHurt(a, attacker))) {
+                    event.setCancelled(true);
+                    return;
+                }
+                Player owner = Bukkit.getPlayer(a.owner);
+                if (src instanceof LivingEntity attacker && !(src instanceof Player)) {
+                    if (a.home != null) {
+                        plugin.pets().defend(a, attacker);
+                    } else if (owner != null) {
+                        plugin.pets().engage(owner, attacker);
+                    }
                 }
             }
         }
+        plugin.skills().hurt(a, event); // mcMMO Taming: Thick Fur, Holy Hound, Shock Proof...
     }
 
     /** Pets never die: a blow that would kill one makes it faint instead. */
@@ -351,33 +355,52 @@ public final class PetListener implements Listener {
         }
     }
 
-    /** Pets never hurt players (or each other). */
+    /** Pets never hurt each other, and only hurt players in a PvP fight their owner turned on. */
     @EventHandler(priority = EventPriority.LOW, ignoreCancelled = true)
     public void onPetAttacks(EntityDamageByEntityEvent event) {
         Entity src = source(event.getDamager());
-        if (src != null && Keys.isPet(src) && (event.getEntity() instanceof Player || Keys.isPet(event.getEntity()))) {
+        if (src == null || !Keys.isPet(src)) {
+            return;
+        }
+        if (Keys.isPet(event.getEntity())) {
             event.setCancelled(true);
+        } else if (event.getEntity() instanceof Player victim) {
+            PetManager.Active a = plugin.pets().of(src);
+            if (a == null || !plugin.pets().mayHurt(a, victim)) {
+                event.setCancelled(true);
+            }
         }
     }
 
-    /** Whoever you fight, your combat pet fights too. */
+    /**
+     * Whoever you fight, your combat pet fights too. Players only with pet PvP turned on (the wool in the pet
+     * menu), and only once a hit between you actually went through (so PvP-off worlds and protected areas count).
+     */
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onFight(EntityDamageByEntityEvent event) {
         Entity src = source(event.getDamager());
         Entity victim = event.getEntity();
-        if (src instanceof Player p && victim instanceof LivingEntity target && !(victim instanceof Player)
-            && !Keys.isPet(victim)) {
-            plugin.pets().engage(p, target);
-        } else if (victim instanceof Player p && src instanceof LivingEntity attacker && !(src instanceof Player)
-            && !Keys.isPet(src)) {
-            plugin.pets().engage(p, attacker);
+        if (src == null || src.equals(victim)) {
+            return;
+        }
+        PetManager pets = plugin.pets();
+        if (src instanceof Player p && victim instanceof LivingEntity target && !Keys.isPet(victim)
+            && (!(victim instanceof Player) || pets.pvp(p))) {
+            pets.engage(p, target);
+        }
+        if (victim instanceof Player p && src instanceof LivingEntity attacker && !Keys.isPet(src)
+            && (!(src instanceof Player) || pets.pvp(p))) {
+            pets.engage(p, attacker);
         }
     }
 
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onTarget(EntityTargetEvent event) {
         if (Keys.isPet(event.getEntity()) && event.getTarget() instanceof Player) {
-            event.setCancelled(true);
+            PetManager.Active a = plugin.pets().of(event.getEntity());
+            if (a == null || a.target != event.getTarget()) {
+                event.setCancelled(true); // only the player it's fighting in PvP
+            }
         }
     }
 
@@ -463,6 +486,7 @@ public final class PetListener implements Listener {
         PetManager.Active byPet = source.getDirectEntity() == null ? null : plugin.pets().of(source.getDirectEntity());
         if (byPet != null) {
             plugin.pets().addXp(byPet.pet, s.xpPetKill);
+            plugin.skills().killed(byPet);
             return;
         }
         Player killer = dead.getKiller();
@@ -484,6 +508,7 @@ public final class PetListener implements Listener {
         plugin.store().unload(p.getUniqueId());
         lastClick.remove(p.getUniqueId());
         lastMenu.remove(p.getUniqueId());
+        plugin.mcmmo().forget(p.getUniqueId());
     }
 
     /** Your pet goes back into its bloom when you die, and your blooms stay with you. */

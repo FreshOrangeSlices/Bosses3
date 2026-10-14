@@ -42,6 +42,21 @@ public final class Pet {
     public long lastFeedXp;
     /** When playing fetch last gave bond XP (not saved). */
     public long lastFetchXp;
+    /** How happy it is, 0-100 (players only ever see it as 1-10 hearts). */
+    public double happiness = 80;
+    /** How long it has been out with its owner since it last rested in its bloom (millis). */
+    public long tiredMillis;
+    /** When it went back into its bloom (0: it's out, or unknown). Resting there cheers it up. */
+    public long stashedAt;
+    /** Until when it "loves you" (its mood drops slower). Lost if it faints. */
+    public long lovedUntil;
+    // not saved: cooldowns and what the owner was last told
+    public long lastPetted;
+    public long lastFeedHappy;
+    public long lastFetchHappy;
+    public long lastCombatXp;
+    public @Nullable Boolean wasSad;
+    public @Nullable Boolean wasTired;
     /** Where this pet is stationed ("world;x;y;z;yaw"), or null if it comes with its owner. */
     public @Nullable String station;
 

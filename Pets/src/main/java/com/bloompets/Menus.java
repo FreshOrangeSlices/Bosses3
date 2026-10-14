@@ -49,6 +49,7 @@ public final class Menus implements Listener {
     private static final int CANCEL_SLOT = 51;
     private static final int FETCH_SLOT = 51; // the cancel button only shows in release mode
     private static final int RELEASE_SLOT = 53;
+    private static final int PVP_SLOT = 50;
 
     /** The pet menu. */
     static final class PetMenu implements InventoryHolder {
@@ -178,6 +179,14 @@ public final class Menus implements Listener {
         inv.setItem(TOY_SLOT, toyButton());
         inv.setItem(FETCH_SLOT, button(Material.STICK, "Play fetch!", NamedTextColor.GOLD,
             List.of("Get a Fetch Stick, then right-click", "to throw it for the pet that's out.")));
+        if (s.petPvp) {
+            boolean on = plugin.pets().pvp(p);
+            inv.setItem(PVP_SLOT, on
+                ? button(Material.GREEN_WOOL, "Pets in PvP: ON", NamedTextColor.GREEN,
+                    List.of("Your combat pet joins your fights", "with other players too.", "", "Click to turn off."))
+                : button(Material.RED_WOOL, "Pets in PvP: OFF", NamedTextColor.RED,
+                    List.of("Your pets stay out of fights", "with other players.", "", "Click to turn on.")));
+        }
         if (!pets.isEmpty()) {
             inv.setItem(RELEASE_SLOT, button(Material.FEATHER, "Release pets...", NamedTextColor.GRAY,
                 List.of("Say goodbye to one or more pets.")));
@@ -270,6 +279,15 @@ public final class Menus implements Listener {
             } else if (Blooms.giveToyIfMissing(p, true)) {
                 p.playSound(p.getLocation(), Sound.ENTITY_ITEM_PICKUP, 0.6f, 1.2f);
             }
+            return;
+        }
+        if (slot == PVP_SLOT && plugin.settings().petPvp) {
+            boolean on = !pets.pvp(p);
+            pets.setPvp(p, on);
+            p.playSound(p.getLocation(), Sound.UI_BUTTON_CLICK, 0.5f, on ? 1.4f : 0.8f);
+            Msg.bar(p, on ? "Your combat pets will join PvP fights." : "Your pets will stay out of PvP fights.",
+                on ? NamedTextColor.GREEN : NamedTextColor.GRAY);
+            render(menu, p);
             return;
         }
         if (slot == FETCH_SLOT) {
@@ -395,6 +413,8 @@ public final class Menus implements Listener {
         }
         if (vex) {
             openGear(p, a);
+        } else if (plugin.happiness().sad(pet)) {
+            Msg.error(p, pet.name + " is too sad to carry anything right now. Cheer it up first!");
         } else {
             openStorage(p, pet);
         }

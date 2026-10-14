@@ -23,7 +23,7 @@ public final class PetsCommand implements BasicCommand {
 
     private static final String ADMIN = "bloompets.admin";
     private static final List<String> PLAYER_SUBS = List.of("summon", "dismiss", "list", "rename", "toy", "bloom",
-        "guide", "station", "fetch", "release", "help");
+        "guide", "station", "fetch", "taming", "release", "help");
     private static final List<String> ADMIN_SUBS = List.of("give", "reload");
 
     private record PendingRelease(List<UUID> petIds, long until) {
@@ -81,6 +81,7 @@ public final class PetsCommand implements BasicCommand {
                 }
             }
             case "release" -> release(p, rest);
+            case "taming" -> taming(p, rest);
             case "toy" -> {
                 if (Blooms.hasToy(p)) {
                     Msg.bar(p, "You already have a Pet Toy.", NamedTextColor.GRAY);
@@ -143,6 +144,10 @@ public final class PetsCommand implements BasicCommand {
         for (Pet pet : pets) {
             Component line = Component.text("  " + pet.name, pet.species.category().color())
                 .append(Component.text(" · " + pet.species.displayName() + " · level " + pet.level, NamedTextColor.GRAY));
+            if (plugin.settings().happiness) {
+                line = line.append(Component.text(" · ", NamedTextColor.GRAY))
+                    .append(plugin.happiness().bar(pet, now));
+            }
             if (plugin.pets().isOut(pet)) {
                 line = line.append(Component.text(" · out", NamedTextColor.GREEN));
             } else if (pet.resting(now)) {
@@ -164,6 +169,52 @@ public final class PetsCommand implements BasicCommand {
             return;
         }
         plugin.pets().rename(p, pet, name);
+    }
+
+    /**
+     * /pets taming [animal]: the combat pets' mcMMO Taming skills, like mcMMO's own /taming. Without an animal, the
+     * one that's out (or the list of animals).
+     */
+    private void taming(Player p, String raw) {
+        Species sp = raw.isEmpty() ? null : Species.parse(raw.trim().replace(' ', '-'));
+        if (raw.isEmpty()) {
+            PetManager.Active a = plugin.pets().active(p.getUniqueId());
+            if (a != null && Skills.hasSkills(a.pet.species)) {
+                sp = a.pet.species;
+            }
+        }
+        if (sp == null || !Skills.hasSkills(sp)) {
+            List<String> ids = new ArrayList<>();
+            for (Species s : Skills.skilled()) {
+                ids.add(s.id());
+            }
+            Msg.chat(p, Component.text("Usage: /pets taming <" + String.join(" | ", ids) + ">", NamedTextColor.RED));
+            if (sp == Species.WOLF) {
+                Msg.chat(p, Component.text("Wolves use mcMMO's own Taming skills: see /taming.", NamedTextColor.GRAY));
+            }
+            return;
+        }
+        Skills skills = plugin.skills();
+        boolean on = skills.on();
+        int level = on ? plugin.mcmmo().tamingLevel(p) : 0;
+        p.sendMessage(Component.text("-----[ ", NamedTextColor.RED)
+            .append(Component.text(sp.displayName() + " · Taming", NamedTextColor.GREEN))
+            .append(Component.text(" ]-----", NamedTextColor.RED)));
+        if (!plugin.mcmmo().present()) {
+            p.sendMessage(Component.text("mcMMO isn't on this server, so these skills are asleep.", NamedTextColor.GRAY));
+        } else if (!plugin.settings().skills) {
+            p.sendMessage(Component.text("Taming skills for pets are turned off on this server.", NamedTextColor.GRAY));
+        } else {
+            p.sendMessage(Component.text("Your Taming level: ", NamedTextColor.GRAY)
+                .append(Component.text(level, NamedTextColor.YELLOW))
+                .append(Component.text("  (from mcMMO; your pet's level doesn't matter here)", NamedTextColor.DARK_GRAY)));
+        }
+        p.sendMessage(Component.text("Skills:", NamedTextColor.GOLD));
+        for (Component line : skills.describe(sp, level)) {
+            p.sendMessage(line);
+        }
+        p.sendMessage(Component.text("Its hits give you Taming XP. A sad pet's skills rest until it cheers up.",
+            NamedTextColor.DARK_GRAY));
     }
 
     /** /pets release Mochi, Biscuit, Pebble: several at once, separated by commas. */
@@ -246,6 +297,7 @@ public final class PetsCommand implements BasicCommand {
         Pet pet = new Pet(UUID.randomUUID(), target.getUniqueId(), species, Blooms.freshName(store, target.getUniqueId()),
             style);
         pet.level = level;
+        pet.happiness = plugin.settings().happyStart;
         store.add(pet);
         Blooms.giveToyIfMissing(target);
         plugin.menus().refresh(target);
@@ -268,6 +320,7 @@ public final class PetsCommand implements BasicCommand {
             "/pets guide  read the Pet Guide",
             "/pets station  leave the pet that's out at a post (level 8+)",
             "/pets fetch  a Fetch Stick to play with",
+            "/pets taming <animal>  a combat pet's mcMMO Taming skills",
             "/pets release <name>[, <name>...]  say goodbye for good"));
         if (sender.hasPermission(ADMIN)) {
             lines.add("/pets give <player> <species> [level]  /pets reload");
@@ -298,6 +351,13 @@ public final class PetsCommand implements BasicCommand {
                 names.add(pet.name);
             }
             return filter(names, last);
+        }
+        if (sub.equals("taming") && args.length == 2) {
+            List<String> ids = new ArrayList<>();
+            for (Species s : Skills.skilled()) {
+                ids.add(s.id());
+            }
+            return filter(ids, last);
         }
         if (sub.equals("give") && admin) {
             if (args.length == 2) {

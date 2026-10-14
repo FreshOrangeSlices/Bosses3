@@ -136,6 +136,10 @@ public final class Bonuses implements Listener {
     // =====================================================================
 
     public void apply(Player owner, PetManager.Active a) {
+        if (plugin.happiness().sad(a.pet)) {
+            remove(owner); // a sad pet's bonus is off until it cheers up
+            return;
+        }
         clear(owner); // no health clamp here: a Donkey levelling up shouldn't cost you health
         double pw = a.pet.power();
         switch (a.pet.species) {
@@ -182,7 +186,7 @@ public final class Bonuses implements Listener {
         postJobs(now);
         for (PetManager.Active a : plugin.pets().all()) {
             Player p = Bukkit.getPlayer(a.owner);
-            if (p == null || p.isDead() || plugin.pets().fainting(a)) {
+            if (p == null || p.isDead() || plugin.pets().fainting(a) || plugin.happiness().sad(a.pet)) {
                 continue;
             }
             Pet pet = a.pet;
@@ -266,8 +270,8 @@ public final class Bonuses implements Listener {
     private void postJobs(long now) {
         for (PetManager.Active a : plugin.pets().postedPets()) {
             Location home = a.home;
-            if (home == null || plugin.pets().fainting(a)) {
-                continue;
+            if (home == null || plugin.pets().fainting(a) || plugin.happiness().sad(a.pet)) {
+                continue; // a sad pet doesn't do its job
             }
             Pet pet = a.pet;
             double pw = pet.power();
@@ -482,7 +486,7 @@ public final class Bonuses implements Listener {
             return null;
         }
         PetManager.Active a = plugin.pets().active(p.getUniqueId());
-        return a == null || plugin.pets().fainting(a) ? null : a;
+        return a == null || plugin.pets().fainting(a) || plugin.happiness().sad(a.pet) ? null : a;
     }
 
     private static @Nullable Entity source(Entity damager) {
@@ -572,7 +576,7 @@ public final class Bonuses implements Listener {
             for (PetManager.Active cat : plugin.pets().postedPets()) {
                 Species s = cat.pet.species;
                 double r = cat.pet.maxed() ? 36 : 24;
-                if ((s == Species.CAT || s == Species.OCELOT) && cat.home != null
+                if ((s == Species.CAT || s == Species.OCELOT) && cat.home != null && !plugin.happiness().sad(cat.pet)
                     && cat.home.getWorld() == mob.getWorld() && cat.home.distanceSquared(mob.getLocation()) < r * r) {
                     event.setCancelled(true);
                     return;
