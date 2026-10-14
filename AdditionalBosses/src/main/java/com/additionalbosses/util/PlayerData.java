@@ -35,6 +35,7 @@ public final class PlayerData {
     }
 
     public static void addRelicBound(Player player) {
+        QuestFlags.mark(player, "relic_bound");
         player.getPersistentDataContainer().set(Keys.PLAYER_RELICS_BOUND, PersistentDataType.INTEGER, relicsBound(player) + 1);
     }
 

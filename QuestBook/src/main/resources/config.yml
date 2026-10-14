@@ -1,0 +1,40 @@
+# =====================================================================
+#  QuestBook
+#  One Quest Book that shows players everything the server adds: small
+#  one-time quests (quests.yml) and the detailed guide books, all in one
+#  place. /quests opens it too.
+# =====================================================================
+
+book:
+  title: "Quest Book"
+  give-on-first-join: true   # everyone gets one the first time they join (existing players: next login)
+  keep-on-death: true
+
+# The first time a player opens the book, this gift waits for them.
+welcome:
+  name: "Welcome Gift"
+  slot: 4
+  rewards:
+    - {item: CHAINMAIL_HELMET}
+    - {item: POTATO, amount: 5}
+    - {item: CARROT, amount: 5}
+    # a Relic with a random good effect and a random curse (a surprise when it's bound)
+    - {command: "bosses give %player% relic random random", slots: 1, label: "<light_purple>A mysterious Relic",
+       requires: [plugin:AdditionalBosses]}
+
+# The guide books, right on the first page. Clicking one shows the book on
+# screen (a command run as the player); nothing is put in their bag.
+# requires: plugin:<Name> hides it when that plugin isn't installed.
+guide-books:
+  bosses:
+    name: "<dark_red>Boss Hunter's Compendium"
+    lore: ["Everything about bosses, in detail:", "ranks, traits, loot, the Nemesis..."]
+    command: "bosses guide read"
+    slot: 30
+    requires: [plugin:AdditionalBosses]
+  pets:
+    name: "<light_purple>Pet Guide"
+    lore: ["Which animals can be pets,", "what they like, and what they do."]
+    command: "pets guide"
+    slot: 32
+    requires: [plugin:BloomPets]

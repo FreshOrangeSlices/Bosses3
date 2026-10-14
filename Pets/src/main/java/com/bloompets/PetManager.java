@@ -829,8 +829,13 @@ public final class PetManager {
         track(p, pet, mob);
         plugin.store().setLast(pet);
         boolean gotToy = Blooms.giveToyIfMissing(p);
-        if (first) {
+        boolean questBook = Bukkit.getPluginManager().isPluginEnabled("QuestBook"); // (the guide lives in there)
+        if (first && !questBook) {
             give(p, Guide.book());
+        }
+        QuestFlags.mark(p, "pet_adopted");
+        if (species.combat()) {
+            QuestFlags.mark(p, "pet_combat_owned");
         }
 
         mob.getWorld().spawnParticle(Particle.HEART, mob.getLocation().add(0, mob.getHeight() + 0.3, 0), 7,
@@ -843,7 +848,8 @@ public final class PetManager {
             Msg.PINK));
         Msg.chat(p, Component.text((gotToy ? "Here's a Pet Toy: right-click it to call your pet or send it home, "
             + "punch with it to see all your pets, use it on your pet to ride. " : "")
-            + (first ? "There's a little guide book in your bag too!" : "Punch with your Pet Toy to see "
+            + (first && !questBook ? "There's a little guide book in your bag too!" : first
+            ? "Your Quest Book has a Pet Guide in it." : "Punch with your Pet Toy to see "
             + name + " with your other pets."), NamedTextColor.GRAY));
         if (style == Pet.RideStyle.GROW) {
             Msg.chat(p, Component.text("When you ride " + name + ", it grows big enough to carry you.",
@@ -903,6 +909,7 @@ public final class PetManager {
         }
         a.lastFeed = now;
         consume(p, hand);
+        QuestFlags.mark(p, "pet_fed");
         if (hurt) {
             m.setHealth(Math.min(max, m.getHealth() + max * plugin.settings().healPercent / 100.0));
         }
@@ -983,6 +990,10 @@ public final class PetManager {
                 m.getWidth() / 2, m.getHeight() / 2, m.getWidth() / 2, 0.3);
         }
         if (owner != null) {
+            QuestFlags.mark(owner, "pet_level_up");
+            if (pet.maxed()) {
+                QuestFlags.mark(owner, "pet_max_level");
+            }
             List<String> perks = new ArrayList<>();
             int ride = plugin.settings().rideLevel(pet.species);
             if (pet.species.rideable() && before < ride && pet.level >= ride) {
@@ -1249,6 +1260,7 @@ public final class PetManager {
             if (now - a.pet.lastCombatXp >= s.combatXpCooldown) {
                 a.pet.lastCombatXp = now;
                 addXp(a.pet, hit.critical ? s.xpCombatCrit : s.xpCombatHit);
+                QuestFlags.mark(owner, "pet_combat_xp");
             }
             if (tamingXp && !queued) {
                 plugin.mcmmo().hitXp(owner, t, dealt);
@@ -1619,6 +1631,7 @@ public final class PetManager {
             case LLAMA -> "spit at monsters that come close";
             default -> pet.species.combat() ? "guard this spot" : "wait right here";
         };
+        QuestFlags.mark(owner, "pet_stationed");
         Msg.chat(owner, Component.text(pet.name + " will " + job + ". ", Msg.PINK)
             .append(Component.text("Sneak + punch it with your Pet Toy (or pick it in the menu) to call it back.",
                 NamedTextColor.GRAY)));
@@ -1833,6 +1846,7 @@ public final class PetManager {
             m.getWorld().spawnParticle(Particle.HEART, at, 4, 0.3, 0.2, 0.3, 0);
             m.getWorld().playSound(at, Sound.ENTITY_ALLAY_ITEM_GIVEN, 0.7f, 1.2f);
             Component msg = Component.text(a.pet.name + " brought the stick back! ♥", Msg.PINK);
+            QuestFlags.mark(owner, "pet_play");
             if (now - a.pet.lastFetchXp >= 15_000 && !a.pet.maxed()) {
                 a.pet.lastFetchXp = now;
                 msg = msg.append(Component.text("  +2 bond", NamedTextColor.LIGHT_PURPLE));

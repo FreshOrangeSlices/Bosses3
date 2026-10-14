@@ -553,6 +553,7 @@ public final class NemesisManager {
         r.baseTraitCount = r.traits.size();
         r.createdAt = clock();
         r.wildRank = com.additionalbosses.boss.BossManager.wildRank(boss.entity(), boss.rank());
+        com.additionalbosses.util.QuestFlags.mark(owner, "nemesis_created");
         r.name = NemesisNames.pick(r.type, takenNames());
         r.surrender = Surrender.pick(r.type);
         com.additionalbosses.trait.Synergies.Synergy synergy = com.additionalbosses.trait.Synergies.find(boss.traits());
@@ -942,6 +943,13 @@ public final class NemesisManager {
             r.adapted.put(kind, next);
             r.recentDamage.clear();
             adaptedFx(boss.entity(), next == 2);
+            // Quest Book: its owner and whoever is fighting it saw it change
+            com.additionalbosses.util.QuestFlags.mark(r.owner, "nemesis_adapted");
+            for (UUID fighter : boss.engaged().keySet()) {
+                if (!fighter.equals(r.owner)) {
+                    com.additionalbosses.util.QuestFlags.mark(fighter, "nemesis_adapted");
+                }
+            }
             return;
         }
     }
@@ -1030,6 +1038,7 @@ public final class NemesisManager {
                 player.getWorld().dropItemNaturally(player.getLocation(), left);
             }
             plugin.presentation().tell(player, "nemesis-challenge-received", Placeholder.component("boss", displayName(r)));
+            com.additionalbosses.util.QuestFlags.mark(player, "challenge_received");
         }
         if (changed) {
             save();
@@ -1207,6 +1216,9 @@ public final class NemesisManager {
         records.remove(r.id);
         save();
         if (killer != null) {
+            if (killer.getUniqueId().equals(r.owner)) {
+                com.additionalbosses.util.QuestFlags.mark(killer, "nemesis_slain"); // Quest Book: Revenge
+            }
             var rs = plugin.settings().rank(r.rank);
             event.setDroppedExp((int) Math.round(event.getDroppedExp() * (1.0 + r.level * 0.2)));
             rewards.add(plugin.rewards().gear().createBonus(r.rank, r.type, plainName(r), 1 + r.level / 10));

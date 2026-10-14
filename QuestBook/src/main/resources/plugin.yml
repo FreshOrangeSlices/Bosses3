@@ -1,0 +1,19 @@
+name: QuestBook
+version: '${version}'
+main: com.questbook.QuestBook
+api-version: '26.3'
+description: A Quest Book that teaches your server's plugins through small one-time quests and skill milestones.
+authors: [ QuestBook ]
+# All optional: quests that need a missing plugin simply don't show.
+softdepend: [ mcMMO, AdditionalBosses, BloomPets ]
+
+# /quests is registered in code (Paper's command API).
+permissions:
+  questbook.use:
+    description: The Quest Book and /quests.
+    default: true
+  questbook.admin:
+    description: /quests flag, reset and reload.
+    default: op
+    children:
+      questbook.use: true

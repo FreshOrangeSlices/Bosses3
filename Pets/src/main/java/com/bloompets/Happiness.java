@@ -142,7 +142,11 @@ public final class Happiness {
     public void cameOut(Pet pet) {
         long now = System.currentTimeMillis();
         if (pet.stashedAt > 0 && now > pet.stashedAt) {
+            boolean wasTired = s().happiness && pet.tiredMillis >= s().tiredAfter;
             pet.tiredMillis = tiredMillis(pet, now);
+            if (wasTired && pet.tiredMillis < s().tiredAfter) {
+                QuestFlags.mark(pet.owner, "pet_rested"); // a tired pet rested until it was fresh again
+            }
             pet.happiness = Math.min(100, Math.max(pet.happiness, current(pet, now)));
         }
         pet.stashedAt = 0;
@@ -202,6 +206,7 @@ public final class Happiness {
         Location head = m.getLocation().add(0, m.getHeight() + 0.2, 0);
         m.getWorld().spawnParticle(Particle.HEART, head, 2, 0.25, 0.15, 0.25, 0);
         m.getWorld().playSound(m.getLocation(), Sound.ENTITY_CAT_PURR, 0.6f, 1.3f);
+        QuestFlags.mark(owner, "pet_play");
         if (!s().happiness) {
             Msg.bar(owner, Component.text(a.pet.name + " loves the attention! ♥", Msg.PINK));
             return;

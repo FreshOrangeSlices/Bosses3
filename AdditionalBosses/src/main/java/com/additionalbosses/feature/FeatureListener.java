@@ -322,6 +322,7 @@ public final class FeatureListener implements Listener {
         Boss boss = plugin.bosses().summon(type, spot, rank, null, true, BossMobs.categoryId(plugin, type));
         if (boss != null) {
             com.additionalbosses.boss.BossManager.markCreated(boss, "totem");
+            com.additionalbosses.util.QuestFlags.mark(player, "totem_used");
             plugin.bosses().engage(boss, player);
             if (boss.entity() instanceof Mob mob) {
                 mob.setTarget(player);

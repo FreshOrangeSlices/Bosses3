@@ -299,6 +299,10 @@ public final class PetsCommand implements BasicCommand {
         pet.level = level;
         pet.happiness = plugin.settings().happyStart;
         store.add(pet);
+        QuestFlags.mark(target, "pet_adopted");
+        if (species.combat()) {
+            QuestFlags.mark(target, "pet_combat_owned");
+        }
         Blooms.giveToyIfMissing(target);
         plugin.menus().refresh(target);
         Msg.chat(target, Component.text("You got a new pet: " + pet.name + " the " + species.displayName()

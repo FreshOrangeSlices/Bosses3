@@ -122,6 +122,18 @@ public final class BossesCommand implements BasicCommand {
 
     private void guide(CommandSender sender, String[] args) {
         Player target;
+        if (args.length >= 2 && args[1].equalsIgnoreCase("read")) {
+            // shows the guide on screen without putting a book in the bag (the Quest Book uses this)
+            if (sender instanceof Player p) {
+                java.util.List<org.bukkit.inventory.ItemStack> volumes = plugin.guide().create(p);
+                if (!volumes.isEmpty()) {
+                    p.openBook(volumes.get(0));
+                }
+            } else {
+                error(sender, "Only players can read the guide.");
+            }
+            return;
+        }
         if (args.length >= 2) {
             if (!sender.hasPermission(ADMIN)) {
                 error(sender, "Only admins can give the guide to other players.");

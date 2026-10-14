@@ -271,3 +271,8 @@ Pets are saved per player in `plugins/BloomPets/players/<uuid>.yml`.
 - Bosses, boss minions and statues can't be tamed.
 - Pet messages above the hotbar make mcMMO's ability bar wait its turn, just like Additional Bosses' messages do.
 - mcMMO is optional. With it, combat pets get Taming skills and give Taming XP (see above). BloomPets only uses mcMMO's public API and never changes mcMMO.
+
+## QuestBook
+
+With the QuestBook plugin installed, the Pet Guide is read from the Quest Book instead of being given with your first pet, and BloomPets marks what players do (`questbook:` flags on the player) so the pet quests complete: `pet_adopted`, `pet_combat_owned`, `pet_fed`, `pet_stationed`, `pet_level_up`, `pet_max_level`, `pet_play` (petting or fetch), `pet_rested` (a tired pet rested until fresh) and `pet_combat_xp`. Pets from before it was installed count too. Without QuestBook these flags do nothing.
+
