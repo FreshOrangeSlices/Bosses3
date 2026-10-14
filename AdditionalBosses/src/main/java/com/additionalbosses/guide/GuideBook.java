@@ -545,8 +545,9 @@ public final class GuideBook {
             w.blank();
             w.text("Then it slinks off" + (f.nemesisProwlMinutes > 0 ? " and prowls for " + Text.num(f.nemesisProwlMinutes)
                 + " minutes, hunting other mobs" : "") + ", and returns for you after " + Text.num(f.nemesisReturnDays)
-                + " Minecraft days. It ignores the boss cap. After it has killed " + s.despawnAfterKills
-                + " players in one outing it leaves again.", INK);
+                + " Minecraft days. It ignores the boss cap."
+                + (s.despawnAfterKills > 0 ? " After it has killed " + s.despawnAfterKills
+                + " players in one outing it leaves again." : ""), INK);
             w.newPage();
             w.heading("Its Challenge", CURSE);
             w.text("When it kills you, you wake up holding its Challenge. Right-click it and the Nemesis comes for"

@@ -107,6 +107,9 @@ public final class NemesisManager {
         }
         boolean named = false;
         for (NemesisRecord r : records.values()) {
+            if (r.surrenderPicked) {
+                named = true; // terms of surrender for a Nemesis from an older version: keep them
+            }
             if (r.level > f().nemesisMaxLevel) {
                 r.level = f().nemesisMaxLevel; // the level cap came down (50 -> 15)
                 updateTitles(r);
@@ -231,7 +234,7 @@ public final class NemesisManager {
      * Called when a boss kills a player ({@code kills}: players it has killed this outing). Returns true if the
      * Nemesis system took care of the boss (it is a Nemesis, or just became one), so the two-kills rule is handled here.
      */
-    public boolean onKilledPlayer(Boss boss, Player victim, int kills) {
+    public boolean onKilledPlayer(Boss boss, Player victim, int kills, List<ItemStack> drops) {
         FeatureSettings f = f();
         if (!f.nemesisEnabled) {
             return false;
@@ -243,18 +246,21 @@ public final class NemesisManager {
                 r.kills++;
                 r.ownerDownTick = Bukkit.getCurrentTick();
                 absorbFight(r, boss, victim.getUniqueId());
+                drops.removeIf(item -> r.id.equals(challengeId(item))); // its note comes back fresh on respawn
                 challengeOnRespawn(victim.getUniqueId(), r);
             }
             r.focus = null;
-            grow(r, f.nemesisLevelsOnKill, boss.entity()); // any player it kills makes it stronger
-            adapt(boss, r);
+            if (grow(r, f.nemesisLevelsOnKill, boss.entity())) { // any player it kills makes it stronger
+                adapt(boss, r);
+            }
             refreshBody(boss, r);
             int limit = plugin.settings().despawnAfterKills;
             if (limit > 0 && kills >= limit) {
                 // Two players down: it leaves, and comes back after the full wait.
                 r.returnAt = clock() + Math.round(f.nemesisReturnDays * DAY);
                 Bukkit.getScheduler().runTask(plugin, () -> {
-                    if (activeBoss(r) == boss) {
+                    if (records.get(r.id) == r && activeBoss(r) == boss && boss.entity().isValid()
+                        && !boss.entity().isDead()) {
                         vanish(boss, r);
                     }
                 });
@@ -325,15 +331,15 @@ public final class NemesisManager {
         }
         Player owner = Bukkit.getPlayer(r.owner);
         LivingEntity e = boss.entity();
-        double reach = f().nemesisEscapeDistance;
+        // right after killing its owner it only stays if they come back close; otherwise it would loiter
+        double reach = Bukkit.getCurrentTick() - r.ownerDownTick < 2400 ? 40 : f().nemesisEscapeDistance;
         boolean inReach = owner != null && !owner.isDead() && owner.getWorld().equals(e.getWorld())
             && owner.getLocation().distanceSquared(e.getLocation()) <= reach * reach;
         Player focus = focus(boss, r, owner);
         if (inReach || focus != null) {
             r.lostTicks = 0;
             Player chase = focus != null ? focus : owner;
-            if (e instanceof Mob mob && chase != null && boss.fightable(chase) && mob.getTarget() != chase
-                && chase.getLocation().distanceSquared(e.getLocation()) < 40 * 40) {
+            if (e instanceof Mob mob && chase != null && boss.fightable(chase) && mob.getTarget() != chase) {
                 mob.setTarget(chase);
             }
             return false;
@@ -348,8 +354,9 @@ public final class NemesisManager {
         }
         r.escapes++;
         absorbFight(r, boss, r.owner);
-        grow(r, f().nemesisLevelsOnEscape, e);
-        adapt(boss, r);
+        if (grow(r, f().nemesisLevelsOnEscape, e)) {
+            adapt(boss, r);
+        }
         refreshBody(boss, r);
         boolean removed = retreat(boss, r);
         if (owner != null) {
@@ -565,8 +572,10 @@ public final class NemesisManager {
         boss.forgetFight(owner);
     }
 
-    private void grow(NemesisRecord r, int levels, LivingEntity sample) {
+    /** Returns true if it actually gained a level (not already at the cap). */
+    private boolean grow(NemesisRecord r, int levels, LivingEntity sample) {
         FeatureSettings f = f();
+        int before = r.level;
         r.level = Math.min(f.nemesisMaxLevel, r.level + levels);
         // It climbs a rank every few levels (up to Legendary), but never drops below the rank it started at.
         int climbed = Math.min(BossRank.GOLD.ordinal(), r.baseRank.ordinal() + (r.level - 1) / f.nemesisLevelsPerRank);
@@ -584,6 +593,7 @@ public final class NemesisManager {
             r.traits.add(next.id());
         }
         updateTitles(r);
+        return r.level > before;
     }
 
     /**
@@ -737,6 +747,9 @@ public final class NemesisManager {
                 traits.add(t);
             }
         }
+        // turned-off traits (Swift) leave its memory, so its next level-ups can learn something else
+        r.traits.removeIf(id -> plugin.traits().get(id) == null || !plugin.traits().isEnabled(plugin.traits().get(id)));
+        r.baseTraitCount = Math.min(r.baseTraitCount, r.traits.size());
         Class<?> cls = r.type.getEntityClass();
         if (cls == null || !Mob.class.isAssignableFrom(cls) || com.additionalbosses.config.PluginSettings.isMount(r.type)) {
             records.remove(r.id); // that mob can't exist any more
@@ -969,6 +982,12 @@ public final class NemesisManager {
     // =====================================================================
 
     private final Map<UUID, Set<String>> pendingChallenges = new java.util.HashMap<>();
+    /** When a boss (or its minion) last hurt each player: a death it set up is never a surrender. */
+    private final Map<UUID, Integer> lastBossHit = new java.util.HashMap<>();
+
+    public void markBossHit(Player p) {
+        lastBossHit.put(p.getUniqueId(), Bukkit.getCurrentTick());
+    }
 
     /** It killed its owner: they wake up with its Challenge (unless they still carry one). */
     private void challengeOnRespawn(UUID owner, NemesisRecord r) {
@@ -1048,9 +1067,13 @@ public final class NemesisManager {
     public void useChallenge(Player player, ItemStack item, org.bukkit.inventory.EquipmentSlot hand) {
         String id = challengeId(item);
         NemesisRecord r = id == null ? null : records.get(id);
-        if (r == null || !f().nemesisEnabled) {
+        if (r == null) {
             player.getInventory().setItem(hand, null);
             plugin.presentation().tell(player, "nemesis-challenge-gone");
+            return;
+        }
+        if (!f().nemesisEnabled) {
+            plugin.presentation().tell(player, "nemesis-challenge-blocked");
             return;
         }
         if (!r.owner.equals(player.getUniqueId())) {
@@ -1063,6 +1086,7 @@ public final class NemesisManager {
         }
         if (player.getGameMode() != GameMode.SURVIVAL && player.getGameMode() != GameMode.ADVENTURE
             || player.getWorld().getDifficulty() == org.bukkit.Difficulty.PEACEFUL
+            || player.getWorld().getEnvironment() == World.Environment.THE_END
             || !plugin.settings().worldAllowed(player.getWorld())
             || !spawnFor(r, player, 20, 30, true)) {
             plugin.presentation().tell(player, "nemesis-challenge-blocked");
@@ -1081,11 +1105,15 @@ public final class NemesisManager {
      */
     public void checkSurrender(org.bukkit.event.entity.PlayerDeathEvent event) {
         Player p = event.getEntity();
+        Integer hit = lastBossHit.remove(p.getUniqueId());
+        if (hit != null && Bukkit.getCurrentTick() - hit < 200) {
+            return; // a boss had a hand in this (knocked off a ledge, set on fire...)
+        }
         Set<String> ended = new HashSet<>();
         for (ItemStack item : p.getInventory().getContents()) {
             String id = challengeId(item);
             NemesisRecord r = id == null ? null : records.get(id);
-            if (r != null && !ended.contains(id) && r.owner.equals(p.getUniqueId()) && r.surrender.matches(event)) {
+            if (r != null && !ended.contains(id) && r.owner.equals(p.getUniqueId()) && r.surrender.matches(event, r.type)) {
                 ended.add(id);
                 Boss active = activeBoss(r);
                 if (active != null) {

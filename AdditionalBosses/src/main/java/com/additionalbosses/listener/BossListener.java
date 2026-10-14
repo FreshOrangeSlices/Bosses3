@@ -287,7 +287,7 @@ public final class BossListener implements Listener {
         if (boss == null) {
             return;
         }
-        bosses().onKilledPlayer(boss, event.getEntity());
+        bosses().onKilledPlayer(boss, event.getEntity(), event.getDrops());
     }
 
     // ---------------- anti-trap ----------------

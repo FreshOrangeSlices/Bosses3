@@ -110,6 +110,10 @@ public final class CombatListener implements Listener {
         Boss attackerBoss = attacker == null || attacker == victim ? null : plugin.bosses().get(attacker);
         Boss victimBoss = plugin.bosses().get(victim);
 
+        if (victim instanceof Player hurt && attacker != null
+            && (attackerBoss != null || com.additionalbosses.boss.BossManager.isMinion(attacker))) {
+            plugin.nemesis().markBossHit(hurt); // (a death a boss set up never counts as a surrender)
+        }
         if (attackerBoss != null) {
             if (victim instanceof Player player) {
                 plugin.bosses().engage(attackerBoss, player);

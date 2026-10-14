@@ -236,7 +236,7 @@ mob-categories:
     # DEFAULT lets structure mobs (Elder Guardians, Piglin Brutes in bastions,
     # mansion illagers) roll once, the first time their chunk loads.
     spawn-reasons: [NATURAL, PATROL, RAID, DEFAULT]
-    weights: { GRAY: 10, GREEN: 35, RED: 51.4, PURPLE: 3.0, GOLD: 0.6 }
+    weights: { GRAY: 10, GREEN: 35, RED: 53.8, PURPLE: 1.0, GOLD: 0.2 }
     mobs: [PIGLIN_BRUTE, ELDER_GUARDIAN, RAVAGER, EVOKER, ILLUSIONER]
 
   native-bosses:

@@ -49,6 +49,8 @@ public final class NemesisRecord {
     public final java.util.Map<DamageKind, Integer> adapted = new java.util.EnumMap<>(DamageKind.class);
     /** Its Terms of Surrender: die this way carrying its Challenge and the feud ends. */
     public Surrender surrender = Surrender.FALL;
+    /** Runtime only: the terms were just picked (an older record), so it needs saving. */
+    public boolean surrenderPicked;
 
     /** Runtime only: server tick until which it prowls (0 = not prowling). */
     public int prowlUntil;
@@ -148,6 +150,7 @@ public final class NemesisRecord {
             r.gearFloor = s.getInt("gear-floor", 0);
             Surrender surrender = Surrender.parse(s.getString("surrender"));
             r.surrender = surrender != null ? surrender : Surrender.pick(type);
+            r.surrenderPicked = surrender == null;
             ConfigurationSection adapt = s.getConfigurationSection("adapted");
             if (adapt != null) {
                 for (String key : adapt.getKeys(false)) {

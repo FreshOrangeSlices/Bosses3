@@ -78,7 +78,7 @@ public final class PlayerListener implements Listener {
     }
 
     /** Dying by a Nemesis's Terms of Surrender while carrying its Challenge ends the feud. */
-    @EventHandler(priority = EventPriority.HIGH)
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onDeath(org.bukkit.event.entity.PlayerDeathEvent event) {
         plugin.nemesis().checkSurrender(event);
     }

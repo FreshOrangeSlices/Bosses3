@@ -68,7 +68,7 @@ final class ConfigPatchV11 {
             new String[]{"#  nether-weights (optional): used instead for spawns in the Nether."},
             "#  weights: roll #2 (rank). They don't have to add up to 100.", "#  spawn-chance-multiplier: scales roll #1 for this category.");
         patch(new String[]{"    weights: { GRAY: 40, GREEN: 30, RED: 18, PURPLE: 9, GOLD: 3 }", "    # Rideable mobs (skeleton/zombie horses, camel husks...) can't be bosses.", "    mobs: [BOGGED, BREEZE, CAVE_SPIDER, CREEPER, DROWNED, ENDERMAN, ENDERMITE, GUARDIAN, HUSK,", "           PARCHED, PHANTOM, PILLAGER, SILVERFISH, SLIME, SPIDER, STRAY, VINDICATOR, WITCH,", "           ZOMBIE_VILLAGER]", "", "  zombie-skeleton:", "    display-name: Zombie & Skeleton", "    description: The most basic mobs are strangely likely to be Legendary.", "    weights: { GRAY: 37, GREEN: 28, RED: 18, PURPLE: 9, GOLD: 8 }", "    mobs: [ZOMBIE, SKELETON]", "", "  nether:", "    display-name: Nether", "    weights: { GRAY: 15, GREEN: 35, RED: 30, PURPLE: 15, GOLD: 5 }", "    mobs: [BLAZE, GHAST, HOGLIN, MAGMA_CUBE, WITHER_SKELETON, ZOGLIN]", "", "  nether-crowd:", "    display-name: Nether Crowds", "    description: They spawn in huge numbers, so they roll lower.", "    spawn-chance-multiplier: 0.5", "    weights: { GRAY: 30, GREEN: 35, RED: 23, PURPLE: 10, GOLD: 2 }", "    mobs: [PIGLIN, ZOMBIFIED_PIGLIN]", "", "  dangerous:", "    display-name: Dangerous", "    # DEFAULT lets structure mobs (Elder Guardians, Piglin Brutes in bastions,", "    # mansion illagers) roll once, the first time their chunk loads.", "    spawn-reasons: [NATURAL, PATROL, RAID, DEFAULT]", "    weights: { GRAY: 5, GREEN: 20, RED: 35, PURPLE: 30, GOLD: 10 }"},
-            new String[]{"    # Nightmare and Legendary bosses are ancient-debris rare in the wild", "    # (about 1 in 200 and 1 in 1000 bosses). Boss Totems and Souls are the", "    # way to bring on harder fights on purpose.", "    weights: { GRAY: 55, GREEN: 30, RED: 14.4, PURPLE: 0.5, GOLD: 0.1 }", "    # Used instead when one of these spawns in the Nether (Soul Sand Valley", "    # skeletons...): the Nether breeds tougher bosses.", "    nether-weights: { GRAY: 40, GREEN: 35, RED: 23.5, PURPLE: 1.2, GOLD: 0.3 }", "    # Rideable mobs (skeleton/zombie horses, camel husks...) can't be bosses.", "    mobs: [BOGGED, BREEZE, CAVE_SPIDER, CREEPER, DROWNED, ENDERMAN, ENDERMITE, GUARDIAN, HUSK,", "           PARCHED, PHANTOM, PILLAGER, SILVERFISH, SLIME, SPIDER, STRAY, VINDICATOR, WITCH,", "           ZOMBIE_VILLAGER, ZOMBIE, SKELETON]", "", "  nether:", "    display-name: Nether", "    weights: { GRAY: 40, GREEN: 35, RED: 23.5, PURPLE: 1.2, GOLD: 0.3 }", "    mobs: [GHAST, HOGLIN, MAGMA_CUBE, ZOGLIN]", "", "  nether-elite:", "    display-name: Nether Elite", "    description: Blazes, Wither Skeletons and Piglins breed the toughest bosses of the Nether.", "    weights: { GRAY: 35, GREEN: 37, RED: 25.5, PURPLE: 2.0, GOLD: 0.5 }", "    mobs: [BLAZE, WITHER_SKELETON, PIGLIN]", "", "  zombified-piglins:", "    display-name: Zombified Piglins", "    description: They spawn in huge numbers, so they roll lower.", "    spawn-chance-multiplier: 0.5", "    weights: { GRAY: 60, GREEN: 30, RED: 9.88, PURPLE: 0.1, GOLD: 0.02 }", "    mobs: [ZOMBIFIED_PIGLIN]", "", "  dangerous:", "    display-name: Dangerous", "    # DEFAULT lets structure mobs (Elder Guardians, Piglin Brutes in bastions,", "    # mansion illagers) roll once, the first time their chunk loads.", "    spawn-reasons: [NATURAL, PATROL, RAID, DEFAULT]", "    weights: { GRAY: 10, GREEN: 35, RED: 51.4, PURPLE: 3.0, GOLD: 0.6 }"},
+            new String[]{"    # Nightmare and Legendary bosses are ancient-debris rare in the wild", "    # (about 1 in 200 and 1 in 1000 bosses). Boss Totems and Souls are the", "    # way to bring on harder fights on purpose.", "    weights: { GRAY: 55, GREEN: 30, RED: 14.4, PURPLE: 0.5, GOLD: 0.1 }", "    # Used instead when one of these spawns in the Nether (Soul Sand Valley", "    # skeletons...): the Nether breeds tougher bosses.", "    nether-weights: { GRAY: 40, GREEN: 35, RED: 23.5, PURPLE: 1.2, GOLD: 0.3 }", "    # Rideable mobs (skeleton/zombie horses, camel husks...) can't be bosses.", "    mobs: [BOGGED, BREEZE, CAVE_SPIDER, CREEPER, DROWNED, ENDERMAN, ENDERMITE, GUARDIAN, HUSK,", "           PARCHED, PHANTOM, PILLAGER, SILVERFISH, SLIME, SPIDER, STRAY, VINDICATOR, WITCH,", "           ZOMBIE_VILLAGER, ZOMBIE, SKELETON]", "", "  nether:", "    display-name: Nether", "    weights: { GRAY: 40, GREEN: 35, RED: 23.5, PURPLE: 1.2, GOLD: 0.3 }", "    mobs: [GHAST, HOGLIN, MAGMA_CUBE, ZOGLIN]", "", "  nether-elite:", "    display-name: Nether Elite", "    description: Blazes, Wither Skeletons and Piglins breed the toughest bosses of the Nether.", "    weights: { GRAY: 35, GREEN: 37, RED: 25.5, PURPLE: 2.0, GOLD: 0.5 }", "    mobs: [BLAZE, WITHER_SKELETON, PIGLIN]", "", "  zombified-piglins:", "    display-name: Zombified Piglins", "    description: They spawn in huge numbers, so they roll lower.", "    spawn-chance-multiplier: 0.5", "    weights: { GRAY: 60, GREEN: 30, RED: 9.88, PURPLE: 0.1, GOLD: 0.02 }", "    mobs: [ZOMBIFIED_PIGLIN]", "", "  dangerous:", "    display-name: Dangerous", "    # DEFAULT lets structure mobs (Elder Guardians, Piglin Brutes in bastions,", "    # mansion illagers) roll once, the first time their chunk loads.", "    spawn-reasons: [NATURAL, PATROL, RAID, DEFAULT]", "    weights: { GRAY: 10, GREEN: 35, RED: 53.8, PURPLE: 1.0, GOLD: 0.2 }"},
             "    display-name: Common Overworld", "    mobs: [PIGLIN_BRUTE, ELDER_GUARDIAN, RAVAGER, EVOKER, ILLUSIONER]");
         patch(new String[]{},
             new String[]{"  # Area attacks (Quaking's slam, Ascendant shockwaves...) never hit a", "  # player for more than this, however strong the boss.", "  area-damage-cap: 8"},
@@ -155,12 +155,12 @@ final class ConfigPatchV11 {
     static int apply(List<String> lines, Consumer<String> log) {
         int cursor = 0;
         int applied = 0;
-        int skipped = 0;
+        List<String> skipped = new ArrayList<>();
         for (Patch p : PATCHES) {
             if (!p.old().isEmpty()) {
                 int at = find(lines, p.old(), cursor);
                 if (at < 0) {
-                    skipped++;
+                    skipped.add(p.old().get(0).strip());
                     continue;
                 }
                 for (int i = 0; i < p.old().size(); i++) {
@@ -179,15 +179,18 @@ final class ConfigPatchV11 {
                 at = find(lines, List.of(p.after()), cursor);
             }
             if (at < 0) {
-                skipped++;
+                skipped.add(p.replacement().get(0).strip());
                 continue;
             }
             lines.addAll(at, p.replacement());
             cursor = at + p.replacement().size();
             applied++;
         }
-        log.accept("config.yml: applied " + applied + " of the update's changes"
-            + (skipped > 0 ? " (" + skipped + " parts you had changed were left as they are)" : "") + ".");
+        log.accept("config.yml: applied " + applied + " of the update's changes.");
+        for (String line : skipped) {
+            log.accept("config.yml: you had changed this part, so it was left as it is (see the new default"
+                + " config.yml for the update's version): " + line);
+        }
         return applied;
     }
 

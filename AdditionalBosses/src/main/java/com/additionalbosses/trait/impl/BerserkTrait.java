@@ -46,6 +46,9 @@ public final class BerserkTrait extends BaseTrait {
         AttributeInstance speed = boss.entity().getAttribute(Attribute.MOVEMENT_SPEED);
         if (speed != null && speed.getModifier(Keys.MOD_TRAIT_BERSERK) != null) {
             boss.setFlag(FLAG, true); // already enraged before a reload
+            speed.removeModifier(Keys.MOD_TRAIT_BERSERK); // (older versions gave it far more speed)
+            speed.addModifier(new AttributeModifier(Keys.MOD_TRAIT_BERSERK, speedBonus / 100.0,
+                AttributeModifier.Operation.MULTIPLY_SCALAR_1));
         }
     }
 
@@ -76,7 +79,8 @@ public final class BerserkTrait extends BaseTrait {
         LivingEntity e = boss.entity();
         AttributeInstance speed = e.getAttribute(Attribute.MOVEMENT_SPEED);
         if (speed != null && speed.getModifier(Keys.MOD_TRAIT_BERSERK) == null) {
-            speed.addModifier(new AttributeModifier(Keys.MOD_TRAIT_BERSERK, speedBonus * boss.power() / 100.0,
+            // a flat bonus: rank power makes its rage hit harder, not run faster
+            speed.addModifier(new AttributeModifier(Keys.MOD_TRAIT_BERSERK, speedBonus / 100.0,
                 AttributeModifier.Operation.MULTIPLY_SCALAR_1));
         }
         Fx.play(e.getLocation(), "entity.ravager.roar", 1.0f, 1.2f);

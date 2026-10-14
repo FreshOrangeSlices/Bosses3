@@ -199,6 +199,12 @@ public final class BossManager {
         return e.getPersistentDataContainer().get(Keys.BOSS_CREATED, PersistentDataType.STRING);
     }
 
+    /** The rank a promoted boss had before anyone offered it a Soul (its own rank if it was never promoted). */
+    private static BossRank wildRank(LivingEntity e, BossRank now) {
+        BossRank wild = BossRank.parse(e.getPersistentDataContainer().get(Keys.BOSS_WILD_RANK, PersistentDataType.STRING));
+        return wild != null && !wild.atLeast(now) ? wild : now;
+    }
+
     /** Paper gives mobs placed by structures/world generation the DEFAULT spawn reason. */
     public static boolean isWorldgen(@Nullable SpawnReason reason) {
         return reason == SpawnReason.DEFAULT;
@@ -342,6 +348,7 @@ public final class BossManager {
         }
         Boss boss = build(entity, rank, category, traits);
         entity.setCustomNameVisible(settings().alwaysShowName); // bosses saved before the setting changed follow it too
+        entity.setGlowing(false); // (saved glowing when its chunk unloaded; the ticker turns it back on with its colour)
         preventSunburn(entity);
         boss.setUndyingUsed(pdc.has(Keys.BOSS_UNDYING, PersistentDataType.BYTE));
         if (pdc.has(Keys.BOSS_LAST_STAND, PersistentDataType.BYTE)) {
@@ -363,7 +370,7 @@ public final class BossManager {
         PersistentDataContainer pdc = e.getPersistentDataContainer();
         for (org.bukkit.NamespacedKey key : new org.bukkit.NamespacedKey[]{Keys.BOSS, Keys.BOSS_RANK, Keys.BOSS_TRAITS,
             Keys.BOSS_CATEGORY, Keys.BOSS_UNDYING, Keys.BOSS_LAST_STAND, Keys.BOSS_THREAT, Keys.BOSS_PHASE, Keys.BOSS_CREATED,
-            Keys.BOSS_PLAYER_KILLS}) {
+            Keys.BOSS_PLAYER_KILLS, Keys.BOSS_WILD_RANK}) {
             pdc.remove(key);
         }
         for (Attribute attribute : new Attribute[]{Attribute.MAX_HEALTH, Attribute.ARMOR, Attribute.ARMOR_TOUGHNESS,
@@ -414,6 +421,10 @@ public final class BossManager {
         Integer kills = old.get(Keys.BOSS_PLAYER_KILLS, PersistentDataType.INTEGER);
         if (kills != null) {
             to.getPersistentDataContainer().set(Keys.BOSS_PLAYER_KILLS, PersistentDataType.INTEGER, kills);
+        }
+        String wild = old.get(Keys.BOSS_WILD_RANK, PersistentDataType.STRING);
+        if (wild != null) {
+            to.getPersistentDataContainer().set(Keys.BOSS_WILD_RANK, PersistentDataType.STRING, wild);
         }
         Boss boss = createBoss(to, from.rank(), from.categoryId(), keep, false);
         AttributeInstance max = to.getAttribute(Attribute.MAX_HEALTH);
@@ -628,13 +639,13 @@ public final class BossManager {
     // =====================================================================
 
     /** A boss (or its minion) killed a player. Returns true if the boss left because of it. */
-    public void onKilledPlayer(Boss boss, Player victim) {
+    public void onKilledPlayer(Boss boss, Player victim, List<ItemStack> drops) {
         LivingEntity e = boss.entity();
         PersistentDataContainer pdc = e.getPersistentDataContainer();
         int kills = pdc.getOrDefault(Keys.BOSS_PLAYER_KILLS, PersistentDataType.INTEGER, 0) + 1;
         pdc.set(Keys.BOSS_PLAYER_KILLS, PersistentDataType.INTEGER, kills);
         boss.addVictim(victim.getUniqueId());
-        if (plugin.nemesis().onKilledPlayer(boss, victim, kills)) {
+        if (plugin.nemesis().onKilledPlayer(boss, victim, kills, drops)) {
             return; // it is (or just became) a Nemesis: it handles its own leaving
         }
         int limit = settings().despawnAfterKills;
@@ -711,8 +722,7 @@ public final class BossManager {
         int n = 0;
         for (ItemStack item : new ItemStack[]{inv.getHelmet(), inv.getChestplate(), inv.getLeggings(), inv.getBoots(),
             inv.getItemInMainHand(), inv.getItemInOffHand()}) {
-            if (item != null && !item.isEmpty()
-                && item.getPersistentDataContainer().has(Keys.ITEM_RANK, PersistentDataType.STRING)) {
+            if (plugin.items().kind(item) == com.additionalbosses.item.ItemService.Kind.GEAR) {
                 n++;
             }
         }
@@ -745,6 +755,9 @@ public final class BossManager {
         }
         List<UUID> fighters = new ArrayList<>(boss.engaged().keySet());
         Set<UUID> minions = new HashSet<>(boss.minions());
+        if (!e.getPersistentDataContainer().has(Keys.BOSS_WILD_RANK, PersistentDataType.STRING)) {
+            e.getPersistentDataContainer().set(Keys.BOSS_WILD_RANK, PersistentDataType.STRING, boss.rank().name());
+        }
         boolean undying = boss.undyingUsed();
         unregister(boss);
         e.getPersistentDataContainer().remove(Keys.BOSS_LAST_STAND);
@@ -844,9 +857,12 @@ public final class BossManager {
             String created = created(e);
             boolean soulsOk = boss.isNemesis() || created == null;
             boolean totemOk = boss.isNemesis() ? !"challenge".equals(created) : created == null;
-            if (f.soulsEnabled && soulsOk && (boss.isNemesis() || Rng.chance(f.soulChance.getOrDefault(boss.rank(), 0.0)))) {
-                int[] count = f.soulCount.getOrDefault(boss.rank(), new int[]{1, 1});
-                rewards.add(plugin.items().createSoul(boss.rank(), Rng.between(count[0], count[1])));
+            // A wild boss raised with Souls pays Souls and Totems for the rank it was found at, so spending
+            // Souls never makes more of them.
+            BossRank wild = boss.isNemesis() ? boss.rank() : wildRank(e, boss.rank());
+            if (f.soulsEnabled && soulsOk && (boss.isNemesis() || Rng.chance(f.soulChance.getOrDefault(wild, 0.0)))) {
+                int[] count = f.soulCount.getOrDefault(wild, new int[]{1, 1});
+                rewards.add(plugin.items().createSoul(wild, Rng.between(count[0], count[1])));
             }
             if (f.waystonesEnabled) {
                 int stones = boss.rank() == BossRank.ASCENDANT ? f.waystoneAscendantDrops : 0;
@@ -857,9 +873,9 @@ public final class BossManager {
                     rewards.add(plugin.waystones().createItem(null));
                 }
             }
-            if (f.totemEnabled && totemOk && Rng.chance(f.totemDropChance.getOrDefault(boss.rank(), 0.0))) {
+            if (f.totemEnabled && totemOk && Rng.chance(f.totemDropChance.getOrDefault(wild, 0.0))) {
                 // a Totem of its own rank (sometimes one higher), up to Legendary: Ascendants are only ever raised
-                BossRank called = boss.rank().atLeast(BossRank.GOLD) ? BossRank.GOLD : boss.rank();
+                BossRank called = wild.atLeast(BossRank.GOLD) ? BossRank.GOLD : wild;
                 if (called != BossRank.GOLD && Rng.chance(f.totemHigherChance)) {
                     called = called.up(1);
                 }

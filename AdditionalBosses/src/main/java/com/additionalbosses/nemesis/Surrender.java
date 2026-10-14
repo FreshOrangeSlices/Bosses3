@@ -79,11 +79,15 @@ public enum Surrender {
         }
     }
 
-    /** Whether this death meets the terms. Never when a boss (or a boss's minion) had a hand in it. */
-    public boolean matches(PlayerDeathEvent event) {
+    /**
+     * Whether this death meets the terms. Never when a boss (or a boss's minion) had a hand in it, and never at the
+     * hands of the Nemesis's own kind.
+     */
+    public boolean matches(PlayerDeathEvent event, EntityType nemesisType) {
         Player p = event.getEntity();
         Entity killer = event.getDamageSource().getCausingEntity();
-        if (killer != null && (BossManager.isBoss(killer) || BossManager.isMinion(killer) || BossManager.isPet(killer))) {
+        if (killer != null && (BossManager.isBoss(killer) || BossManager.isMinion(killer) || BossManager.isPet(killer)
+            || killer.getType() == nemesisType)) {
             return false;
         }
         EntityDamageEvent last = p.getLastDamageCause();
