@@ -137,7 +137,8 @@ public final class Skills implements Listener {
 
     /** The owner's Taming level if this pet can use its skills now, else -1. */
     private int level(PetManager.Active a) {
-        if (!on() || !hasSkills(a.pet.species) || plugin.pets().fainting(a) || plugin.happiness().sad(a.pet)) {
+        if (!on() || !hasSkills(a.pet.species) || plugin.pets().fainting(a) || plugin.happiness().sad(a.pet)
+            || plugin.mcmmo().blacklisted(a.entity.getWorld())) {
             return -1;
         }
         return plugin.mcmmo().tamingLevel(a.owner);

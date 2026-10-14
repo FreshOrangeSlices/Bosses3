@@ -39,6 +39,12 @@ public final class McMMO {
     private @Nullable Method userOf;
     private @Nullable Method processCombatXp;
     private @Nullable Object taming;
+    // the checks mcMMO makes before a wolf's hit counts
+    private @Nullable Method worldBlacklisted;
+    private @Nullable Object skillTools;
+    private @Nullable Method combatSkillsTrigger;
+    private @Nullable Method npcPrevented;
+    private @Nullable Method isNpc;
     private boolean retro = true;
     private boolean warned;
 
@@ -47,6 +53,8 @@ public final class McMMO {
     private final Map<UUID, Long> checkedAt = new HashMap<>();
     private final Set<UUID> lookingUp = new HashSet<>();
     private final Map<UUID, Long> retryLookup = new HashMap<>();
+    /** Whether each owner had mcMMO's Taming permission when last seen (for stationed pets of offline owners). */
+    private final Map<UUID, Boolean> permitted = new HashMap<>();
 
     public McMMO(BloomPets plugin) {
         this.plugin = plugin;
@@ -94,8 +102,24 @@ public final class McMMO {
                 processCombatXp = Class.forName("com.gmail.nossr50.util.skills.CombatUtils", true, loader)
                     .getMethod("processCombatXP", user, LivingEntity.class, skill, double.class);
                 taming = skill.getMethod("valueOf", String.class).invoke(null, SKILL);
+                Object main = Class.forName("com.gmail.nossr50.mcMMO", true, loader).getField("p").get(null);
+                skillTools = main.getClass().getMethod("getSkillTools").invoke(main);
+                combatSkillsTrigger = skillTools.getClass().getMethod("canCombatSkillsTrigger", skill,
+                    org.bukkit.entity.Entity.class);
+                isNpc = Class.forName("com.gmail.nossr50.util.Misc", true, loader)
+                    .getMethod("isNPCEntityExcludingVillagers", org.bukkit.entity.Entity.class);
+                if (expConfig != null) {
+                    npcPrevented = expConfig.getClass().getMethod("isNPCInteractionPrevented");
+                }
             } catch (ReflectiveOperationException | RuntimeException ex) {
                 processCombatXp = null; // use the public API with our own copy of the formula
+                combatSkillsTrigger = null;
+            }
+            try {
+                worldBlacklisted = Class.forName("com.gmail.nossr50.config.WorldBlacklist", true, loader)
+                    .getMethod("isWorldBlacklisted", org.bukkit.World.class);
+            } catch (ReflectiveOperationException | RuntimeException ex) {
+                worldBlacklisted = null;
             }
             plugin.getLogger().info("Hooked into mcMMO " + mcmmo.getPluginMeta().getVersion()
                 + ": combat pets use their owner's Taming level" + (retro ? "" : " (Standard mode: levels / 10)") + ".");
@@ -124,6 +148,9 @@ public final class McMMO {
         if (p != null) {
             return tamingLevel(p);
         }
+        if (Boolean.FALSE.equals(permitted.get(owner))) {
+            return 0;
+        }
         Integer known = levels.get(owner);
         if (known != null) {
             return known;
@@ -136,7 +163,9 @@ public final class McMMO {
         if (getLevel == null) {
             return 0;
         }
-        if (!p.hasPermission("mcmmo.skills.taming")) {
+        boolean allowed = p.hasPermission("mcmmo.skills.taming");
+        permitted.put(p.getUniqueId(), allowed);
+        if (!allowed) {
             return 0;
         }
         long now = System.currentTimeMillis();
@@ -172,6 +201,9 @@ public final class McMMO {
                 // not in mcMMO's database (yet), or the database is busy
             }
             Integer level = found;
+            if (!plugin.isEnabled()) {
+                return;
+            }
             Bukkit.getScheduler().runTask(plugin, () -> {
                 lookingUp.remove(owner);
                 if (level != null) {
@@ -195,6 +227,9 @@ public final class McMMO {
             || !owner.hasPermission("mcmmo.skills.taming")) {
             return process != null; // (no permission: no XP, and no fallback either)
         }
+        if (!counts(target)) {
+            return true; // mcMMO wouldn't pay for this hit either
+        }
         try {
             Object mmoPlayer = user.invoke(null, owner);
             if (mmoPlayer != null) {
@@ -212,13 +247,49 @@ public final class McMMO {
         }
     }
 
+    /** mcMMO's world blacklist: no Taming skills or XP in those worlds. */
+    public boolean blacklisted(org.bukkit.World world) {
+        Method m = worldBlacklisted;
+        if (m == null) {
+            return false;
+        }
+        try {
+            return (boolean) m.invoke(null, world);
+        } catch (ReflectiveOperationException | RuntimeException ex) {
+            return false;
+        }
+    }
+
+    /**
+     * The checks mcMMO makes before a tamed wolf's hit counts: not a blacklisted world, Taming allowed against this
+     * target (mcMMO's PvP/PvE switches), and not an NPC if NPCs are excluded.
+     */
+    private boolean counts(LivingEntity target) {
+        if (blacklisted(target.getWorld())) {
+            return false;
+        }
+        try {
+            if (combatSkillsTrigger != null && skillTools != null
+                && !(boolean) combatSkillsTrigger.invoke(skillTools, taming, target)) {
+                return false;
+            }
+            if (npcPrevented != null && isNpc != null && expConfig != null
+                && (boolean) npcPrevented.invoke(expConfig) && (boolean) isNpc.invoke(null, target)) {
+                return false;
+            }
+        } catch (ReflectiveOperationException | RuntimeException ex) {
+            return true;
+        }
+        return true;
+    }
+
     /**
      * Taming XP for a hit by a combat pet, worked out like mcMMO does for a wolf: damage dealt x the mob's combat XP
      * x 10 (x 3 for Taming), or the PvP value for players.
      */
     public void hitXp(Player owner, LivingEntity target, double dealt) {
         Method add = addXp;
-        if (add == null || dealt <= 0 || !owner.hasPermission("mcmmo.skills.taming")) {
+        if (add == null || dealt <= 0 || !owner.hasPermission("mcmmo.skills.taming") || blacklisted(target.getWorld())) {
             return;
         }
         boolean pvp = target instanceof Player;

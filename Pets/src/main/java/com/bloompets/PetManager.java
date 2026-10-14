@@ -116,7 +116,8 @@ public final class PetManager {
         int stuck;
         /** Hits landed this outing (the Goat's every-third-hit Momentum). */
         int hits;
-        /** When a hit between the owner and the player this pet fights last went through. */
+        /** The player this pet fights, and when a hit between them and its owner last went through. */
+        @Nullable UUID pvpFoe;
         long pvpAt;
         /** A stationed pet strolls around its post: where it's headed, and when it picks a new spot. */
         @Nullable Location roamSpot;
@@ -1124,7 +1125,7 @@ public final class PetManager {
     public boolean mayHurt(Active a, Player victim) {
         Player owner = Bukkit.getPlayer(a.owner);
         return owner != null && a.home == null && victim.equals(a.target) && fairGame(owner, victim)
-            && System.currentTimeMillis() - a.pvpAt < PVP_MEMORY;
+            && victim.getUniqueId().equals(a.pvpFoe) && System.currentTimeMillis() - a.pvpAt < PVP_MEMORY;
     }
 
     /** The owner is fighting this mob (they hit it, or it hit them or their pet): combat pets join in. */
@@ -1133,8 +1134,19 @@ public final class PetManager {
         if (a == null || !a.pet.species.combat() || a.fainting || plugin.rides().isRidden(a)) {
             return;
         }
-        if (target instanceof Player) {
-            a.pvpAt = System.currentTimeMillis(); // a hit between you and them just went through
+        if (target instanceof Player victim) {
+            // a hit between you and them just went through: the pet takes them on (or keeps at it)
+            UUID foe = a.pvpFoe;
+            long at = a.pvpAt;
+            a.pvpFoe = victim.getUniqueId();
+            a.pvpAt = System.currentTimeMillis();
+            if (validTarget(a, victim, owner)) {
+                a.target = victim;
+            } else {
+                a.pvpFoe = foe; // not someone it can fight: the old fight's clock keeps running
+                a.pvpAt = at;
+            }
+            return;
         }
         if (target != a.entity && validTarget(a, target, owner)) {
             a.target = target;
@@ -1147,7 +1159,8 @@ public final class PetManager {
             return false;
         }
         if (t instanceof Player victim) {
-            return fairGame(owner, victim) && System.currentTimeMillis() - a.pvpAt < PVP_MEMORY;
+            return fairGame(owner, victim) && victim.getUniqueId().equals(a.pvpFoe)
+                && System.currentTimeMillis() - a.pvpAt < PVP_MEMORY;
         }
         if (t instanceof ArmorStand || Keys.isPet(t) || Keys.isStatue(t) || t.isInvulnerable()) {
             return false;
