@@ -369,7 +369,8 @@ public final class BossManager {
     private static void demote(LivingEntity e) {
         PersistentDataContainer pdc = e.getPersistentDataContainer();
         for (org.bukkit.NamespacedKey key : new org.bukkit.NamespacedKey[]{Keys.BOSS, Keys.BOSS_RANK, Keys.BOSS_TRAITS,
-            Keys.BOSS_CATEGORY, Keys.BOSS_UNDYING, Keys.BOSS_LAST_STAND, Keys.BOSS_THREAT, Keys.BOSS_PHASE, Keys.BOSS_CREATED,
+            Keys.BOSS_CATEGORY, Keys.BOSS_UNDYING, Keys.BOSS_LAST_STAND, Keys.BOSS_THREAT, Keys.BOSS_THREAT_REWARD,
+            Keys.BOSS_PHASE, Keys.BOSS_CREATED,
             Keys.BOSS_PLAYER_KILLS, Keys.BOSS_WILD_RANK}) {
             pdc.remove(key);
         }
@@ -693,6 +694,11 @@ public final class BossManager {
         return e.getPersistentDataContainer().getOrDefault(Keys.BOSS_THREAT, PersistentDataType.DOUBLE, 0.0);
     }
 
+    /** The Threat the reward bonus uses: as it was when the fight began (older bosses: their Threat). */
+    public static double rewardThreat(LivingEntity e) {
+        return e.getPersistentDataContainer().getOrDefault(Keys.BOSS_THREAT_REWARD, PersistentDataType.DOUBLE, threat(e));
+    }
+
     /**
      * The first time a boss is engaged it counts the Boss Gear the players nearby are actually using (worn, or in
      * either hand): the more of it, the more health and damage it gains. Applied once per boss.
@@ -715,6 +721,10 @@ public final class BossManager {
         }
         threat = Math.max(threat, old);
         e.getPersistentDataContainer().set(Keys.BOSS_THREAT, PersistentDataType.DOUBLE, threat);
+        if (!e.getPersistentDataContainer().has(Keys.BOSS_THREAT_REWARD, PersistentDataType.DOUBLE)) {
+            // the reward bonus is set by the gear worn when the fight began: suiting up for the last hit doesn't pay
+            e.getPersistentDataContainer().set(Keys.BOSS_THREAT_REWARD, PersistentDataType.DOUBLE, threat);
+        }
         if (threat <= 0.01) {
             return;
         }

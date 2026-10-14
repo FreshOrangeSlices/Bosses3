@@ -1102,8 +1102,14 @@ public final class NemesisManager {
         String id = challengeId(item);
         NemesisRecord r = liveChallenge(item);
         if (r == null) {
-            player.getInventory().setItem(hand, null); // the feud is over, or a newer copy replaced this one
-            plugin.presentation().tell(player, "nemesis-challenge-gone");
+            player.getInventory().setItem(hand, null);
+            if (id != null && records.containsKey(id)) {
+                // the feud goes on, but a newer copy of the note replaced this one
+                Fx.actionBar(player, Component.text("The ink has faded: a newer copy of this Challenge replaced it.",
+                    NamedTextColor.GRAY));
+            } else {
+                plugin.presentation().tell(player, "nemesis-challenge-gone");
+            }
             return;
         }
         if (!f().nemesisEnabled) {

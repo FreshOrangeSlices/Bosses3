@@ -75,7 +75,7 @@ public final class RewardManager {
         RankSettings.Rewards chances = plugin.settings().rank(boss.rank()).rewards();
         // Harder fights (Threat Scaling) pay better.
         double luck = plugin.relics().rewardMultiplier(killer)
-            * (1.0 + BossManager.threat(boss.entity()) * plugin.settings().features.threatRewardBonus / 100.0);
+            * (1.0 + BossManager.rewardThreat(boss.entity()) * plugin.settings().features.threatRewardBonus / 100.0);
         List<ItemStack> out = new ArrayList<>();
 
         if (Rng.chance(chances.bossGear() * luck)) {

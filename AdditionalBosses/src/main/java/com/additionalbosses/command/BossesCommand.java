@@ -278,10 +278,14 @@ public final class BossesCommand implements BasicCommand {
                     }
                     int n = 0;
                     for (NemesisRecord r : nm.forOwner(target.getUniqueId())) {
+                        r.challengeSerial++; // the new copy replaces any older one
                         for (ItemStack left : target.getInventory().addItem(nm.createChallenge(r)).values()) {
                             target.getWorld().dropItemNaturally(target.getLocation(), left);
                         }
                         n++;
+                    }
+                    if (n > 0) {
+                        nm.save();
                     }
                     info(sender, "Gave " + target.getName() + " " + n + " Challenge" + (n == 1 ? "" : "s") + ".");
                 }

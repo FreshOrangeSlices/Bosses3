@@ -83,8 +83,8 @@ final class ConfigPatchV11 {
             "    weights: { GRAY: 55, GREEN: 30, RED: 14.4, PURPLE: 0.5, GOLD: 0.1 }");
         fallback("    weights: { GRAY: 15, GREEN: 35, RED: 30, PURPLE: 15, GOLD: 5 }",
             "    weights: { GRAY: 35, GREEN: 37, RED: 25.5, PURPLE: 2.0, GOLD: 0.5 }");
-        fallback("    weights: { GRAY: 30, GREEN: 35, RED: 23, PURPLE: 10, GOLD: 2 }",
-            "    weights: { GRAY: 60, GREEN: 30, RED: 9.88, PURPLE: 0.1, GOLD: 0.02 }");
+        fallback("    weights: { GRAY: 30, GREEN: 35, RED: 23, PURPLE: 10, GOLD: 2 }", // (Piglins and Zombified Piglins)
+            "    weights: { GRAY: 40, GREEN: 35, RED: 23.5, PURPLE: 1.2, GOLD: 0.3 }");
         fallback("    weights: { GRAY: 5, GREEN: 20, RED: 35, PURPLE: 30, GOLD: 10 }",
             "    weights: { GRAY: 10, GREEN: 35, RED: 53.8, PURPLE: 1.0, GOLD: 0.2 }");
         patch(new String[]{},
@@ -184,6 +184,8 @@ final class ConfigPatchV11 {
                 if (at >= 0) {
                     lines.set(at, p.replacement().get(0));
                     applied++;
+                    log.accept("config.yml: mob-categories had been changed, but these rank odds were still the old default, so they were updated: "
+                        + p.replacement().get(0).strip());
                 }
                 continue;
             }

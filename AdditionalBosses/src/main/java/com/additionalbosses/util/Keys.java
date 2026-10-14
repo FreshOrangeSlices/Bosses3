@@ -25,6 +25,7 @@ public final class Keys {
     public static NamespacedKey STATUE;          // string, statue data (on statue entities and statue items)
     public static NamespacedKey STATUE_LORE;     // list<string>, MiniMessage lore lines kept on a placed statue
     public static NamespacedKey BOSS_THREAT;     // double 0..1, Threat Scaling already applied
+    public static NamespacedKey BOSS_THREAT_REWARD; // double 0..1, Threat when the fight began (sets the reward bonus)
     public static NamespacedKey BOSS_CREATED;    // string, how a player made this boss (totem, escalation, command, challenge)
     public static NamespacedKey BOSS_PLAYER_KILLS; // int, players this boss has killed
     public static NamespacedKey BOSS_WILD_RANK;  // string, rank a promoted boss had before its first Soul
@@ -96,6 +97,7 @@ public final class Keys {
         STATUE_LORE = new NamespacedKey(plugin, "statue_lore");
         COMPASS_TIER = new NamespacedKey(plugin, "compass_tier");
         BOSS_THREAT = new NamespacedKey(plugin, "boss_threat");
+        BOSS_THREAT_REWARD = new NamespacedKey(plugin, "boss_threat_reward");
         BOSS_CREATED = new NamespacedKey(plugin, "boss_created");
         BOSS_PLAYER_KILLS = new NamespacedKey(plugin, "boss_player_kills");
         BOSS_WILD_RANK = new NamespacedKey(plugin, "boss_wild_rank");
