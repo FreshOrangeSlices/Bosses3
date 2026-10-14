@@ -49,6 +49,7 @@ public final class Keys {
     public static NamespacedKey RUNE_AMOUNT;     // double
     public static NamespacedKey RELIC_ID;        // string, relic effect id (on a relic item)
     public static NamespacedKey RELIC_CURSE;     // string, curse id (on a corrupted relic item)
+    public static NamespacedKey RELIC_STARTER;   // byte, a starter relic (a Quest Book gift): not "found"
     public static NamespacedKey EMPOWERMENTS;    // list<string> "stat:amount" (on equipment)
     public static NamespacedKey RELICS;          // list<string> relic ids (on equipment)
     public static NamespacedKey CURSES;          // list<string> curse ids (on equipment)
@@ -126,6 +127,7 @@ public final class Keys {
         RUNE_AMOUNT = new NamespacedKey(plugin, "rune_amount");
         RELIC_ID = new NamespacedKey(plugin, "relic_id");
         RELIC_CURSE = new NamespacedKey(plugin, "relic_curse");
+        RELIC_STARTER = new NamespacedKey(plugin, "relic_starter");
         EMPOWERMENTS = new NamespacedKey(plugin, "empowerments");
         RELICS = new NamespacedKey(plugin, "relics");
         CURSES = new NamespacedKey(plugin, "curses");

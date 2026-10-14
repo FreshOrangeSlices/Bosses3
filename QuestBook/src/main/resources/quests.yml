@@ -1,0 +1,408 @@
+# =====================================================================
+#  QuestBook - the boards and their quests
+#
+#  Each board shows on the Quest Book's first page (hub-slot: 0-44).
+#  type: quests (one-time quests with a reward) or skills (mcMMO
+#  milestones, no rewards). requires: [...] hides a board, quest or reward
+#  when something isn't on the server:
+#    plugin:<Name>              that plugin is installed
+#    config:<Plugin>:<path>     that plugin's config.yml has <path>: true
+#    mcmmo                      mcMMO is installed
+#
+#  A quest is done when any line under triggers: is true. Join checks with
+#  " & " to need all of them. Triggers:
+#    flag:<name>                another plugin marked it on the player
+#                               (flag:<name>>=3 = at least 3 times). Any
+#                               plugin can mark one; see the README.
+#    item:<namespace:key>       the player carries an item with that data
+#    item:<namespace:key>=VALUE ...with that value
+#    mcmmo:<SKILL>>=<level>     an mcMMO skill level (RetroMode scale)
+#    permission:<node>          the player has a permission
+#
+#  slot: where the quest sits on its board (0-44; its state shows just
+#  below it). Rewards: {item: IRON_INGOT, amount: 8}, optional trim:
+#  {material: redstone, pattern: sentry}, potion: healing,
+#  enchantments: {sharpness: 1}; or {command: "...%player%...", slots: 1,
+#  label: "what it says in the book"}, run by the console.
+#  Texts may use MiniMessage tags (<gold>, <bold>...).
+# =====================================================================
+
+boards:
+
+  # -------------------------------------------------------------------
+  bosses:
+    title: "Bosses"
+    icon: IRON_SWORD
+    hub-slot: 20
+    requires: [plugin:AdditionalBosses]
+    description:
+      - "Rare, powerful mobs with ranks,"
+      - "traits and loot. Some come back."
+    quests:
+      first-boss:
+        name: "Something's Different"
+        icon: ZOMBIE_HEAD
+        slot: 1
+        objective: "Defeat your first Boss."
+        triggers: [flag:boss_kill]
+        rewards:
+          - {item: ARROW, amount: 16}
+          - {item: SHIELD}
+        insight: "Bosses have ranks: higher ranks mean stronger stats, traits and rewards."
+      boss-gear:
+        name: "Marked by Battle"
+        icon: CHAINMAIL_CHESTPLATE
+        slot: 3
+        objective: "Get your first piece of Boss-Touched gear."
+        triggers: [flag:boss_gear, "item:additionalbosses:item_kind=GEAR"]
+        rewards:
+          - {item: IRON_INGOT, amount: 8}
+        insight: "Boss-Touched gear you wear or hold makes the bosses you meet tougher, and their loot better."
+      relic-hunter:
+        name: "Relic Hunter"
+        icon: HEART_OF_THE_SEA
+        slot: 5
+        objective: "Find your first Relic."
+        triggers: [flag:relic_found]   # (the Welcome Gift's relic doesn't count: it was given, not found)
+        rewards:
+          - {item: COOKED_BEEF, amount: 8}
+        insight: "Relics change how your gear behaves."
+      use-relic:
+        name: "Use a Relic"
+        icon: ANVIL
+        slot: 7
+        objective: "Bind a Relic to a piece of gear."
+        triggers: [flag:relic_bound, "item:additionalbosses:relics"]
+        rewards:
+          - {item: IRON_CHESTPLATE, trim: {material: redstone, pattern: sentry}}
+        insight: "Relics can grant powerful effects, but they may also carry curses."
+      soul:
+        name: "Soul of the Boss"
+        icon: ECHO_SHARD
+        slot: 18
+        objective: "Get your first Boss Soul."
+        triggers: [flag:soul_found, "item:additionalbosses:item_kind=SOUL", flag:soul_promote]
+        rewards:
+          - {item: GOLDEN_CARROT, amount: 8}
+        insight: "Boss Souls raise a boss's rank: a way to pick harder fights on purpose."
+      raise-the-stakes:
+        name: "Raise the Stakes"
+        icon: EXPERIENCE_BOTTLE
+        slot: 20
+        objective: "Use a Soul to promote a boss."
+        triggers: [flag:soul_promote]
+        rewards:
+          - {item: DIAMOND, amount: 3}
+        insight: "Promotion raises a boss's rank. The highest ranks are very rare in the wild, on purpose."
+      totem:
+        name: "Challenge Accepted"
+        icon: TOTEM_OF_UNDYING
+        slot: 24
+        objective: "Use a Boss Totem."
+        triggers: [flag:totem_used]
+        rewards:
+          - {item: ARROW, amount: 32}
+          - {item: GOLDEN_APPLE, amount: 2}
+        insight: "Totems call a boss on purpose. Higher-rank bosses drop higher-rank Totems."
+      rival:
+        name: "A Rival Appears"
+        icon: SKELETON_SKULL
+        slot: 26
+        objective: "Have a boss become your Nemesis."
+        triggers: [flag:nemesis_created]
+        rewards:
+          - {item: GOLDEN_APPLE, amount: 4}
+          - {item: COOKED_BEEF, amount: 8}
+        insight: "A Nemesis comes back for you, levels up and adapts."
+      learned:
+        name: "It Learned"
+        icon: SPYGLASS
+        slot: 37
+        objective: "See your Nemesis adapt to how you fight."
+        triggers: [flag:nemesis_adapted]
+        rewards:
+          - {item: GOLDEN_APPLE, amount: 2}
+          - {item: POTION, potion: healing}
+        insight: "A Nemesis adapts to the damage that hurts it most, pets included. Mix it up."
+      surrender-terms:
+        name: "Terms of Surrender"
+        icon: PAPER
+        slot: 39
+        objective: "Wake up with your Nemesis's Challenge after it kills you."
+        triggers: [flag:challenge_received, "item:additionalbosses:item_kind=CHALLENGE"]
+        rewards:
+          - {item: BREAD, amount: 8}
+          - {item: MILK_BUCKET}
+        insight: "The Challenge calls that Nemesis early, and names the one way to surrender the feud."
+      revenge:
+        name: "Revenge"
+        icon: NETHERITE_SWORD
+        slot: 41
+        objective: "Kill your Nemesis."
+        triggers: [flag:nemesis_slain]
+        rewards:
+          - {item: ENCHANTED_GOLDEN_APPLE}
+        insight: "Defeating a Nemesis ends the feud, with the best loot it has."
+      ascension:
+        name: "Ascension"
+        icon: BEACON
+        slot: 43
+        objective: "Raise a boss to Ascendant."
+        triggers: [flag:ascendant_created]
+        rewards:
+          - {item: NETHERITE_INGOT}
+          - {item: NETHERITE_UPGRADE_SMITHING_TEMPLATE}
+        insight: "Ascendants never spawn in the wild: they're made, as the last step of boss progression."
+
+  # -------------------------------------------------------------------
+  pets:
+    title: "Pets"
+    icon: LEAD
+    hub-slot: 21
+    requires: [plugin:BloomPets]
+    description:
+      - "Make animal friends: they follow,"
+      - "fight, guard and grow with you."
+    quests:
+      new-friend:
+        name: "A New Friend"
+        icon: NAME_TAG
+        slot: 1
+        objective: "Get your first pet."
+        triggers: [flag:pet_adopted]
+        rewards:
+          - {item: SALMON, amount: 4}
+          - {item: COD, amount: 4}
+        insight: "Pets can follow, fight, guard and grow."
+      take-care:
+        name: "Take Care"
+        icon: SWEET_BERRIES
+        slot: 3
+        objective: "Feed your pet."
+        triggers: [flag:pet_fed]
+        rewards:
+          - {item: SWEET_BERRIES, amount: 6}
+          - {item: GLOW_BERRIES, amount: 4}
+        insight: "Feeding heals your pet and keeps it happy."
+      guard-duty:
+        name: "Guard Duty"
+        icon: BELL
+        slot: 5
+        objective: "Leave a pet at a post."
+        triggers: [flag:pet_stationed]
+        rewards:
+          - {item: IRON_INGOT, amount: 3}
+          - {item: COOKED_PORKCHOP, amount: 4}
+        insight: "Pets at a post guard it (or work it), and earn Bond XP while you're nearby."
+      growing-bond:
+        name: "Growing Bond"
+        icon: EXPERIENCE_BOTTLE
+        slot: 7
+        objective: "Level up a pet."
+        triggers: [flag:pet_level_up]
+        rewards:
+          - {item: SPIDER_EYE, amount: 4}
+          - {item: SLIME_BALL, amount: 4}
+        insight: "Each level makes your companion itself a little stronger."
+      play-time:
+        name: "Play Time"
+        icon: STICK
+        slot: 18
+        objective: "Pet your pet, or play fetch."
+        triggers: [flag:pet_play]
+        rewards:
+          - {item: TROPICAL_FISH, amount: 4}
+          - {item: AMETHYST_SHARD, amount: 2}
+        insight: "Play, food and rest keep a pet happy."
+      needs-a-break:
+        name: "Needs a Break"
+        icon: RED_BED
+        slot: 20
+        objective: "Let a tired pet rest in its bloom until it's fresh again."
+        requires: ["config:BloomPets:happiness.enabled"]
+        triggers: [flag:pet_rested]
+        rewards:
+          - {item: BAMBOO, amount: 8}
+          - {item: HAY_BLOCK, amount: 2}
+        insight: "An unhappy pet loses its perks until it feels better."
+      taming-training:
+        name: "Taming Training"
+        icon: BONE
+        slot: 24
+        objective: "Reach Taming level 100 with a combat pet."
+        requires: [mcmmo]
+        triggers: ["mcmmo:TAMING>=100 & flag:pet_combat_owned"]
+        rewards:
+          - {item: EMERALD, amount: 3}
+          - {item: GOLDEN_CARROT, amount: 4}
+        insight: "Your Taming skill matters to combat companions."
+      pet-fighter:
+        name: "Pet Fighter"
+        icon: IRON_SWORD
+        slot: 26
+        objective: "Have a combat pet land a hit in a fight."
+        triggers: [flag:pet_combat_xp]
+        rewards:
+          - {item: WARPED_FUNGUS, amount: 4}
+          - {item: APPLE, amount: 4}
+        insight: "Combat pets earn Bond XP for every hit they land: the fastest way to level."
+      fully-grown:
+        name: "Fully Grown"
+        icon: CAKE
+        slot: 22
+        objective: "Raise a pet to level 10."
+        triggers: [flag:pet_max_level]
+        rewards:
+          - {item: IRON_INGOT, amount: 8}
+          - {item: EMERALD, amount: 3}
+          - {item: SALMON, amount: 8}
+          - {item: TORCHFLOWER_SEEDS, amount: 6}
+          - {item: BAMBOO, amount: 16}
+          - {item: AMETHYST_SHARD, amount: 5}
+          - {item: SPIDER_EYE, amount: 8}
+          - {item: SWEET_BERRIES, amount: 8}
+        insight: "Your companion is fully grown. Plenty here to make a new friend..."
+
+  # -------------------------------------------------------------------
+  #  mcMMO milestones: no rewards, they just show what each skill does.
+  #  levels: the board's three milestones (RetroMode scale).
+  work-skills:
+    title: "Work Skills"
+    icon: DIAMOND_PICKAXE
+    hub-slot: 22
+    type: skills
+    requires: [mcmmo]
+    description:
+      - "mcMMO skills for gathering and"
+      - "making. Milestones, no homework."
+    levels: [50, 100, 300]
+    skills:
+      mining:
+        name: "Mining"
+        icon: IRON_PICKAXE
+        milestones:
+          - "Super Breaker: ready your pickaxe (right-click) and mine: blocks break instantly and drop extra."
+          - "Blast Mining: TNT set off with a pickaxe digs further and drops more ore."
+          - "Double Drops come about 30% of the time now, and keep climbing with every level."
+      excavation:
+        name: "Excavation"
+        icon: IRON_SHOVEL
+        milestones:
+          - "Giga Drill Breaker: ready your shovel (right-click) and dig: instant breaks, triple treasure."
+          - "Better treasures keep unlocking as you dig. Archaeology (XP from digs) ranks up at 250."
+          - "Rarer treasures are in reach now: keep digging dirt, sand and gravel."
+      woodcutting:
+        name: "Woodcutting"
+        icon: IRON_AXE
+        milestones:
+          - "Tree Feller: ready your axe (right-click) and chop: the whole tree comes down."
+          - "Harvest Lumber: logs drop double more and more often."
+          - "Leaf Blower clears leaves instantly, and Knock on Wood shakes saplings and apples out of felled trees."
+      herbalism:
+        name: "Herbalism"
+        icon: IRON_HOE
+        milestones:
+          - "Green Terra: ready your hoe (right-click) and harvest: triple drops, and plants spring back."
+          - "Double drops from crops come more and more often."
+          - "Green Thumb replants crops as you harvest them, and Farmer's Diet makes food fill you up more."
+      fishing:
+        name: "Fishing"
+        icon: FISHING_ROD
+        milestones:
+          - "Ice Fishing: cast through ice. Treasure Hunter: the odd catch is treasure instead of fish."
+          - "Treasure gets a little more likely every level. Next up: Shake (150) and Magic Hunter (200)."
+          - "Shake: hook a mob to shake loot off it. Magic Hunter: treasure comes enchanted. Bites come faster."
+
+  combat-skills:
+    title: "Combat Skills"
+    icon: BOW
+    hub-slot: 23
+    type: skills
+    requires: [mcmmo]
+    description:
+      - "mcMMO skills for fighting, from"
+      - "swords to fists to wolves."
+    levels: [50, 100, 300]
+    skills:
+      swords:
+        name: "Swords"
+        icon: IRON_SWORD
+        milestones:
+          - "Serrated Strikes: ready your sword (right-click) and hit: everything near you bleeds."
+          - "Limit Break: your hits do more against tough, armored foes."
+          - "Counter Attack hits back when you're struck, and Rupture makes bleeding last longer."
+      axes:
+        name: "Axes"
+        icon: IRON_AXE
+        milestones:
+          - "Skull Splitter: ready your axe (right-click) and hit: the blow carries to everyone nearby."
+          - "Axe Mastery and Limit Break: more damage, and your hits wear armor down faster."
+          - "Greater Impact: big hits knock foes back for extra damage. Critical hits come more often."
+      archery:
+        name: "Archery"
+        icon: BOW
+        milestones:
+          - "Skill Shot: your arrows hit harder every level. Arrow Retrieval gets arrows back from kills."
+          - "Limit Break: your arrows do more against tough foes."
+          - "Skill Shot keeps climbing: arrows hit far harder now than when you started."
+      unarmed:
+        name: "Unarmed"
+        icon: LEATHER
+        milestones:
+          - "Berserk: ready your fists (right-click) and punch: more damage, and soft blocks break instantly."
+          - "Steel Arm Style and Limit Break: your fists hit harder."
+          - "Arrow Deflect knocks arrows aside, and Disarm can knock a weapon out of a player's hand."
+      taming:
+        name: "Taming"
+        icon: BONE
+        milestones:
+          - "Beast Lore (punch a wolf with a bone) and Call of the Wild (sneak + punch with bones) summons wolves."
+          - "Environmentally Aware: your wolves step out of fire and lava, and never take fall damage."
+          - "Gore, Fast Food Service and Thick Fur: wolves bite harder, heal as they fight and shrug off hits."
+
+  misc-skills:
+    title: "Misc Skills"
+    icon: POTION
+    hub-slot: 24
+    type: skills
+    requires: [mcmmo]
+    description:
+      - "mcMMO utility skills: slower to"
+      - "level, but worth it."
+    levels: [25, 50, 100]
+    skills:
+      repair:
+        name: "Repair"
+        icon: IRON_BLOCK
+        milestones:
+          - "Right-click an iron block holding damaged gear to repair it with its material: better than an anvil."
+          - "Repair Mastery keeps growing: each repair restores more. Arcane Forging unlocks at 100."
+          - "Arcane Forging: your enchantments can survive the repair."
+      salvage:
+        name: "Salvage"
+        icon: GOLD_BLOCK
+        milestones:
+          - "Right-click a gold block holding gear to break it back into its materials."
+          - "Salvaging gives back a bit more as you level. Arcane Salvage unlocks at 100."
+          - "Arcane Salvage: salvaged gear can give its enchantments back as books. Scrap Collector gives more materials."
+      smelting:
+        name: "Smelting"
+        icon: FURNACE
+        milestones:
+          - "Second Smelt: furnaces you use sometimes give a double result."
+          - "Double results come more often every level. Understanding the Art unlocks at 100."
+          - "Fuel Efficiency: fuel burns longer. Understanding the Art: more vanilla XP from smelting."
+      alchemy:
+        name: "Alchemy"
+        icon: BREWING_STAND
+        milestones:
+          - "Catalysis: your brewing stands brew faster the higher your level."
+          - "Catalysis keeps speeding up your brewing. At 100, new Concoctions ingredients unlock."
+          - "Concoctions II: mcMMO's extra potion ingredients unlock stronger potions. See /alchemy."
+      acrobatics:
+        name: "Acrobatics"
+        icon: FEATHER
+        milestones:
+          - "Roll: a chance to take less damage from a fall. Sneak as you land for a Graceful Roll."
+          - "Dodge: a chance to take less damage from attacks."
+          - "Roll and Dodge come more often the higher you go."

@@ -10,6 +10,7 @@ import com.additionalbosses.reward.GearQuality;
 import com.additionalbosses.util.Fx;
 import com.additionalbosses.util.Keys;
 import com.additionalbosses.util.PlayerData;
+import com.additionalbosses.util.QuestFlags;
 import com.additionalbosses.util.Rng;
 import com.additionalbosses.util.Text;
 import io.papermc.paper.datacomponent.DataComponentTypes;
@@ -530,6 +531,9 @@ public final class ItemService {
             target.setData(DataComponentTypes.ENCHANTMENT_GLINT_OVERRIDE, true);
             refreshLore(target);
             PlayerData.addRelicBound(player);
+            if (c.has(Keys.RELIC_STARTER)) {
+                PlayerData.addStarterRelicBound(player); // (a gift: bound, but not a relic "found")
+            }
             Fx.play(player.getLocation(), "block.end_portal_frame.fill", 1.0f, 0.8f);
             Component msg = m.get("relic-bound", Placeholder.component("item", itemName),
                 Placeholder.unparsed("relic", effect.displayName()));

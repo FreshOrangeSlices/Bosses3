@@ -500,6 +500,27 @@ public final class PetListener implements Listener {
         }
     }
 
+    /** Quest Book: catch up on what this player's pets already did. */
+    @EventHandler(priority = EventPriority.MONITOR)
+    public void onJoin(org.bukkit.event.player.PlayerJoinEvent event) {
+        Player p = event.getPlayer();
+        for (Pet pet : plugin.store().pets(p.getUniqueId())) {
+            QuestFlags.markOnce(p, "pet_adopted");
+            if (pet.species.combat()) {
+                QuestFlags.markOnce(p, "pet_combat_owned");
+            }
+            if (pet.level >= 2) {
+                QuestFlags.markOnce(p, "pet_level_up");
+            }
+            if (pet.maxed()) {
+                QuestFlags.markOnce(p, "pet_max_level");
+            }
+            if (pet.stationed()) {
+                QuestFlags.markOnce(p, "pet_stationed");
+            }
+        }
+    }
+
     @EventHandler(priority = EventPriority.MONITOR)
     public void onQuit(PlayerQuitEvent event) {
         Player p = event.getPlayer();

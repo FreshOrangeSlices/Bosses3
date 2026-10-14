@@ -34,7 +34,33 @@ public final class PlayerListener implements Listener {
     public void onJoin(PlayerJoinEvent event) {
         Player player = event.getPlayer();
         plugin.relics().refresh(player);
-        if (plugin.settings().guideOnFirstJoin && !PlayerData.guideGiven(player)) {
+        // Quest Book: catch up on what this player did before it was installed
+        if (PlayerData.totalKills(player) > 0) {
+            com.additionalbosses.util.QuestFlags.markOnce(player, "boss_kill");
+        }
+        if (PlayerData.relicsBound(player) > 0) {
+            com.additionalbosses.util.QuestFlags.markOnce(player, "relic_bound");
+        }
+        if (PlayerData.relicsBound(player) > PlayerData.starterRelicsBound(player)) {
+            com.additionalbosses.util.QuestFlags.markOnce(player, "relic_found"); // bound one that wasn't a gift
+        }
+        for (org.bukkit.inventory.ItemStack item : player.getInventory().getContents()) {
+            var kind = plugin.items().kind(item);
+            if (kind == com.additionalbosses.item.ItemService.Kind.GEAR) {
+                com.additionalbosses.util.QuestFlags.markOnce(player, "boss_gear");
+            } else if (kind == com.additionalbosses.item.ItemService.Kind.SOUL) {
+                com.additionalbosses.util.QuestFlags.markOnce(player, "soul_found");
+            } else if (kind == com.additionalbosses.item.ItemService.Kind.RELIC && item != null
+                && !item.getPersistentDataContainer().has(com.additionalbosses.util.Keys.RELIC_STARTER)) {
+                com.additionalbosses.util.QuestFlags.markOnce(player, "relic_found");
+            }
+        }
+        if (!plugin.nemesis().forOwner(player.getUniqueId()).isEmpty()) {
+            com.additionalbosses.util.QuestFlags.markOnce(player, "nemesis_created");
+        }
+        // With a Quest Book plugin on the server, the guide lives in there instead of in everyone's bag.
+        boolean questBook = Bukkit.getPluginManager().isPluginEnabled("QuestBook");
+        if (plugin.settings().guideOnFirstJoin && !questBook && !PlayerData.guideGiven(player)) {
             PlayerData.markGuideGiven(player);
             Bukkit.getScheduler().runTaskLater(plugin, () -> {
                 if (player.isOnline()) {

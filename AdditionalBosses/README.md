@@ -43,7 +43,7 @@ A Paper plugin for **Minecraft 26.3** that makes normal survival occasionally pr
 | **Nemesis** | A boss that kills you, or that you flee from after a real fight, has a 30% chance to become *your* Nemesis, with a unique name of its own: `☆ Returned Scrawl the Bulwark [Lv 7]` (history title, name, what it was known for). It prowls off for a minute hunting other mobs (+1 level per kill), then returns for you after 10 Minecraft days. It levels up to 15 (+2 for every player it kills), never drops below its starting rank, earns titles (Returned, Twice-Fled, Relentless, Unbroken, Dreaded, Eternal...), keeps its look (baby or adult) every time, and its gear and weapon visibly upgrade. **It learns how you fight**: at a level-up it resists the kind of damage that hurt it most (melee, arrows, magic, fire, explosions or pets: 65% damage), and if you keep at it, becomes immune (at most 2 immunities; fire is free). If pets did most of the damage, it adapts to them instead: half damage from pets, and it hits them 50% harder (never full immunity). In team fights, whoever out-damages its target pulls its attention. After killing 2 players in one outing it leaves. When it kills you, you wake up with its **Challenge** (only the newest copy works): right-click it (or use it on the ground) to call the Nemesis right away, or die by its **Terms of Surrender** (drowning, a fall, a creeper...; never its own kind) while carrying it to end the feud for good. Ignores the boss cap, up to 5 per player. Killing it drops Masterwork gear, a rune, boosted relic odds and a **Nemesis Statue** (half the size of a normal mob) you can place in your base. |
 | **Revenge** | Killing a boss that killed you gives double XP and an extra reward roll. |
 | **Boss Souls** | Stackable souls of the boss's rank: 30% from Gray bosses up to 60% (2–3 souls) from Legendary, and every Nemesis drops them. Offer one to a boss to promote it. (Trophies from older versions turn into souls.) |
-| **Guide book** | `/bosses guide` gives the *Boss Hunter's Compendium*: a clickable in-game book with a multi-page contents list, generated from your config, explaining everything plus your personal boss record. New players get it automatically. |
+| **Guide book** | `/bosses guide` gives the *Boss Hunter's Compendium*: a clickable in-game book with a multi-page contents list, generated from your config, explaining everything plus your personal boss record. New players get it automatically, unless the QuestBook plugin is installed: then it's read from the Quest Book (`/bosses guide read` shows it without giving a book). |
 
 A finished item can stack every layer:
 
@@ -82,7 +82,7 @@ Build locally instead (needs Java 25): `./gradlew build` → `build/libs/Additio
 
 | Command | Who | What |
 |---|---|---|
-| `/bosses guide` | everyone | Get the Boss Hunter's Compendium |
+| `/bosses guide` | everyone | Get the Boss Hunter's Compendium (`/bosses guide read`: just read it) |
 | `/bosses apply` | everyone | Use the Rune/Relic/Catalyst in your off hand on the item in your main hand |
 | `/bosses inspect` | everyone | Look at a boss to see its traits, or inspect your held item |
 | `/bosses stats` | everyone | Your boss kills by rank |
@@ -187,3 +187,8 @@ Everything lives in PersistentDataContainers, so it survives restarts and chunk 
 - One shared ticker (every 10 ticks) handles every boss and stops itself when no bosses are loaded. Relic passives use one task that only runs while someone has a passive relic equipped.
 - Each player's active relics are cached and only re-read when their equipment changes.
 - Boss bars, minions and tracking are cleaned up on death, despawn, chunk unload and plugin disable.
+
+## QuestBook
+
+With the QuestBook plugin installed, Additional Bosses marks what players do (`questbook:` flags on the player) so the Quest Book's boss quests complete: `boss_kill` (everyone who hurt it), `boss_gear`, `relic_found` (not a gift relic), `relic_bound`, `soul_found`, `soul_promote`, `ascendant_created`, `totem_used`, `nemesis_created`, `nemesis_adapted`, `challenge_received` and `nemesis_slain`. Kills, bound relics, Nemeses and items carried from before it was installed count too. `/bosses give <player> relic random random starter` makes a gift relic (the Quest Book's welcome) that counts when bound but not as "found". Without QuestBook these flags do nothing.
+

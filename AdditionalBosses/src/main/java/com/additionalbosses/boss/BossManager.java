@@ -806,6 +806,12 @@ public final class BossManager {
         Fx.particle(Fx.center(e), Particle.END_ROD, 40, 0.8, 0.1);
         Fx.play(e.getLocation(), "block.beacon.power_select", 1.0f, 0.7f);
         plugin.presentation().announcePromotion(promoted, by);
+        if (by != null) {
+            com.additionalbosses.util.QuestFlags.mark(by, "soul_promote");
+            if (target == BossRank.ASCENDANT) {
+                com.additionalbosses.util.QuestFlags.mark(by, "ascendant_created");
+            }
+        }
         return promoted;
     }
 
@@ -857,6 +863,15 @@ public final class BossManager {
         RankSettings rs = settings().rank(boss.rank());
         FeatureSettings f = settings().features;
         boolean eligible = !settings().requirePlayerForRewards || killer != null;
+        // Quest Book: everyone who actually hurt it took down a boss
+        for (UUID fighter : boss.engaged().keySet()) {
+            if (boss.damageBy(fighter) > 0 && (killer == null || !fighter.equals(killer.getUniqueId()))) {
+                com.additionalbosses.util.QuestFlags.mark(fighter, "boss_kill");
+            }
+        }
+        if (killer != null && (e.getKiller() != null || boss.damageBy(killer.getUniqueId()) > 0)) {
+            com.additionalbosses.util.QuestFlags.mark(killer, "boss_kill");
+        }
 
         if (eligible) {
             event.setDroppedExp((int) Math.round(event.getDroppedExp() * rs.xpMultiplier()) + rs.xpBonus());
