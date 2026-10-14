@@ -12,13 +12,19 @@ import java.util.function.Consumer;
  */
 final class ConfigPatchV11 {
 
-    private record Patch(List<String> old, List<String> replacement, String before, String after) {
+    /** {@code fallback}: only tried when the patch before it couldn't be applied (and never reported). */
+    private record Patch(List<String> old, List<String> replacement, String before, String after, boolean fallback) {
     }
 
     private static final List<Patch> PATCHES = new ArrayList<>();
 
     private static void patch(String[] old, String[] replacement, String before, String after) {
-        PATCHES.add(new Patch(List.of(old), List.of(replacement), before, after));
+        PATCHES.add(new Patch(List.of(old), List.of(replacement), before, after, false));
+    }
+
+    /** If the whole block before couldn't be updated (the owner changed part of it), still update this one line. */
+    private static void fallback(String old, String replacement) {
+        PATCHES.add(new Patch(List.of(old), List.of(replacement), "", "", true));
     }
 
     static {
@@ -70,6 +76,17 @@ final class ConfigPatchV11 {
         patch(new String[]{"    weights: { GRAY: 40, GREEN: 30, RED: 18, PURPLE: 9, GOLD: 3 }", "    # Rideable mobs (skeleton/zombie horses, camel husks...) can't be bosses.", "    mobs: [BOGGED, BREEZE, CAVE_SPIDER, CREEPER, DROWNED, ENDERMAN, ENDERMITE, GUARDIAN, HUSK,", "           PARCHED, PHANTOM, PILLAGER, SILVERFISH, SLIME, SPIDER, STRAY, VINDICATOR, WITCH,", "           ZOMBIE_VILLAGER]", "", "  zombie-skeleton:", "    display-name: Zombie & Skeleton", "    description: The most basic mobs are strangely likely to be Legendary.", "    weights: { GRAY: 37, GREEN: 28, RED: 18, PURPLE: 9, GOLD: 8 }", "    mobs: [ZOMBIE, SKELETON]", "", "  nether:", "    display-name: Nether", "    weights: { GRAY: 15, GREEN: 35, RED: 30, PURPLE: 15, GOLD: 5 }", "    mobs: [BLAZE, GHAST, HOGLIN, MAGMA_CUBE, WITHER_SKELETON, ZOGLIN]", "", "  nether-crowd:", "    display-name: Nether Crowds", "    description: They spawn in huge numbers, so they roll lower.", "    spawn-chance-multiplier: 0.5", "    weights: { GRAY: 30, GREEN: 35, RED: 23, PURPLE: 10, GOLD: 2 }", "    mobs: [PIGLIN, ZOMBIFIED_PIGLIN]", "", "  dangerous:", "    display-name: Dangerous", "    # DEFAULT lets structure mobs (Elder Guardians, Piglin Brutes in bastions,", "    # mansion illagers) roll once, the first time their chunk loads.", "    spawn-reasons: [NATURAL, PATROL, RAID, DEFAULT]", "    weights: { GRAY: 5, GREEN: 20, RED: 35, PURPLE: 30, GOLD: 10 }"},
             new String[]{"    # Nightmare and Legendary bosses are ancient-debris rare in the wild", "    # (about 1 in 200 and 1 in 1000 bosses). Boss Totems and Souls are the", "    # way to bring on harder fights on purpose.", "    weights: { GRAY: 55, GREEN: 30, RED: 14.4, PURPLE: 0.5, GOLD: 0.1 }", "    # Used instead when one of these spawns in the Nether (Soul Sand Valley", "    # skeletons...): the Nether breeds tougher bosses.", "    nether-weights: { GRAY: 40, GREEN: 35, RED: 23.5, PURPLE: 1.2, GOLD: 0.3 }", "    # Rideable mobs (skeleton/zombie horses, camel husks...) can't be bosses.", "    mobs: [BOGGED, BREEZE, CAVE_SPIDER, CREEPER, DROWNED, ENDERMAN, ENDERMITE, GUARDIAN, HUSK,", "           PARCHED, PHANTOM, PILLAGER, SILVERFISH, SLIME, SPIDER, STRAY, VINDICATOR, WITCH,", "           ZOMBIE_VILLAGER, ZOMBIE, SKELETON]", "", "  nether:", "    display-name: Nether", "    weights: { GRAY: 40, GREEN: 35, RED: 23.5, PURPLE: 1.2, GOLD: 0.3 }", "    mobs: [GHAST, HOGLIN, MAGMA_CUBE, ZOGLIN]", "", "  nether-elite:", "    display-name: Nether Elite", "    description: Blazes, Wither Skeletons and Piglins breed the toughest bosses of the Nether.", "    weights: { GRAY: 35, GREEN: 37, RED: 25.5, PURPLE: 2.0, GOLD: 0.5 }", "    mobs: [BLAZE, WITHER_SKELETON, PIGLIN]", "", "  zombified-piglins:", "    display-name: Zombified Piglins", "    description: They spawn in huge numbers, so they roll lower.", "    spawn-chance-multiplier: 0.5", "    weights: { GRAY: 60, GREEN: 30, RED: 9.88, PURPLE: 0.1, GOLD: 0.02 }", "    mobs: [ZOMBIFIED_PIGLIN]", "", "  dangerous:", "    display-name: Dangerous", "    # DEFAULT lets structure mobs (Elder Guardians, Piglin Brutes in bastions,", "    # mansion illagers) roll once, the first time their chunk loads.", "    spawn-reasons: [NATURAL, PATROL, RAID, DEFAULT]", "    weights: { GRAY: 10, GREEN: 35, RED: 53.8, PURPLE: 1.0, GOLD: 0.2 }"},
             "    display-name: Common Overworld", "    mobs: [PIGLIN_BRUTE, ELDER_GUARDIAN, RAVAGER, EVOKER, ILLUSIONER]");
+        // the rank odds matter most: if the block above was changed, at least the untouched odds become rare
+        fallback("    weights: { GRAY: 40, GREEN: 30, RED: 18, PURPLE: 9, GOLD: 3 }",
+            "    weights: { GRAY: 55, GREEN: 30, RED: 14.4, PURPLE: 0.5, GOLD: 0.1 }");
+        fallback("    weights: { GRAY: 37, GREEN: 28, RED: 18, PURPLE: 9, GOLD: 8 }",
+            "    weights: { GRAY: 55, GREEN: 30, RED: 14.4, PURPLE: 0.5, GOLD: 0.1 }");
+        fallback("    weights: { GRAY: 15, GREEN: 35, RED: 30, PURPLE: 15, GOLD: 5 }",
+            "    weights: { GRAY: 35, GREEN: 37, RED: 25.5, PURPLE: 2.0, GOLD: 0.5 }");
+        fallback("    weights: { GRAY: 30, GREEN: 35, RED: 23, PURPLE: 10, GOLD: 2 }",
+            "    weights: { GRAY: 60, GREEN: 30, RED: 9.88, PURPLE: 0.1, GOLD: 0.02 }");
+        fallback("    weights: { GRAY: 5, GREEN: 20, RED: 35, PURPLE: 30, GOLD: 10 }",
+            "    weights: { GRAY: 10, GREEN: 35, RED: 53.8, PURPLE: 1.0, GOLD: 0.2 }");
         patch(new String[]{},
             new String[]{"  # Area attacks (Quaking's slam, Ascendant shockwaves...) never hit a", "  # player for more than this, however strong the boss.", "  area-damage-cap: 8"},
             "traits:", "  # Pairs that can never appear on the same boss.");
@@ -156,11 +173,27 @@ final class ConfigPatchV11 {
         int cursor = 0;
         int applied = 0;
         List<String> skipped = new ArrayList<>();
+        boolean lastSkipped = false;
+        int fallbackFrom = 0;
         for (Patch p : PATCHES) {
+            if (p.fallback()) {
+                if (!lastSkipped) {
+                    continue;
+                }
+                int at = find(lines, p.old(), fallbackFrom);
+                if (at >= 0) {
+                    lines.set(at, p.replacement().get(0));
+                    applied++;
+                }
+                continue;
+            }
+            fallbackFrom = cursor;
+            lastSkipped = false;
             if (!p.old().isEmpty()) {
                 int at = find(lines, p.old(), cursor);
                 if (at < 0) {
                     skipped.add(p.old().get(0).strip());
+                    lastSkipped = true;
                     continue;
                 }
                 for (int i = 0; i < p.old().size(); i++) {
@@ -180,6 +213,7 @@ final class ConfigPatchV11 {
             }
             if (at < 0) {
                 skipped.add(p.replacement().get(0).strip());
+                lastSkipped = true;
                 continue;
             }
             lines.addAll(at, p.replacement());

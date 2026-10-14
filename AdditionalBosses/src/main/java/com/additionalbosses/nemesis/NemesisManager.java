@@ -374,6 +374,10 @@ public final class NemesisManager {
         LivingEntity e = boss.entity();
         int now = Bukkit.getCurrentTick();
         Player current = r.focus == null ? owner : Bukkit.getPlayer(r.focus);
+        if (r.focus != null && current == null) {
+            current = owner; // the one it switched to logged off: back to its owner
+            r.focus = null;
+        }
         if (current != null && (!boss.fightable(current) || current.getLocation().distanceSquared(e.getLocation()) > 40 * 40)) {
             current = owner;
             r.focus = null;
@@ -548,6 +552,7 @@ public final class NemesisManager {
         r.traits = new ArrayList<>(boss.traitIds());
         r.baseTraitCount = r.traits.size();
         r.createdAt = clock();
+        r.wildRank = com.additionalbosses.boss.BossManager.wildRank(boss.entity(), boss.rank());
         r.name = NemesisNames.pick(r.type, takenNames());
         r.surrender = Surrender.pick(r.type);
         com.additionalbosses.trait.Synergies.Synergy synergy = com.additionalbosses.trait.Synergies.find(boss.traits());
@@ -562,6 +567,18 @@ public final class NemesisManager {
         absorbFight(r, boss, owner);
         records.put(id, r);
         return r;
+    }
+
+    /**
+     * The rank of Souls (and salvage) a Nemesis pays: its own, unless it was raised with Souls before it became a
+     * Nemesis; then the rank it was found at, so Souls spent never come back multiplied.
+     */
+    public BossRank soulRank(Boss boss) {
+        NemesisRecord r = get(boss.nemesisId());
+        if (r != null && r.wildRank != null && r.baseRank != null && r.wildRank.ordinal() < r.baseRank.ordinal()) {
+            return r.wildRank;
+        }
+        return boss.rank();
     }
 
     /** Remembers how the owner fought (melee or ranged) so the Nemesis can adapt. */
@@ -981,7 +998,6 @@ public final class NemesisManager {
     // Its Challenge: call it back now, or surrender
     // =====================================================================
 
-    private final Map<UUID, Set<String>> pendingChallenges = new java.util.HashMap<>();
     /** When a boss (or its minion) last hurt each player: a death it set up is never a surrender. */
     private final Map<UUID, Integer> lastBossHit = new java.util.HashMap<>();
 
@@ -989,38 +1005,42 @@ public final class NemesisManager {
         lastBossHit.put(p.getUniqueId(), Bukkit.getCurrentTick());
     }
 
-    /** It killed its owner: they wake up with its Challenge (unless they still carry one). */
+    /** It killed its owner: they wake up with its Challenge (unless they still carry it). Saved, so a restart keeps it. */
     private void challengeOnRespawn(UUID owner, NemesisRecord r) {
-        pendingChallenges.computeIfAbsent(owner, k -> new java.util.LinkedHashSet<>()).add(r.id);
+        r.challengePending = true;
+        save();
     }
 
     /** On respawn: hands over the Challenges it has earned. */
     public void giveChallenges(Player player) {
-        Set<String> ids = pendingChallenges.remove(player.getUniqueId());
-        if (ids == null) {
-            return;
-        }
-        for (String id : ids) {
-            NemesisRecord r = records.get(id);
-            if (r == null || carriesChallenge(player, id)) {
+        boolean changed = false;
+        for (NemesisRecord r : List.copyOf(records.values())) {
+            if (!r.challengePending || !r.owner.equals(player.getUniqueId())) {
                 continue;
             }
+            r.challengePending = false;
+            changed = true;
+            if (carriesChallenge(player, r)) {
+                continue; // they still have the current note
+            }
+            // a new copy: any older copy (left in a chest, dropped where it died) stops working
+            r.challengeSerial++;
             ItemStack note = createChallenge(r);
             for (ItemStack left : player.getInventory().addItem(note).values()) {
                 player.getWorld().dropItemNaturally(player.getLocation(), left);
             }
             plugin.presentation().tell(player, "nemesis-challenge-received", Placeholder.component("boss", displayName(r)));
         }
+        if (changed) {
+            save();
+        }
     }
 
-    public void forgetChallenges(UUID player) {
-        pendingChallenges.remove(player);
-    }
-
-    private static boolean carriesChallenge(Player p, String id) {
+    /** Whether they carry the current copy of this Nemesis's note (inventory or ender chest). */
+    private static boolean carriesChallenge(Player p, NemesisRecord r) {
         for (ItemStack[] contents : List.of(p.getInventory().getContents(), p.getEnderChest().getContents())) {
             for (ItemStack item : contents) {
-                if (id.equals(challengeId(item))) {
+                if (r.id.equals(challengeId(item)) && challengeSerial(item) == r.challengeSerial) {
                     return true;
                 }
             }
@@ -1033,6 +1053,18 @@ public final class NemesisManager {
             : item.getPersistentDataContainer().get(Keys.CHALLENGE, PersistentDataType.STRING);
     }
 
+    private static int challengeSerial(@Nullable ItemStack item) {
+        return item == null || item.isEmpty() ? -1
+            : item.getPersistentDataContainer().getOrDefault(Keys.CHALLENGE_SERIAL, PersistentDataType.INTEGER, 0);
+    }
+
+    /** The note belongs to a Nemesis that still exists, and it's the current copy. */
+    private @Nullable NemesisRecord liveChallenge(@Nullable ItemStack item) {
+        String id = challengeId(item);
+        NemesisRecord r = id == null ? null : records.get(id);
+        return r != null && challengeSerial(item) == r.challengeSerial ? r : null;
+    }
+
     /** The note: its name, how to call it, and its Terms of Surrender. */
     public ItemStack createChallenge(NemesisRecord r) {
         ItemStack item = ItemStack.of(org.bukkit.Material.PAPER);
@@ -1042,8 +1074,9 @@ public final class NemesisManager {
         item.setData(io.papermc.paper.datacomponent.DataComponentTypes.MAX_STACK_SIZE, 1);
         List<Component> lore = new ArrayList<>();
         lore.add(line(r.name + " the " + r.epithet, NamedTextColor.GRAY));
-        lore.add(line("Right-click: call it to you now,", NamedTextColor.GRAY));
-        lore.add(line("instead of waiting for it.", NamedTextColor.GRAY));
+        lore.add(line("Right-click (or use it on the ground):", NamedTextColor.GRAY));
+        lore.add(line("call it to you now, instead of", NamedTextColor.GRAY));
+        lore.add(line("waiting for it.", NamedTextColor.GRAY));
         lore.add(Component.empty());
         lore.add(line("Terms of Surrender:", NamedTextColor.DARK_RED));
         for (String part : Text.wrap("\"" + r.surrender.words() + "\"", 34)) {
@@ -1054,6 +1087,7 @@ public final class NemesisManager {
         item.lore(lore);
         item.editPersistentDataContainer(pdc -> {
             pdc.set(Keys.CHALLENGE, PersistentDataType.STRING, r.id);
+            pdc.set(Keys.CHALLENGE_SERIAL, PersistentDataType.INTEGER, r.challengeSerial);
             pdc.set(Keys.ITEM_KIND, PersistentDataType.STRING, com.additionalbosses.item.ItemService.Kind.CHALLENGE.name());
         });
         return item;
@@ -1066,9 +1100,9 @@ public final class NemesisManager {
     /** Right-click with a Challenge: the Nemesis comes now (20-30 blocks away). The note is used up only if it came. */
     public void useChallenge(Player player, ItemStack item, org.bukkit.inventory.EquipmentSlot hand) {
         String id = challengeId(item);
-        NemesisRecord r = id == null ? null : records.get(id);
+        NemesisRecord r = liveChallenge(item);
         if (r == null) {
-            player.getInventory().setItem(hand, null);
+            player.getInventory().setItem(hand, null); // the feud is over, or a newer copy replaced this one
             plugin.presentation().tell(player, "nemesis-challenge-gone");
             return;
         }
@@ -1093,7 +1127,7 @@ public final class NemesisManager {
             return;
         }
         ItemStack held = player.getInventory().getItem(hand);
-        if (id.equals(challengeId(held))) {
+        if (id != null && id.equals(challengeId(held))) {
             held.setAmount(held.getAmount() - 1);
             player.getInventory().setItem(hand, held.getAmount() <= 0 ? null : held);
         }
@@ -1109,10 +1143,15 @@ public final class NemesisManager {
         if (hit != null && Bukkit.getCurrentTick() - hit < 200) {
             return; // a boss had a hand in this (knocked off a ledge, set on fire...)
         }
+        for (Boss b : plugin.bosses().active()) {
+            if (b.engaged().containsKey(p.getUniqueId())) {
+                return; // mid-fight with a boss (blinded, pulled, knocked about): not a surrender
+            }
+        }
         Set<String> ended = new HashSet<>();
         for (ItemStack item : p.getInventory().getContents()) {
-            String id = challengeId(item);
-            NemesisRecord r = id == null ? null : records.get(id);
+            NemesisRecord r = liveChallenge(item);
+            String id = r == null ? null : r.id;
             if (r != null && !ended.contains(id) && r.owner.equals(p.getUniqueId()) && r.surrender.matches(event, r.type)) {
                 ended.add(id);
                 Boss active = activeBoss(r);

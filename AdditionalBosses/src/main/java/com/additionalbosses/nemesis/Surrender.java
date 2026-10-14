@@ -37,6 +37,28 @@ public enum Surrender {
     SUFFOCATION("Bury yourself where even the air cannot follow.", "suffocate in blocks", Set.of()),
     COMMON_MOB("Let any common beast strike the final blow.", "be killed by an ordinary monster", Set.of());
 
+    /** Not "common beasts": bosses of their own, and what the spec rules out (pillagers...). */
+    private static final Set<String> NOT_COMMON = Set.of("WARDEN", "WITHER", "ENDER_DRAGON", "ELDER_GUARDIAN",
+        "RAVAGER", "EVOKER", "VINDICATOR", "PILLAGER", "ILLUSIONER", "PIGLIN_BRUTE", "VEX", "BREEZE", "CREAKING");
+
+    /** Families: a Husk Nemesis counts zombies as its own kind, and so on. */
+    private static final List<Set<String>> FAMILIES = List.of(
+        Set.of("ZOMBIE", "HUSK", "ZOMBIE_VILLAGER", "DROWNED", "ZOMBIFIED_PIGLIN"),
+        Set.of("SKELETON", "STRAY", "BOGGED", "PARCHED", "WITHER_SKELETON"),
+        Set.of("SPIDER", "CAVE_SPIDER"));
+
+    private static boolean sameKind(EntityType a, EntityType b) {
+        if (a == b) {
+            return true;
+        }
+        for (Set<String> family : FAMILIES) {
+            if (family.contains(a.name()) && family.contains(b.name())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private final String words;
     private final String plain;
     private final Set<String> mobs;
@@ -61,7 +83,12 @@ public enum Surrender {
     public static Surrender pick(EntityType nemesisType) {
         List<Surrender> options = new ArrayList<>();
         for (Surrender s : values()) {
-            if (!s.mobs.contains(nemesisType.name())) {
+            boolean ownKind = false;
+            for (String mob : s.mobs) {
+                EntityType type = EntityType.fromName(mob.toLowerCase(Locale.ROOT));
+                ownKind |= type != null && sameKind(type, nemesisType);
+            }
+            if (!ownKind) {
                 options.add(s);
             }
         }
@@ -87,7 +114,7 @@ public enum Surrender {
         Player p = event.getEntity();
         Entity killer = event.getDamageSource().getCausingEntity();
         if (killer != null && (BossManager.isBoss(killer) || BossManager.isMinion(killer) || BossManager.isPet(killer)
-            || killer.getType() == nemesisType)) {
+            || sameKind(killer.getType(), nemesisType))) {
             return false;
         }
         EntityDamageEvent last = p.getLastDamageCause();
@@ -100,7 +127,8 @@ public enum Surrender {
             case SUFFOCATION -> cause == EntityDamageEvent.DamageCause.SUFFOCATION;
             case CACTUS -> cause == EntityDamageEvent.DamageCause.CONTACT && last instanceof EntityDamageByBlockEvent byBlock
                 && byBlock.getDamagerBlockState() != null && byBlock.getDamagerBlockState().getType() == Material.CACTUS;
-            case COMMON_MOB -> killer instanceof Enemy && !(killer instanceof Player);
+            case COMMON_MOB -> killer instanceof Enemy && !(killer instanceof Player)
+                && !NOT_COMMON.contains(killer.getType().name());
             default -> killer != null && mobs.contains(killer.getType().name());
         };
     }

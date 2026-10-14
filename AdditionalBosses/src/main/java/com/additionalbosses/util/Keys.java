@@ -29,6 +29,7 @@ public final class Keys {
     public static NamespacedKey BOSS_PLAYER_KILLS; // int, players this boss has killed
     public static NamespacedKey BOSS_WILD_RANK;  // string, rank a promoted boss had before its first Soul
     public static NamespacedKey CHALLENGE;       // string, Nemesis id, on a Nemesis Challenge note
+    public static NamespacedKey CHALLENGE_SERIAL; // int, which copy of the note this is (older copies are void)
     public static NamespacedKey BOSS_PHASE;      // int, Ascendant phases already passed
     public static NamespacedKey STATUE_ITEM;     // string, base64 of the exact item a placed statue/trophy came from
     public static NamespacedKey WAYSTONE;        // string, waystone id (on waystone items)
@@ -42,6 +43,7 @@ public final class Keys {
     public static NamespacedKey ITEM_RANK;       // string (BossRank name)
     public static NamespacedKey GEAR_SOURCE;     // string, plain name of the boss that dropped it
     public static NamespacedKey GEAR_QUALITY;    // string, GearQuality name
+    public static NamespacedKey GEAR_SALVAGE;    // string, rank of Soul it salvages into ("NONE": none)
     public static NamespacedKey RUNE_STAT;       // string, empowerment stat id
     public static NamespacedKey RUNE_AMOUNT;     // double
     public static NamespacedKey RELIC_ID;        // string, relic effect id (on a relic item)
@@ -98,6 +100,7 @@ public final class Keys {
         BOSS_PLAYER_KILLS = new NamespacedKey(plugin, "boss_player_kills");
         BOSS_WILD_RANK = new NamespacedKey(plugin, "boss_wild_rank");
         CHALLENGE = new NamespacedKey(plugin, "nemesis_challenge");
+        CHALLENGE_SERIAL = new NamespacedKey(plugin, "nemesis_challenge_serial");
         BOSS_PHASE = new NamespacedKey(plugin, "boss_phase");
         STATUE_ITEM = new NamespacedKey(plugin, "statue_item");
         WAYSTONE = new NamespacedKey(plugin, "waystone");
@@ -116,6 +119,7 @@ public final class Keys {
         ITEM_RANK = new NamespacedKey(plugin, "item_rank");
         GEAR_SOURCE = new NamespacedKey(plugin, "gear_source");
         GEAR_QUALITY = new NamespacedKey(plugin, "gear_quality");
+        GEAR_SALVAGE = new NamespacedKey(plugin, "gear_salvage");
         RUNE_STAT = new NamespacedKey(plugin, "rune_stat");
         RUNE_AMOUNT = new NamespacedKey(plugin, "rune_amount");
         RELIC_ID = new NamespacedKey(plugin, "relic_id");

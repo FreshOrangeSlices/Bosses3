@@ -21,6 +21,12 @@ public final class NemesisRecord {
     public String ownerName;
     public EntityType type;
     public BossRank baseRank;
+    /** The current Challenge note's number: only that copy works (a stashed older copy is void). */
+    public int challengeSerial;
+    /** It killed its owner and they haven't been handed its Challenge yet (they respawn with it). */
+    public boolean challengePending;
+    /** The rank it was found at in the wild, before anyone raised it with Souls (null: unknown, older record). */
+    public @org.jetbrains.annotations.Nullable BossRank wildRank;
     public BossRank rank;
     public int baseTraitCount;
     public List<String> traits = new ArrayList<>();
@@ -114,6 +120,11 @@ public final class NemesisRecord {
         s.set("size", size);
         s.set("hand", hand);
         s.set("gear-floor", gearFloor);
+        s.set("challenge-serial", challengeSerial);
+        s.set("challenge-pending", challengePending);
+        if (wildRank != null) {
+            s.set("wild-rank", wildRank.name());
+        }
         s.set("surrender", surrender.name());
         java.util.Map<String, Object> adapt = new java.util.LinkedHashMap<>();
         adapted.forEach((k, v) -> adapt.put(k.name(), v));
@@ -148,6 +159,9 @@ public final class NemesisRecord {
             r.size = s.getInt("size", -1);
             r.hand = s.getString("hand", "");
             r.gearFloor = s.getInt("gear-floor", 0);
+            r.challengeSerial = s.getInt("challenge-serial", 0);
+            r.challengePending = s.getBoolean("challenge-pending", false);
+            r.wildRank = BossRank.parse(s.getString("wild-rank"));
             Surrender surrender = Surrender.parse(s.getString("surrender"));
             r.surrender = surrender != null ? surrender : Surrender.pick(type);
             r.surrenderPicked = surrender == null;

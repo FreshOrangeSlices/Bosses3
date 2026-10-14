@@ -200,7 +200,7 @@ public final class BossManager {
     }
 
     /** The rank a promoted boss had before anyone offered it a Soul (its own rank if it was never promoted). */
-    private static BossRank wildRank(LivingEntity e, BossRank now) {
+    public static BossRank wildRank(LivingEntity e, BossRank now) {
         BossRank wild = BossRank.parse(e.getPersistentDataContainer().get(Keys.BOSS_WILD_RANK, PersistentDataType.STRING));
         return wild != null && !wild.atLeast(now) ? wild : now;
     }
@@ -667,9 +667,13 @@ public final class BossManager {
             return;
         }
         boolean first = !boss.engaged().containsKey(player.getUniqueId());
-        boss.engage(player, Bukkit.getCurrentTick());
-        if (first) {
+        int now = Bukkit.getCurrentTick();
+        boss.engage(player, now);
+        if (first || boss.ready("threat", now)) {
+            boss.cooldown("threat", now, 100); // re-counted every few seconds: gear put on mid-fight counts too
             applyThreat(boss);
+        }
+        if (first) {
             // Once a fight has started, ranks marked persistent stop despawning, so a boss never vanishes
             // just because the player stepped back to heal. Bosses nobody has fought still despawn normally.
             if (settings().rank(boss.rank()).persistent()) {
@@ -696,7 +700,7 @@ public final class BossManager {
     private void applyThreat(Boss boss) {
         FeatureSettings f = settings().features;
         LivingEntity e = boss.entity();
-        if (!f.threatEnabled || e.getPersistentDataContainer().has(Keys.BOSS_THREAT, PersistentDataType.DOUBLE)) {
+        if (!f.threatEnabled) {
             return;
         }
         double best = 0;
@@ -704,6 +708,12 @@ public final class BossManager {
             best = Math.max(best, bossGearInUse(p));
         }
         double threat = Math.max(0, Math.min(1, best / f.threatFullPieces));
+        double old = threat(e);
+        // it only ever goes up during a fight (taking gear off after the first hit doesn't calm it down)
+        if (e.getPersistentDataContainer().has(Keys.BOSS_THREAT, PersistentDataType.DOUBLE) && threat <= old + 0.01) {
+            return;
+        }
+        threat = Math.max(threat, old);
         e.getPersistentDataContainer().set(Keys.BOSS_THREAT, PersistentDataType.DOUBLE, threat);
         if (threat <= 0.01) {
             return;
@@ -712,7 +722,7 @@ public final class BossManager {
         setModifier(e, Attribute.MAX_HEALTH, Keys.MOD_THREAT, threat * f.threatMaxHealth / 100.0,
             AttributeModifier.Operation.MULTIPLY_SCALAR_1);
         e.setHealth(Math.max(1, boss.maxHealth() * ratio));
-        boss.scaleDamage(1.0 + threat * f.threatMaxDamage / 100.0);
+        boss.scaleDamage((1.0 + threat * f.threatMaxDamage / 100.0) / (1.0 + old * f.threatMaxDamage / 100.0));
         plugin.bossBars().updateHealth(boss, e.getHealth());
     }
 
@@ -849,6 +859,8 @@ public final class BossManager {
                 rewards.addAll(plugin.rewards().roll(boss, killer));
                 plugin.presentation().tell(killer, "revenge");
             }
+            // (worked out before onSlain, which ends the Nemesis's record)
+            BossRank wild = boss.isNemesis() ? plugin.nemesis().soulRank(boss) : wildRank(e, boss.rank());
             if (boss.isNemesis()) {
                 plugin.nemesis().onSlain(boss, killer, event, rewards);
             }
@@ -859,7 +871,6 @@ public final class BossManager {
             boolean totemOk = boss.isNemesis() ? !"challenge".equals(created) : created == null;
             // A wild boss raised with Souls pays Souls and Totems for the rank it was found at, so spending
             // Souls never makes more of them.
-            BossRank wild = boss.isNemesis() ? boss.rank() : wildRank(e, boss.rank());
             if (f.soulsEnabled && soulsOk && (boss.isNemesis() || Rng.chance(f.soulChance.getOrDefault(wild, 0.0)))) {
                 int[] count = f.soulCount.getOrDefault(wild, new int[]{1, 1});
                 rewards.add(plugin.items().createSoul(wild, Rng.between(count[0], count[1])));
@@ -880,6 +891,11 @@ public final class BossManager {
                     called = called.up(1);
                 }
                 rewards.add(plugin.items().createTotem(called));
+            }
+            // Boss Gear salvages (Hunter's Compass) into the same Soul this boss could drop, and summoned bosses'
+            // gear into none, so salvaging can't get around the rules above either.
+            for (ItemStack item : rewards) {
+                plugin.items().setSalvageRank(item, soulsOk ? wild : null);
             }
             dropRewards(boss, rewards);
             if (killer != null) {

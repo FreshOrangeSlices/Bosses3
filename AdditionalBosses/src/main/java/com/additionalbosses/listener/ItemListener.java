@@ -91,13 +91,19 @@ public final class ItemListener implements Listener {
             player.sendMessage(plugin.settings().messages.prefixed("apply-creative"));
             return;
         }
+        com.additionalbosses.boss.BossRank soulRank = items.salvageRank(gear);
+        if (soulRank == null) {
+            Fx.actionBar(player, Component.text("This gear came from a summoned boss: there's no soul in it to draw out.",
+                net.kyori.adventure.text.format.NamedTextColor.GRAY));
+            return;
+        }
         Component confirm = items.salvagePrompt(player, gear, "slot" + event.getRawSlot());
         if (confirm != null) {
             Fx.actionBar(player, confirm);
             Fx.play(player.getLocation(), "block.note_block.pling", 0.8f, 1.2f);
             return;
         }
-        ItemStack soul = items.createSoul(items.gearRank(gear), 1);
+        ItemStack soul = items.createSoul(soulRank, 1);
         Component name = gear.effectiveName();
         player.setItemOnCursor(soul);
         Fx.actionBar(player, plugin.settings().messages.get("salvaged", Placeholder.component("item", name)));

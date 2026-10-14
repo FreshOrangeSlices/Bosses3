@@ -43,8 +43,11 @@ public final class CombatListener implements Listener {
         LivingEntity attacker = ctx.attacker();
         Boss attackerBoss = attacker == null || attacker == victim ? null : plugin.bosses().get(attacker);
         Boss victimBoss = plugin.bosses().get(victim);
+        // An area attack (Quaking's slam, an Ascendant shockwave) deals its own fixed amount: no rank multiplier,
+        // no minimum hit and no on-hit traits, then the cap, so it's dangerous but never instant.
+        boolean area = com.additionalbosses.combat.AreaDamage.active() && victim instanceof Player && attackerBoss != null;
 
-        if (attackerBoss != null && !ctx.secondary()) {
+        if (attackerBoss != null && !ctx.secondary() && !area) {
             ctx.multiply(attackerBoss.damageMultiplier());
             if (ctx.melee()) {
                 ctx.floor(plugin.settings().rank(attackerBoss.rank()).stats().minDamage());
@@ -73,15 +76,14 @@ public final class CombatListener implements Listener {
             plugin.nemesis().onHitPet(attackerBoss, ctx);
         }
 
-        boolean area = com.additionalbosses.combat.AreaDamage.active() && victim instanceof Player;
         if (ctx.cancelled()) {
             event.setCancelled(true);
         } else if (ctx.changed() || area || overflow < 1.0) {
-            double damage = (ctx.changed() ? ctx.apply(event.getDamage()) : event.getDamage()) * overflow;
+            double damage = ctx.changed() ? ctx.apply(event.getDamage()) : event.getDamage();
             if (area) {
                 damage = Math.min(damage, plugin.settings().areaDamageCap); // area attacks: dangerous, never instant
             }
-            event.setDamage(damage);
+            event.setDamage(damage * overflow); // overflow armor last, so it helps against capped hits too
         }
     }
 
@@ -118,7 +120,7 @@ public final class CombatListener implements Listener {
             if (victim instanceof Player player) {
                 plugin.bosses().engage(attackerBoss, player);
             }
-            if (!ctx.secondary()) {
+            if (!ctx.secondary() && !com.additionalbosses.combat.AreaDamage.active()) {
                 for (BossTrait trait : attackerBoss.traits()) {
                     trait.afterAttack(attackerBoss, victim, finalDamage, ctx);
                 }
