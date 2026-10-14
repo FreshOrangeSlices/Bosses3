@@ -30,6 +30,8 @@ final class PlayerStore {
         boolean welcomeClaimed;
         boolean bookGiven;
         boolean dirty;
+        /** Their file couldn't be read: nothing can be claimed (or given) until an admin looks at it. */
+        boolean locked;
     }
 
     private final QuestBook plugin;
@@ -59,10 +61,10 @@ final class PlayerStore {
                 s.welcomeClaimed = yml.getBoolean("welcome-claimed");
                 s.bookGiven = yml.getBoolean("book-given");
             } catch (IOException | InvalidConfigurationException ex) {
-                File broken = new File(folder, id + ".yml.broken-" + System.currentTimeMillis());
-                boolean kept = file.renameTo(broken);
-                plugin.getLogger().log(Level.SEVERE, "Couldn't read the quests of " + id
-                    + (kept ? "; the file was kept as " + broken.getName() : ""), ex);
+                // not a new player: until someone fixes the file, nothing is claimed twice or overwritten
+                s.locked = true;
+                plugin.getLogger().log(Level.SEVERE, "Couldn't read the quests of " + id + " (" + file.getName()
+                    + "). Their rewards are on hold until the file is fixed (or deleted to start over).", ex);
             }
         }
         return s;
@@ -70,7 +72,7 @@ final class PlayerStore {
 
     void save(UUID id) {
         State s = states.get(id);
-        if (s == null || !s.dirty) {
+        if (s == null || !s.dirty || s.locked) {
             return;
         }
         YamlConfiguration yml = new YamlConfiguration();
@@ -99,7 +101,10 @@ final class PlayerStore {
 
     void unload(UUID id) {
         save(id);
-        states.remove(id);
+        State s = states.get(id);
+        if (s != null && (!s.dirty || s.locked)) {
+            states.remove(id); // (if saving failed it stays loaded, and is tried again later)
+        }
     }
 
     void saveAll() {

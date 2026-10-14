@@ -863,11 +863,13 @@ public final class BossManager {
         RankSettings rs = settings().rank(boss.rank());
         FeatureSettings f = settings().features;
         boolean eligible = !settings().requirePlayerForRewards || killer != null;
-        // Quest Book: everyone who fought it took down a boss
+        // Quest Book: everyone who actually hurt it took down a boss
         for (UUID fighter : boss.engaged().keySet()) {
-            com.additionalbosses.util.QuestFlags.mark(fighter, "boss_kill");
+            if (boss.damageBy(fighter) > 0 && (killer == null || !fighter.equals(killer.getUniqueId()))) {
+                com.additionalbosses.util.QuestFlags.mark(fighter, "boss_kill");
+            }
         }
-        if (killer != null && !boss.engaged().containsKey(killer.getUniqueId())) {
+        if (killer != null && (e.getKiller() != null || boss.damageBy(killer.getUniqueId()) > 0)) {
             com.additionalbosses.util.QuestFlags.mark(killer, "boss_kill");
         }
 

@@ -612,6 +612,10 @@ public final class BossesCommand implements BasicCommand {
                     curse = plugin.relics().rollCurse();
                 }
                 item = items.createRelic(effect, curse);
+                if (args.length >= 6 && args[5].equalsIgnoreCase("starter")) {
+                    // a gift (the Quest Book's welcome): binding it counts, but it isn't a relic "found"
+                    item.editPersistentDataContainer(pdc -> pdc.set(Keys.RELIC_STARTER, org.bukkit.persistence.PersistentDataType.BYTE, (byte) 1));
+                }
             }
             case "catalyst" -> {
                 int amount = 1;

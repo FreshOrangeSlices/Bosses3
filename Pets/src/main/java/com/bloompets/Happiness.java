@@ -144,7 +144,7 @@ public final class Happiness {
         if (pet.stashedAt > 0 && now > pet.stashedAt) {
             boolean wasTired = s().happiness && pet.tiredMillis >= s().tiredAfter;
             pet.tiredMillis = tiredMillis(pet, now);
-            if (wasTired && pet.tiredMillis < s().tiredAfter) {
+            if (wasTired && pet.tiredMillis == 0) {
                 QuestFlags.mark(pet.owner, "pet_rested"); // a tired pet rested until it was fresh again
             }
             pet.happiness = Math.min(100, Math.max(pet.happiness, current(pet, now)));

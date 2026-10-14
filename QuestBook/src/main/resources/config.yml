@@ -19,7 +19,7 @@ welcome:
     - {item: POTATO, amount: 5}
     - {item: CARROT, amount: 5}
     # a Relic with a random good effect and a random curse (a surprise when it's bound)
-    - {command: "bosses give %player% relic random random", slots: 1, label: "<light_purple>A mysterious Relic",
+    - {command: "bosses give %player% relic random random starter", slots: 1, label: "<light_purple>A mysterious Relic",
        requires: [plugin:AdditionalBosses]}
 
 # The guide books, right on the first page. Clicking one shows the book on

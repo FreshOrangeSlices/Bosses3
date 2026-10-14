@@ -63,7 +63,7 @@ boards:
         icon: HEART_OF_THE_SEA
         slot: 5
         objective: "Find your first Relic."
-        triggers: ["item:additionalbosses:item_kind=RELIC", flag:relic_bound, "item:additionalbosses:relics"]
+        triggers: [flag:relic_found]   # (the Welcome Gift's relic doesn't count: it was given, not found)
         rewards:
           - {item: COOKED_BEEF, amount: 8}
         insight: "Relics change how your gear behaves."
@@ -81,7 +81,7 @@ boards:
         icon: ECHO_SHARD
         slot: 18
         objective: "Get your first Boss Soul."
-        triggers: ["item:additionalbosses:item_kind=SOUL", flag:soul_promote]
+        triggers: [flag:soul_found, "item:additionalbosses:item_kind=SOUL", flag:soul_promote]
         rewards:
           - {item: GOLDEN_CARROT, amount: 8}
         insight: "Boss Souls raise a boss's rank: a way to pick harder fights on purpose."
@@ -241,7 +241,6 @@ boards:
         icon: IRON_SWORD
         slot: 26
         objective: "Have a combat pet land a hit in a fight."
-        requires: [mcmmo]
         triggers: [flag:pet_combat_xp]
         rewards:
           - {item: WARPED_FUNGUS, amount: 4}
@@ -290,7 +289,7 @@ boards:
         icon: IRON_SHOVEL
         milestones:
           - "Giga Drill Breaker: ready your shovel (right-click) and dig: instant breaks, triple treasure."
-          - "Archaeology: digging turns up treasures and XP; better finds keep unlocking."
+          - "Better treasures keep unlocking as you dig. Archaeology (XP from digs) ranks up at 250."
           - "Rarer treasures are in reach now: keep digging dirt, sand and gravel."
       woodcutting:
         name: "Woodcutting"
@@ -311,7 +310,7 @@ boards:
         icon: FISHING_ROD
         milestones:
           - "Ice Fishing: cast through ice. Treasure Hunter: the odd catch is treasure instead of fish."
-          - "Treasure gets better: enchanted books, gear and rarer loot show up."
+          - "Treasure gets a little more likely every level. Next up: Shake (150) and Magic Hunter (200)."
           - "Shake: hook a mob to shake loot off it. Magic Hunter: treasure comes enchanted. Bites come faster."
 
   combat-skills:
@@ -343,7 +342,7 @@ boards:
         name: "Archery"
         icon: BOW
         milestones:
-          - "Skill Shot adds bonus damage, and Arrow Retrieval gets arrows back from mobs you kill."
+          - "Skill Shot: your arrows hit harder every level. Arrow Retrieval gets arrows back from kills."
           - "Limit Break: your arrows do more against tough foes."
           - "Skill Shot keeps climbing: arrows hit far harder now than when you started."
       unarmed:
@@ -377,29 +376,29 @@ boards:
         icon: IRON_BLOCK
         milestones:
           - "Right-click an iron block holding damaged gear to repair it with its material: better than an anvil."
-          - "Repair Mastery: each repair restores more durability."
+          - "Repair Mastery keeps growing: each repair restores more. Arcane Forging unlocks at 100."
           - "Arcane Forging: your enchantments can survive the repair."
       salvage:
         name: "Salvage"
         icon: GOLD_BLOCK
         milestones:
           - "Right-click a gold block holding gear to break it back into its materials."
-          - "Scrap Collector: salvaging gives back more materials."
-          - "Arcane Salvage: salvaged gear can give you its enchantments as books."
+          - "Salvaging gives back a bit more as you level. Arcane Salvage unlocks at 100."
+          - "Arcane Salvage: salvaged gear can give its enchantments back as books. Scrap Collector gives more materials."
       smelting:
         name: "Smelting"
         icon: FURNACE
         milestones:
           - "Second Smelt: furnaces you use sometimes give a double result."
-          - "More XP from smelting, and double results come more often."
+          - "Double results come more often every level. Understanding the Art unlocks at 100."
           - "Fuel Efficiency: fuel burns longer. Understanding the Art: more vanilla XP from smelting."
       alchemy:
         name: "Alchemy"
         icon: BREWING_STAND
         milestones:
           - "Catalysis: your brewing stands brew faster the higher your level."
-          - "Concoctions: mcMMO adds extra potion ingredients. See /alchemy for the list."
-          - "Concoctions II: new ingredients unlock stronger potions."
+          - "Catalysis keeps speeding up your brewing. At 100, new Concoctions ingredients unlock."
+          - "Concoctions II: mcMMO's extra potion ingredients unlock stronger potions. See /alchemy."
       acrobatics:
         name: "Acrobatics"
         icon: FEATHER

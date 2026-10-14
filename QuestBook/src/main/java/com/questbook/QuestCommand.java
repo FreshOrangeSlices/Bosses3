@@ -49,7 +49,12 @@ final class QuestCommand implements BasicCommand {
                     sender.sendMessage(Component.text("Usage: /quests flag <online player> <flag>", NamedTextColor.RED));
                     return;
                 }
-                QuestFlags.mark(target, args[2]);
+                try {
+                    QuestFlags.mark(target, args[2]);
+                } catch (IllegalArgumentException ex) {
+                    sender.sendMessage(Component.text("Flag names are letters, numbers, _ and -.", NamedTextColor.RED));
+                    return;
+                }
                 sender.sendMessage(Component.text("Marked " + args[2] + " for " + target.getName() + ".", NamedTextColor.GREEN));
             }
             case "reset" -> {

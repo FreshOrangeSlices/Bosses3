@@ -190,5 +190,5 @@ Everything lives in PersistentDataContainers, so it survives restarts and chunk 
 
 ## QuestBook
 
-With the QuestBook plugin installed, Additional Bosses marks what players do (`questbook:` flags on the player) so the Quest Book's boss quests complete: `boss_kill`, `relic_bound`, `soul_promote`, `ascendant_created`, `totem_used`, `nemesis_created`, `nemesis_adapted`, `challenge_received` and `nemesis_slain`. Kills, bound relics and Nemeses from before it was installed count too. Without QuestBook these flags do nothing.
+With the QuestBook plugin installed, Additional Bosses marks what players do (`questbook:` flags on the player) so the Quest Book's boss quests complete: `boss_kill` (everyone who hurt it), `boss_gear`, `relic_found` (not a gift relic), `relic_bound`, `soul_found`, `soul_promote`, `ascendant_created`, `totem_used`, `nemesis_created`, `nemesis_adapted`, `challenge_received` and `nemesis_slain`. Kills, bound relics, Nemeses and items carried from before it was installed count too. `/bosses give <player> relic random random starter` makes a gift relic (the Quest Book's welcome) that counts when bound but not as "found". Without QuestBook these flags do nothing.
 

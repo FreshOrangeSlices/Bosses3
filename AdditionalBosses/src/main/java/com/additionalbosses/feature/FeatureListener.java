@@ -102,6 +102,33 @@ public final class FeatureListener implements Listener {
         convertTrophies(event.getPlayer().getEnderChest());
     }
 
+    /** Quest Book: picking up Boss Gear, a Relic (not a gift) or a Soul for the first time. */
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onPickUpForQuests(org.bukkit.event.entity.EntityPickupItemEvent event) {
+        if (event.getEntity() instanceof Player player) {
+            questFlagFor(player, event.getItem().getItemStack());
+        }
+    }
+
+    /** The Quest Book flag for having this item (Boss Gear, a found Relic, a Soul), if any. */
+    public void questFlagFor(Player player, @org.jetbrains.annotations.Nullable ItemStack item) {
+        ItemService.Kind kind = items().kind(item);
+        if (kind == null || item == null) {
+            return;
+        }
+        switch (kind) {
+            case GEAR -> com.additionalbosses.util.QuestFlags.markOnce(player, "boss_gear");
+            case RELIC -> {
+                if (!item.getPersistentDataContainer().has(Keys.RELIC_STARTER)) {
+                    com.additionalbosses.util.QuestFlags.markOnce(player, "relic_found");
+                }
+            }
+            case SOUL -> com.additionalbosses.util.QuestFlags.markOnce(player, "soul_found");
+            default -> {
+            }
+        }
+    }
+
     /** Picking up an old trophy: it turns into a Boss Soul once it's in the inventory. */
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onPickUpOldTrophy(org.bukkit.event.entity.EntityPickupItemEvent event) {

@@ -175,6 +175,14 @@ public final class QuestService {
 
     /** Checks every quest, so what a player has done gets noticed (on join, after picking things up...). */
     public void refresh(Player p) {
+        check(p);
+        PlayerStore.State s = plugin.store().get(p.getUniqueId());
+        if (s.dirty) {
+            plugin.store().save(p.getUniqueId()); // something got done: keep it, even through a crash
+        }
+    }
+
+    private void check(Player p) {
         for (Board b : plugin.quests().boards()) {
             if (!visible(b)) {
                 continue;
@@ -268,7 +276,7 @@ public final class QuestService {
 
     /** Claims a ready quest's reward. Refused (with a message) if the bag hasn't room for all of it. */
     public boolean claim(Player p, Quest q) {
-        if (status(p, q) != Status.READY) {
+        if (status(p, q) != Status.READY || locked(p)) {
             return false;
         }
         if (!give(p, q.rewards())) {
@@ -284,7 +292,7 @@ public final class QuestService {
 
     public boolean claimWelcome(Player p) {
         PlayerStore.State s = plugin.store().get(p.getUniqueId());
-        if (s.welcomeClaimed || !give(p, plugin.quests().welcome())) {
+        if (s.welcomeClaimed || locked(p) || !give(p, plugin.quests().welcome())) {
             return false;
         }
         s.welcomeClaimed = true;
@@ -292,6 +300,14 @@ public final class QuestService {
         plugin.store().save(p.getUniqueId());
         p.playSound(p.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 0.6f, 1.2f);
         return true;
+    }
+
+    private boolean locked(Player p) {
+        if (plugin.store().get(p.getUniqueId()).locked) {
+            Msg.error(p, "Your Quest Book's records couldn't be read. Ask an admin to take a look.");
+            return true;
+        }
+        return false;
     }
 
     private boolean give(Player p, List<Reward> rewards) {

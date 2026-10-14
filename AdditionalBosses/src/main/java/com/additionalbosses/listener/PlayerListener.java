@@ -40,6 +40,18 @@ public final class PlayerListener implements Listener {
         }
         if (PlayerData.relicsBound(player) > 0) {
             com.additionalbosses.util.QuestFlags.markOnce(player, "relic_bound");
+            com.additionalbosses.util.QuestFlags.markOnce(player, "relic_found");
+        }
+        for (org.bukkit.inventory.ItemStack item : player.getInventory().getContents()) {
+            var kind = plugin.items().kind(item);
+            if (kind == com.additionalbosses.item.ItemService.Kind.GEAR) {
+                com.additionalbosses.util.QuestFlags.markOnce(player, "boss_gear");
+            } else if (kind == com.additionalbosses.item.ItemService.Kind.SOUL) {
+                com.additionalbosses.util.QuestFlags.markOnce(player, "soul_found");
+            } else if (kind == com.additionalbosses.item.ItemService.Kind.RELIC && item != null
+                && !item.getPersistentDataContainer().has(com.additionalbosses.util.Keys.RELIC_STARTER)) {
+                com.additionalbosses.util.QuestFlags.markOnce(player, "relic_found");
+            }
         }
         if (!plugin.nemesis().forOwner(player.getUniqueId()).isEmpty()) {
             com.additionalbosses.util.QuestFlags.markOnce(player, "nemesis_created");

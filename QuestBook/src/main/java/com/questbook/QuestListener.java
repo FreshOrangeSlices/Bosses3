@@ -17,17 +17,13 @@ import org.bukkit.event.inventory.InventoryCloseEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
-import org.bukkit.event.player.PlayerRespawnEvent;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.persistence.PersistentDataType;
 import org.jetbrains.annotations.Nullable;
 
-import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
@@ -35,7 +31,6 @@ import java.util.UUID;
 public final class QuestListener implements Listener {
 
     private final QuestBook plugin;
-    private final Map<UUID, List<ItemStack>> kept = new HashMap<>();
     private final Set<UUID> refreshQueued = new HashSet<>();
 
     QuestListener(QuestBook plugin) {
@@ -51,6 +46,7 @@ public final class QuestListener implements Listener {
         String title = plugin.quests().bookTitle;
         ItemStack book = ItemStack.of(Material.WRITTEN_BOOK);
         book.setData(DataComponentTypes.WRITTEN_BOOK_CONTENT, WrittenBookContent.writtenBookContent(title, "Server")
+            .generation(2) // "copy of a copy": it can't be copied at a crafting table
             .addPage(Component.text(title + "\n\n", NamedTextColor.DARK_RED)
                 .append(Component.text("Right-click to open it, or type ", NamedTextColor.BLACK))
                 .append(Component.text("/quests", NamedTextColor.DARK_BLUE))
@@ -81,6 +77,10 @@ public final class QuestListener implements Listener {
         if (!event.getAction().isRightClick() || !isBook(event.getItem())) {
             return;
         }
+        if (event.getHand() == org.bukkit.inventory.EquipmentSlot.OFF_HAND
+            && !event.getPlayer().getInventory().getItemInMainHand().isEmpty()) {
+            return; // the book in the off hand: right-clicks with a tool or weapon do their own thing
+        }
         event.setUseItemInHand(Event.Result.DENY);
         event.setUseInteractedBlock(Event.Result.DENY);
         event.setCancelled(true);
@@ -96,7 +96,7 @@ public final class QuestListener implements Listener {
             if (!p.isOnline()) {
                 return;
             }
-            if (!state.bookGiven && plugin.quests().giveBookOnJoin) {
+            if (!state.bookGiven && !state.locked && plugin.quests().giveBookOnJoin) {
                 state.bookGiven = true;
                 state.dirty = true;
                 if (!carriesBook(p)) {
@@ -120,37 +120,18 @@ public final class QuestListener implements Listener {
         refreshQueued.remove(id);
     }
 
-    /** The Quest Book stays with you when you die. */
-    @EventHandler(priority = EventPriority.HIGH)
+    /** The Quest Book stays in your inventory when you die (the game keeps it in its slot). */
+    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onDeath(PlayerDeathEvent event) {
         if (!plugin.quests().keepBookOnDeath || event.getKeepInventory()) {
             return;
         }
-        List<ItemStack> books = new ArrayList<>();
         for (Iterator<ItemStack> it = event.getDrops().iterator(); it.hasNext(); ) {
             ItemStack drop = it.next();
             if (isBook(drop)) {
-                books.add(drop);
                 it.remove();
+                event.getItemsToKeep().add(drop);
             }
-        }
-        if (!books.isEmpty()) {
-            kept.computeIfAbsent(event.getPlayer().getUniqueId(), k -> new ArrayList<>()).addAll(books);
-        }
-    }
-
-    @EventHandler(priority = EventPriority.MONITOR)
-    public void onRespawn(PlayerRespawnEvent event) {
-        Player p = event.getPlayer();
-        List<ItemStack> books = kept.remove(p.getUniqueId());
-        if (books != null) {
-            Bukkit.getScheduler().runTask(plugin, () -> {
-                for (ItemStack book : books) {
-                    for (ItemStack left : p.getInventory().addItem(book).values()) {
-                        p.getWorld().dropItemNaturally(p.getLocation(), left);
-                    }
-                }
-            });
         }
     }
 
