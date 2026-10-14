@@ -45,6 +45,10 @@ public final class NemesisRecord {
     public int gearFloor;
     /** Levels gained from killing other mobs during the current outing (capped per outing). */
     public int outingKills;
+    /** What it has adapted to: kind of damage -> 1 (resists it) or 2 (immune). */
+    public final java.util.Map<DamageKind, Integer> adapted = new java.util.EnumMap<>(DamageKind.class);
+    /** Its Terms of Surrender: die this way carrying its Challenge and the feud ends. */
+    public Surrender surrender = Surrender.FALL;
 
     /** Runtime only: server tick until which it prowls (0 = not prowling). */
     public int prowlUntil;
@@ -54,6 +58,23 @@ public final class NemesisRecord {
     public @Nullable UUID entity;
     /** Runtime only: ticks the owner has been out of reach. */
     public int lostTicks;
+    /** Runtime only: damage taken by kind since it last adapted (it adapts to the biggest one). */
+    public final java.util.Map<DamageKind, Double> recentDamage = new java.util.EnumMap<>(DamageKind.class);
+    /** Runtime only: the player it is after right now (a teammate can pull it off its owner). */
+    public @Nullable UUID focus;
+    /** Runtime only: server tick when it last killed its owner (its owner then respawning far away isn't fleeing). */
+    public int ownerDownTick = -100000;
+
+    /** How many hard immunities it has (fire doesn't count: it's free). */
+    public int immunities() {
+        int n = 0;
+        for (var e : adapted.entrySet()) {
+            if (e.getValue() >= 2 && e.getKey() != DamageKind.FIRE) {
+                n++;
+            }
+        }
+        return n;
+    }
 
     public NemesisRecord(String id, UUID owner, String ownerName, EntityType type, BossRank rank) {
         this.id = id;
@@ -91,6 +112,10 @@ public final class NemesisRecord {
         s.set("size", size);
         s.set("hand", hand);
         s.set("gear-floor", gearFloor);
+        s.set("surrender", surrender.name());
+        java.util.Map<String, Object> adapt = new java.util.LinkedHashMap<>();
+        adapted.forEach((k, v) -> adapt.put(k.name(), v));
+        s.set("adapted", adapt.isEmpty() ? null : adapt);
     }
 
     public static @Nullable NemesisRecord load(String id, ConfigurationSection s) {
@@ -121,6 +146,17 @@ public final class NemesisRecord {
             r.size = s.getInt("size", -1);
             r.hand = s.getString("hand", "");
             r.gearFloor = s.getInt("gear-floor", 0);
+            Surrender surrender = Surrender.parse(s.getString("surrender"));
+            r.surrender = surrender != null ? surrender : Surrender.pick(type);
+            ConfigurationSection adapt = s.getConfigurationSection("adapted");
+            if (adapt != null) {
+                for (String key : adapt.getKeys(false)) {
+                    DamageKind kind = DamageKind.parse(key);
+                    if (kind != null) {
+                        r.adapted.put(kind, Math.max(1, Math.min(2, adapt.getInt(key))));
+                    }
+                }
+            }
             return r;
         } catch (IllegalArgumentException ex) {
             return null;

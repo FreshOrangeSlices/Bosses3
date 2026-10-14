@@ -25,6 +25,9 @@ public final class Keys {
     public static NamespacedKey STATUE;          // string, statue data (on statue entities and statue items)
     public static NamespacedKey STATUE_LORE;     // list<string>, MiniMessage lore lines kept on a placed statue
     public static NamespacedKey BOSS_THREAT;     // double 0..1, Threat Scaling already applied
+    public static NamespacedKey BOSS_CREATED;    // string, how a player made this boss (totem, escalation, command, challenge)
+    public static NamespacedKey BOSS_PLAYER_KILLS; // int, players this boss has killed
+    public static NamespacedKey CHALLENGE;       // string, Nemesis id, on a Nemesis Challenge note
     public static NamespacedKey BOSS_PHASE;      // int, Ascendant phases already passed
     public static NamespacedKey STATUE_ITEM;     // string, base64 of the exact item a placed statue/trophy came from
     public static NamespacedKey WAYSTONE;        // string, waystone id (on waystone items)
@@ -90,6 +93,9 @@ public final class Keys {
         STATUE_LORE = new NamespacedKey(plugin, "statue_lore");
         COMPASS_TIER = new NamespacedKey(plugin, "compass_tier");
         BOSS_THREAT = new NamespacedKey(plugin, "boss_threat");
+        BOSS_CREATED = new NamespacedKey(plugin, "boss_created");
+        BOSS_PLAYER_KILLS = new NamespacedKey(plugin, "boss_player_kills");
+        CHALLENGE = new NamespacedKey(plugin, "nemesis_challenge");
         BOSS_PHASE = new NamespacedKey(plugin, "boss_phase");
         STATUE_ITEM = new NamespacedKey(plugin, "statue_item");
         WAYSTONE = new NamespacedKey(plugin, "waystone");

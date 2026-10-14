@@ -47,7 +47,7 @@ import java.util.UUID;
  */
 public final class ItemService {
 
-    public enum Kind { GEAR, RUNE, RELIC, CATALYST, GUIDE, COMPASS, TOTEM, TROPHY, STATUE, WAYSTONE, SOUL }
+    public enum Kind { GEAR, RUNE, RELIC, CATALYST, GUIDE, COMPASS, TOTEM, TROPHY, STATUE, WAYSTONE, SOUL, CHALLENGE }
 
     /** Lore lines are wrapped to about this many characters so tooltips stay on screen. */
     private static final int LORE_WIDTH = 38;

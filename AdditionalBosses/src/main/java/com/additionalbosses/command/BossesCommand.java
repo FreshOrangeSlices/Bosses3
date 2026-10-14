@@ -110,7 +110,7 @@ public final class BossesCommand implements BasicCommand {
             line(sender, "/bosses give <player> relic [relic|random] [curse|none|random]", "give a Relic");
             line(sender, "/bosses give <player> catalyst|guide", "give a Catalyst or guide");
             line(sender, "/bosses give <player> compass [tier] | totem [rank]", "give a Hunter's Compass or Boss Totem");
-            line(sender, "/bosses nemesis list|summon|clear <player>", "manage Nemeses");
+            line(sender, "/bosses nemesis list|summon|challenge|clear <player>", "manage Nemeses");
             line(sender, "/bosses escalate <player>", "trigger an Escalation on a player");
             line(sender, "/bosses promote [ranks]", "promote the boss you are looking at");
             line(sender, "/bosses give <player> waystone [amount]", "give Waystones");
@@ -263,7 +263,27 @@ public final class BossesCommand implements BasicCommand {
                         sender.sendMessage(Component.text(" • ", NamedTextColor.DARK_GRAY).append(nm.displayName(r))
                             .append(Component.text("  hunts " + r.ownerName + ", " + nm.describeReturn(r),
                                 NamedTextColor.GRAY)));
+                        StringBuilder adapted = new StringBuilder();
+                        r.adapted.forEach((kind, level) -> adapted.append(adapted.length() == 0 ? "" : ", ")
+                            .append(kind.plain()).append(level >= 2 ? " (immune)" : " (resists)"));
+                        sender.sendMessage(Component.text("     adapted to: " + (adapted.length() == 0 ? "nothing yet" : adapted)
+                            + "; surrender: " + r.surrender.plain(), NamedTextColor.DARK_GRAY));
                     }
+                }
+                case "challenge" -> {
+                    Player target = args.length >= 3 ? Bukkit.getPlayerExact(args[2]) : null;
+                    if (target == null) {
+                        error(sender, "Usage: /bosses nemesis challenge <online player>");
+                        return;
+                    }
+                    int n = 0;
+                    for (NemesisRecord r : nm.forOwner(target.getUniqueId())) {
+                        for (ItemStack left : target.getInventory().addItem(nm.createChallenge(r)).values()) {
+                            target.getWorld().dropItemNaturally(target.getLocation(), left);
+                        }
+                        n++;
+                    }
+                    info(sender, "Gave " + target.getName() + " " + n + " Challenge" + (n == 1 ? "" : "s") + ".");
                 }
                 case "summon" -> {
                     Player target = args.length >= 3 ? Bukkit.getPlayerExact(args[2]) : null;
@@ -285,7 +305,7 @@ public final class BossesCommand implements BasicCommand {
                     }
                     info(sender, "Removed " + nm.clear(owner) + " Nemes(es) of " + args[2] + ".");
                 }
-                default -> error(sender, "Usage: /bosses nemesis [list|summon|clear] [player]");
+                default -> error(sender, "Usage: /bosses nemesis [list|summon|challenge|clear] [player]");
             }
             return;
         }
@@ -435,6 +455,9 @@ public final class BossesCommand implements BasicCommand {
             }
         });
         Boss boss = plugin.bosses().get(spawned);
+        if (boss != null) {
+            com.additionalbosses.boss.BossManager.markCreated(boss, "command");
+        }
         if (boss != null) {
             sender.sendMessage(Component.text("Spawned ", NamedTextColor.GRAY).append(boss.name()));
         }
@@ -684,7 +707,7 @@ public final class BossesCommand implements BasicCommand {
         }
         if (sub.equals("nemesis")) {
             if (args.length == 2) {
-                return filter(List.of("list", "summon", "clear"), last);
+                return filter(List.of("list", "summon", "challenge", "clear"), last);
             }
             if (args.length == 3) {
                 List<String> names = new ArrayList<>(onlineNames());

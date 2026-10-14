@@ -112,6 +112,7 @@ public final class EscalationManager {
             Fx.play(spot, "entity.evoker.prepare_summon", 1.0f, 0.7f);
             Boss boss = plugin.bosses().summon(type, spot, rank, null, true, BossMobs.categoryId(plugin, type));
             if (boss != null) {
+                com.additionalbosses.boss.BossManager.markCreated(boss, "escalation");
                 plugin.bosses().engage(boss, player);
                 if (boss.entity() instanceof org.bukkit.entity.Mob mob) {
                     mob.setTarget(player);

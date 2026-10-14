@@ -258,6 +258,48 @@ public final class Boss {
         double[] log = fightLog.computeIfAbsent(player, k -> new double[3]);
         log[0] += damage;
         log[projectile ? 2 : 1]++;
+        int now = Bukkit.getCurrentTick();
+        recentHits.addLast(new RecentHit(now, player, damage));
+        while (!recentHits.isEmpty() && now - recentHits.peekFirst().tick() > RECENT_TICKS) {
+            recentHits.pollFirst();
+        }
+    }
+
+    private record RecentHit(int tick, UUID player, double damage) {
+    }
+
+    /** Hits from the last 10 seconds (team aggro). */
+    private static final int RECENT_TICKS = 200;
+    private final java.util.ArrayDeque<RecentHit> recentHits = new java.util.ArrayDeque<>();
+
+    /** Damage this player did in the last 10 seconds. */
+    public double recentDamage(UUID player, int now) {
+        double sum = 0;
+        for (RecentHit hit : recentHits) {
+            if (now - hit.tick() <= RECENT_TICKS && hit.player().equals(player)) {
+                sum += hit.damage();
+            }
+        }
+        return sum;
+    }
+
+    /** Who hurt it most in the last 10 seconds, or null. */
+    public @Nullable UUID topRecentDamager(int now) {
+        Map<UUID, Double> totals = new HashMap<>();
+        for (RecentHit hit : recentHits) {
+            if (now - hit.tick() <= RECENT_TICKS) {
+                totals.merge(hit.player(), hit.damage(), Double::sum);
+            }
+        }
+        UUID best = null;
+        double bestDamage = 0;
+        for (Map.Entry<UUID, Double> e : totals.entrySet()) {
+            if (e.getValue() > bestDamage) {
+                bestDamage = e.getValue();
+                best = e.getKey();
+            }
+        }
+        return best;
     }
 
     public double damageBy(UUID player) {

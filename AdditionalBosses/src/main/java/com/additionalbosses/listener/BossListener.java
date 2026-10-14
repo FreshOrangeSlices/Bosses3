@@ -267,7 +267,10 @@ public final class BossListener implements Listener {
         }
     }
 
-    /** A boss that kills a player remembers it (revenge bonus) and may become that player's Nemesis. */
+    /**
+     * A boss that kills a player remembers it (revenge bonus), may become that player's Nemesis, and leaves once it
+     * has killed two players.
+     */
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onPlayerDeath(PlayerDeathEvent event) {
         Entity causing = event.getDamageSource().getCausingEntity();
@@ -284,8 +287,7 @@ public final class BossListener implements Listener {
         if (boss == null) {
             return;
         }
-        boss.addVictim(event.getEntity().getUniqueId());
-        plugin.nemesis().onKilledPlayer(boss, event.getEntity());
+        bosses().onKilledPlayer(boss, event.getEntity());
     }
 
     // ---------------- anti-trap ----------------

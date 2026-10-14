@@ -16,7 +16,6 @@ import org.bukkit.inventory.ItemStack;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
@@ -39,7 +38,7 @@ public final class BossGearFactory {
         PluginSettings s = plugin.settings();
         RankSettings.Gear gear = s.rank(rank).gear();
 
-        GearKind kind = forcedKind != null ? forcedKind : rollKind(sourceType);
+        GearKind kind = forcedKind != null ? forcedKind : rollKind(rank, sourceType);
         GearTier tier = Rng.weighted(gear.materials());
         Material material = kind.material(tier == null ? GearTier.IRON : tier);
         ItemStack item = ItemStack.of(material);
@@ -58,13 +57,31 @@ public final class BossGearFactory {
         return from != null && rank.atLeast(from);
     }
 
-    private GearKind rollKind(@Nullable EntityType sourceType) {
+    /**
+     * First the category by rank (weaker bosses mostly armor and tools, stronger ones weapons, Ascendants an even
+     * mix), then the item inside it by the item weights (plus what this mob likes: skeletons bows...).
+     */
+    private GearKind rollKind(BossRank rank, @Nullable EntityType sourceType) {
         PluginSettings s = plugin.settings();
         Map<GearKind, Integer> weights = new EnumMap<>(s.gearWeights);
         if (sourceType != null) {
             Map<GearKind, Integer> extra = s.gearPreferences.get(sourceType);
             if (extra != null) {
                 extra.forEach((k, v) -> weights.merge(k, v, Integer::sum));
+            }
+        }
+        Map<GearKind.Category, Integer> categories = s.gearCategories.get(rank);
+        if (categories != null) {
+            // only categories that have something in them can be picked
+            Map<GearKind.Category, Integer> usable = new EnumMap<>(GearKind.Category.class);
+            categories.forEach((cat, w) -> {
+                if (w > 0 && weights.entrySet().stream().anyMatch(e -> e.getKey().category() == cat && e.getValue() > 0)) {
+                    usable.put(cat, w);
+                }
+            });
+            GearKind.Category cat = Rng.weighted(usable);
+            if (cat != null) {
+                weights.keySet().removeIf(k -> k.category() != cat);
             }
         }
         GearKind kind = Rng.weighted(weights);
@@ -74,7 +91,7 @@ public final class BossGearFactory {
     /** Nemesis loot calls this with a bonus to break the normal level ceiling a little further. */
     public ItemStack createBonus(BossRank rank, @Nullable EntityType sourceType, String sourceName, int overMaxBonus) {
         RankSettings.Gear gear = plugin.settings().rank(rank).gear();
-        GearKind kind = rollKind(sourceType);
+        GearKind kind = rollKind(rank, sourceType);
         GearTier tier = Rng.weighted(gear.materials());
         ItemStack item = ItemStack.of(kind.material(tier == null ? GearTier.DIAMOND : tier));
         enchant(item, gear, GearQuality.MASTERWORK, overMaxBonus, overlaps(rank));
@@ -97,7 +114,13 @@ public final class BossGearFactory {
             }
             candidates.add(e);
         }
-        Collections.shuffle(candidates);
+        // a random order, but on armor Protection comes up front more often (it's what armor is for)
+        Map<Enchantment, Double> keys = new java.util.HashMap<>();
+        for (Enchantment e : candidates) {
+            double w = e.getKey().getKey().equals("protection") ? s.protectionWeight : 1.0;
+            keys.put(e, Math.pow(java.util.concurrent.ThreadLocalRandom.current().nextDouble(), 1.0 / w));
+        }
+        candidates.sort((a, b) -> Double.compare(keys.get(b), keys.get(a)));
         int wanted = Math.max(0, Rng.between(gear.enchantMin(), gear.enchantMax()) + quality.extraEnchantments());
         List<Enchantment> chosen = new ArrayList<>();
         for (Enchantment e : candidates) {

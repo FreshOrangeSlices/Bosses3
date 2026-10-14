@@ -107,6 +107,11 @@ public final class NemesisManager {
         }
         boolean named = false;
         for (NemesisRecord r : records.values()) {
+            if (r.level > f().nemesisMaxLevel) {
+                r.level = f().nemesisMaxLevel; // the level cap came down (50 -> 15)
+                updateTitles(r);
+                named = true;
+            }
             if (r.name.isBlank()) {
                 r.name = NemesisNames.pick(r.type, takenNames());
                 named = true;
@@ -222,37 +227,55 @@ public final class NemesisManager {
     // Becoming a Nemesis / growing
     // =====================================================================
 
-    /** Called when a boss kills a player. */
-    public void onKilledPlayer(Boss boss, Player victim) {
+    /**
+     * Called when a boss kills a player ({@code kills}: players it has killed this outing). Returns true if the
+     * Nemesis system took care of the boss (it is a Nemesis, or just became one), so the two-kills rule is handled here.
+     */
+    public boolean onKilledPlayer(Boss boss, Player victim, int kills) {
         FeatureSettings f = f();
         if (!f.nemesisEnabled) {
-            return;
+            return false;
         }
         NemesisRecord r = get(boss.nemesisId());
         if (r != null) {
-            if (r.owner.equals(victim.getUniqueId())) {
+            boolean owner = r.owner.equals(victim.getUniqueId());
+            if (owner) {
                 r.kills++;
+                r.ownerDownTick = Bukkit.getCurrentTick();
                 absorbFight(r, boss, victim.getUniqueId());
-                grow(r, f.nemesisLevelsOnKill, boss.entity());
-                refreshBody(boss, r);
-                retreat(boss, r);
-                plugin.presentation().tell(victim, "nemesis-grows", Placeholder.component("boss", displayName(r)));
-            } else {
-                grow(r, 1, boss.entity()); // it also grows by killing anyone else
-                refreshBody(boss, r);
-                save();
+                challengeOnRespawn(victim.getUniqueId(), r);
             }
-            return;
+            r.focus = null;
+            grow(r, f.nemesisLevelsOnKill, boss.entity()); // any player it kills makes it stronger
+            adapt(boss, r);
+            refreshBody(boss, r);
+            int limit = plugin.settings().despawnAfterKills;
+            if (limit > 0 && kills >= limit) {
+                // Two players down: it leaves, and comes back after the full wait.
+                r.returnAt = clock() + Math.round(f.nemesisReturnDays * DAY);
+                Bukkit.getScheduler().runTask(plugin, () -> {
+                    if (activeBoss(r) == boss) {
+                        vanish(boss, r);
+                    }
+                });
+            }
+            save();
+            if (owner) {
+                plugin.presentation().tell(victim, "nemesis-grows", Placeholder.component("boss", displayName(r)));
+            }
+            return true;
         }
         if (forOwner(victim.getUniqueId()).size() >= f.nemesisMaxPerPlayer || !Rng.chance(f.nemesisKillChance)) {
-            return;
+            return false;
         }
         NemesisRecord created = create(boss, victim);
         created.kills = 1;
         updateTitles(created);
         configure(boss, created, false);
         retreat(boss, created);
+        challengeOnRespawn(victim.getUniqueId(), created);
         plugin.presentation().tell(victim, "nemesis-born", Placeholder.component("boss", displayName(created)));
+        return true;
     }
 
     /**
@@ -302,13 +325,16 @@ public final class NemesisManager {
         }
         Player owner = Bukkit.getPlayer(r.owner);
         LivingEntity e = boss.entity();
+        double reach = f().nemesisEscapeDistance;
         boolean inReach = owner != null && !owner.isDead() && owner.getWorld().equals(e.getWorld())
-            && owner.getLocation().distanceSquared(e.getLocation()) <= f().nemesisEscapeDistance * f().nemesisEscapeDistance;
-        if (inReach) {
+            && owner.getLocation().distanceSquared(e.getLocation()) <= reach * reach;
+        Player focus = focus(boss, r, owner);
+        if (inReach || focus != null) {
             r.lostTicks = 0;
-            if (e instanceof Mob mob && boss.fightable(owner) && mob.getTarget() != owner
-                && owner.getLocation().distanceSquared(e.getLocation()) < 40 * 40) {
-                mob.setTarget(owner);
+            Player chase = focus != null ? focus : owner;
+            if (e instanceof Mob mob && chase != null && boss.fightable(chase) && mob.getTarget() != chase
+                && chase.getLocation().distanceSquared(e.getLocation()) < 40 * 40) {
+                mob.setTarget(chase);
             }
             return false;
         }
@@ -316,15 +342,47 @@ public final class NemesisManager {
         if (owner != null && r.lostTicks < 300) {
             return false; // 15 seconds of grace
         }
+        if (Bukkit.getCurrentTick() - r.ownerDownTick < 2400) {
+            // it killed its owner a moment ago and they woke up far away: that isn't fleeing
+            return retreat(boss, r);
+        }
         r.escapes++;
         absorbFight(r, boss, r.owner);
         grow(r, f().nemesisLevelsOnEscape, e);
+        adapt(boss, r);
         refreshBody(boss, r);
         boolean removed = retreat(boss, r);
         if (owner != null) {
             plugin.presentation().tell(owner, "nemesis-flee", Placeholder.component("boss", displayName(r)));
         }
         return removed;
+    }
+
+    /**
+     * Team fights: it goes after its owner, unless another player hurts it a lot more than whoever it's after
+     * (over the last 10 seconds, by aggro-switch-percent of its health): then it turns on them. Returns the player it
+     * is after if that isn't simply its owner, or null.
+     */
+    private @Nullable Player focus(Boss boss, NemesisRecord r, @Nullable Player owner) {
+        LivingEntity e = boss.entity();
+        int now = Bukkit.getCurrentTick();
+        Player current = r.focus == null ? owner : Bukkit.getPlayer(r.focus);
+        if (current != null && (!boss.fightable(current) || current.getLocation().distanceSquared(e.getLocation()) > 40 * 40)) {
+            current = owner;
+            r.focus = null;
+        }
+        UUID top = boss.topRecentDamager(now);
+        if (top != null && (current == null || !top.equals(current.getUniqueId()))) {
+            double lead = boss.recentDamage(top, now) - (current == null ? 0 : boss.recentDamage(current.getUniqueId(), now));
+            Player challenger = Bukkit.getPlayer(top);
+            if (challenger != null && boss.fightable(challenger)
+                && lead >= boss.maxHealth() * f().nemesisAggroSwitchPercent / 100.0) {
+                r.focus = top;
+                current = challenger;
+                Fx.play(e.getLocation(), "entity.ravager.roar", 0.8f, 1.2f);
+            }
+        }
+        return current != null && owner != null && current.getUniqueId().equals(owner.getUniqueId()) ? null : current;
     }
 
     // =====================================================================
@@ -484,6 +542,7 @@ public final class NemesisManager {
         r.baseTraitCount = r.traits.size();
         r.createdAt = clock();
         r.name = NemesisNames.pick(r.type, takenNames());
+        r.surrender = Surrender.pick(r.type);
         com.additionalbosses.trait.Synergies.Synergy synergy = com.additionalbosses.trait.Synergies.find(boss.traits());
         r.epithet = synergy != null ? synergy.title()
             : !boss.traits().isEmpty() ? boss.traits().get(0).adjective() : plugin.settings().rank(boss.rank()).name();
@@ -527,16 +586,14 @@ public final class NemesisManager {
         updateTitles(r);
     }
 
-    /** Adaptive counters: archers get warded against, fighters get thorns, runners get chased down. */
+    /**
+     * New traits it picks when it can: runners get chased down (by leaps and charges: bosses don't simply outrun
+     * you), and a killer turns executioner. How you fight is handled by {@link #adapt}.
+     */
     private @Nullable BossTrait counterTrait(NemesisRecord r, LivingEntity sample) {
         List<String> wishes = new ArrayList<>();
-        if (r.rangedHits > r.meleeHits) {
-            wishes.addAll(List.of("warded", "blinking", "deadeye"));
-        } else if (r.meleeHits > 0) {
-            wishes.addAll(List.of("thorned", "bulwark", "executioner"));
-        }
         if (r.escapes > r.kills) {
-            wishes.addAll(List.of("swift", "leaping", "charging"));
+            wishes.addAll(List.of("leaping", "charging"));
         }
         if (r.kills >= 2) {
             wishes.add("executioner");
@@ -577,10 +634,10 @@ public final class NemesisManager {
         addTitle(r, r.returns >= 1, "Returned");
         addTitle(r, r.escapes >= 2, "Twice-Fled");
         addTitle(r, r.kills >= 2, "Relentless");
-        addTitle(r, r.level >= 10, "Unbroken");
+        addTitle(r, r.level >= 5, "Unbroken");
         addTitle(r, r.kills >= 5, "Butcher");
-        addTitle(r, r.level >= 25, "Dreaded");
-        addTitle(r, r.level >= 40, "Eternal");
+        addTitle(r, r.level >= 10, "Dreaded");
+        addTitle(r, r.level >= Math.min(15, f().nemesisMaxLevel), "Eternal");
     }
 
     private static void addTitle(NemesisRecord r, boolean earned, String title) {
@@ -664,9 +721,14 @@ public final class NemesisManager {
     }
 
     private void spawnFor(NemesisRecord r, Player owner) {
-        Location spot = SafeSpots.around(owner.getLocation(), 14, 22, 16);
+        spawnFor(r, owner, 14, 22, false);
+    }
+
+    /** Brings the Nemesis to its owner, between {@code min} and {@code max} blocks away. False if it couldn't. */
+    private boolean spawnFor(NemesisRecord r, Player owner, int min, int max, boolean challenged) {
+        Location spot = SafeSpots.around(owner.getLocation(), min, max, 16);
         if (spot == null) {
-            return; // try again on the next check
+            return false; // try again on the next check
         }
         List<BossTrait> traits = new ArrayList<>();
         for (String id : r.traits) {
@@ -679,12 +741,17 @@ public final class NemesisManager {
         if (cls == null || !Mob.class.isAssignableFrom(cls) || com.additionalbosses.config.PluginSettings.isMount(r.type)) {
             records.remove(r.id); // that mob can't exist any more
             save();
-            return;
+            return false;
         }
         Boss boss = plugin.bosses().summon(r.type, spot, r.rank, traits, false, "nemesis");
         if (boss == null) {
-            return; // the spawn was blocked here; try again on the next check
+            return false; // the spawn was blocked here; try again on the next check
         }
+        if (challenged) {
+            com.additionalbosses.boss.BossManager.markCreated(boss, "challenge"); // its Souls, but no Totem
+        }
+        r.recentDamage.clear();
+        r.focus = null;
         r.returns++;
         r.outingKills = 0;
         r.prowlUntil = 0;
@@ -702,6 +769,7 @@ public final class NemesisManager {
         }
         Fx.playTo(owner, Fx.sound("entity.wither.spawn", 0.7f, 0.8f));
         plugin.bosses().engage(boss, owner);
+        return true;
     }
 
     /** Applies everything a Nemesis is: its body (same as last time), level scaling, gear, name and persistence. */
@@ -800,6 +868,248 @@ public final class NemesisManager {
 
     private @Nullable Boss activeBoss(NemesisRecord r) {
         return r.entity == null ? null : plugin.bosses().get(Bukkit.getEntity(r.entity));
+    }
+
+    // =====================================================================
+    // Adaptation: it learns how you fight it
+    // =====================================================================
+
+    /** Damage it took, sorted by kind, so it can adapt at its next level-up. */
+    public void recordDamage(Boss boss, org.bukkit.event.entity.EntityDamageEvent event, @Nullable LivingEntity attacker,
+                             double damage) {
+        NemesisRecord r = get(boss.nemesisId());
+        DamageKind kind = DamageKind.of(event, attacker);
+        if (r == null || kind == null || damage <= 0 || !DamageKind.learnsFrom(attacker)) {
+            return;
+        }
+        r.recentDamage.merge(kind, damage, Double::sum);
+    }
+
+    /**
+     * After a level-up from a fight: it adapts to the kind of damage that hurt it most since it last adapted. The
+     * first time it resists that kind; if you keep at it, it becomes immune (at most max-immunities; fire is free).
+     * Pets: it resists them, and hits them harder, but is never fully immune.
+     */
+    private void adapt(Boss boss, NemesisRecord r) {
+        FeatureSettings f = f();
+        if (!f.nemesisAdaptation || r.recentDamage.isEmpty()) {
+            return;
+        }
+        List<Map.Entry<DamageKind, Double>> order = new ArrayList<>(r.recentDamage.entrySet());
+        order.sort((a, b) -> Double.compare(b.getValue(), a.getValue()));
+        double meaningful = Math.max(4, boss.maxHealth() * 0.02); // a stray scratch doesn't teach it anything
+        for (Map.Entry<DamageKind, Double> entry : order) {
+            if (entry.getValue() < meaningful) {
+                break;
+            }
+            DamageKind kind = entry.getKey();
+            int now = r.adapted.getOrDefault(kind, 0);
+            int next = now + 1;
+            if (next > 2 || (kind == DamageKind.PET && next > 1)
+                || (next == 2 && kind != DamageKind.FIRE && r.immunities() >= f.nemesisMaxImmunities)) {
+                continue; // can't learn more against this one: try the next
+            }
+            r.adapted.put(kind, next);
+            r.recentDamage.clear();
+            adaptedFx(boss.entity(), next == 2);
+            return;
+        }
+    }
+
+    /** A smoky pulse when it adapts, so sharp-eyed players notice that something changed. */
+    private static void adaptedFx(LivingEntity e, boolean immune) {
+        Location at = Fx.center(e);
+        Fx.particle(at, Particle.LARGE_SMOKE, immune ? 60 : 35, 0.9, 0.04);
+        Fx.particle(at, immune ? Particle.SCULK_SOUL : Particle.SMOKE, 30, 1.2, 0.03);
+        Fx.play(e.getLocation(), immune ? "block.respawn_anchor.set_spawn" : "block.respawn_anchor.charge", 1.0f, 0.6f);
+    }
+
+    /** What it has adapted to hurts it less, or not at all. */
+    public void onHurt(Boss boss, org.bukkit.event.entity.EntityDamageEvent event, com.additionalbosses.combat.DamageContext ctx) {
+        NemesisRecord r = get(boss.nemesisId());
+        if (r == null || r.adapted.isEmpty() || !f().nemesisAdaptation) {
+            return;
+        }
+        DamageKind kind = DamageKind.of(event, ctx.attacker());
+        int level = kind == null ? 0 : r.adapted.getOrDefault(kind, 0);
+        if (level <= 0) {
+            return;
+        }
+        LivingEntity e = boss.entity();
+        if (kind == DamageKind.PET) {
+            ctx.multiply(f().nemesisPetDamageTakenPercent / 100.0);
+        } else if (level >= 2) {
+            ctx.cancel(); // immune: the blow just slides off
+            if (kind == DamageKind.FIRE) {
+                e.setFireTicks(0);
+            }
+            if (Rng.chance(50)) {
+                Fx.particle(Fx.center(e), Particle.SMOKE, 12, 0.5, 0.02);
+                Fx.play(e.getLocation(), "item.shield.block", 0.6f, 0.6f);
+            }
+            return;
+        } else {
+            ctx.multiply(f().nemesisResistedPercent / 100.0);
+        }
+        if (Rng.chance(25)) {
+            Fx.particle(Fx.center(e), Particle.SMOKE, 6, 0.4, 0.02);
+        }
+    }
+
+    /** Having adapted to pets, it hits them harder too. */
+    public void onHitPet(Boss boss, com.additionalbosses.combat.DamageContext ctx) {
+        NemesisRecord r = get(boss.nemesisId());
+        if (r != null && f().nemesisAdaptation && r.adapted.getOrDefault(DamageKind.PET, 0) > 0) {
+            ctx.multiply(1 + f().nemesisPetDamageBonus / 100.0);
+        }
+    }
+
+    // =====================================================================
+    // Its Challenge: call it back now, or surrender
+    // =====================================================================
+
+    private final Map<UUID, Set<String>> pendingChallenges = new java.util.HashMap<>();
+
+    /** It killed its owner: they wake up with its Challenge (unless they still carry one). */
+    private void challengeOnRespawn(UUID owner, NemesisRecord r) {
+        pendingChallenges.computeIfAbsent(owner, k -> new java.util.LinkedHashSet<>()).add(r.id);
+    }
+
+    /** On respawn: hands over the Challenges it has earned. */
+    public void giveChallenges(Player player) {
+        Set<String> ids = pendingChallenges.remove(player.getUniqueId());
+        if (ids == null) {
+            return;
+        }
+        for (String id : ids) {
+            NemesisRecord r = records.get(id);
+            if (r == null || carriesChallenge(player, id)) {
+                continue;
+            }
+            ItemStack note = createChallenge(r);
+            for (ItemStack left : player.getInventory().addItem(note).values()) {
+                player.getWorld().dropItemNaturally(player.getLocation(), left);
+            }
+            plugin.presentation().tell(player, "nemesis-challenge-received", Placeholder.component("boss", displayName(r)));
+        }
+    }
+
+    public void forgetChallenges(UUID player) {
+        pendingChallenges.remove(player);
+    }
+
+    private static boolean carriesChallenge(Player p, String id) {
+        for (ItemStack[] contents : List.of(p.getInventory().getContents(), p.getEnderChest().getContents())) {
+            for (ItemStack item : contents) {
+                if (id.equals(challengeId(item))) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    public static @Nullable String challengeId(@Nullable ItemStack item) {
+        return item == null || item.isEmpty() ? null
+            : item.getPersistentDataContainer().get(Keys.CHALLENGE, PersistentDataType.STRING);
+    }
+
+    /** The note: its name, how to call it, and its Terms of Surrender. */
+    public ItemStack createChallenge(NemesisRecord r) {
+        ItemStack item = ItemStack.of(org.bukkit.Material.PAPER);
+        item.setData(io.papermc.paper.datacomponent.DataComponentTypes.ITEM_NAME,
+            Component.text("☠ Challenge of " + r.name, NamedTextColor.DARK_RED).decorate(TextDecoration.BOLD));
+        item.setData(io.papermc.paper.datacomponent.DataComponentTypes.ENCHANTMENT_GLINT_OVERRIDE, true);
+        item.setData(io.papermc.paper.datacomponent.DataComponentTypes.MAX_STACK_SIZE, 1);
+        List<Component> lore = new ArrayList<>();
+        lore.add(line(r.name + " the " + r.epithet, NamedTextColor.GRAY));
+        lore.add(line("Right-click: call it to you now,", NamedTextColor.GRAY));
+        lore.add(line("instead of waiting for it.", NamedTextColor.GRAY));
+        lore.add(Component.empty());
+        lore.add(line("Terms of Surrender:", NamedTextColor.DARK_RED));
+        for (String part : Text.wrap("\"" + r.surrender.words() + "\"", 34)) {
+            lore.add(line(part, NamedTextColor.GRAY).decorate(TextDecoration.ITALIC));
+        }
+        lore.add(line("(" + r.surrender.plain() + " while carrying", NamedTextColor.DARK_GRAY));
+        lore.add(line("this note, and the feud ends. No reward.)", NamedTextColor.DARK_GRAY));
+        item.lore(lore);
+        item.editPersistentDataContainer(pdc -> {
+            pdc.set(Keys.CHALLENGE, PersistentDataType.STRING, r.id);
+            pdc.set(Keys.ITEM_KIND, PersistentDataType.STRING, com.additionalbosses.item.ItemService.Kind.CHALLENGE.name());
+        });
+        return item;
+    }
+
+    private static Component line(String text, net.kyori.adventure.text.format.TextColor color) {
+        return Component.text(text, color).decoration(TextDecoration.ITALIC, false);
+    }
+
+    /** Right-click with a Challenge: the Nemesis comes now (20-30 blocks away). The note is used up only if it came. */
+    public void useChallenge(Player player, ItemStack item, org.bukkit.inventory.EquipmentSlot hand) {
+        String id = challengeId(item);
+        NemesisRecord r = id == null ? null : records.get(id);
+        if (r == null || !f().nemesisEnabled) {
+            player.getInventory().setItem(hand, null);
+            plugin.presentation().tell(player, "nemesis-challenge-gone");
+            return;
+        }
+        if (!r.owner.equals(player.getUniqueId())) {
+            plugin.presentation().tell(player, "nemesis-challenge-not-yours");
+            return;
+        }
+        if (activeBoss(r) != null) {
+            plugin.presentation().tell(player, "nemesis-challenge-out", Placeholder.component("boss", displayName(r)));
+            return;
+        }
+        if (player.getGameMode() != GameMode.SURVIVAL && player.getGameMode() != GameMode.ADVENTURE
+            || player.getWorld().getDifficulty() == org.bukkit.Difficulty.PEACEFUL
+            || !plugin.settings().worldAllowed(player.getWorld())
+            || !spawnFor(r, player, 20, 30, true)) {
+            plugin.presentation().tell(player, "nemesis-challenge-blocked");
+            return;
+        }
+        ItemStack held = player.getInventory().getItem(hand);
+        if (id.equals(challengeId(held))) {
+            held.setAmount(held.getAmount() - 1);
+            player.getInventory().setItem(hand, held.getAmount() <= 0 ? null : held);
+        }
+    }
+
+    /**
+     * Died by its Terms of Surrender while carrying its Challenge: the feud is over for good. No reward; the note
+     * is gone. Works whether or not the Nemesis is out.
+     */
+    public void checkSurrender(org.bukkit.event.entity.PlayerDeathEvent event) {
+        Player p = event.getEntity();
+        Set<String> ended = new HashSet<>();
+        for (ItemStack item : p.getInventory().getContents()) {
+            String id = challengeId(item);
+            NemesisRecord r = id == null ? null : records.get(id);
+            if (r != null && !ended.contains(id) && r.owner.equals(p.getUniqueId()) && r.surrender.matches(event)) {
+                ended.add(id);
+                Boss active = activeBoss(r);
+                if (active != null) {
+                    LivingEntity e = active.entity();
+                    Fx.particle(Fx.center(e), Particle.LARGE_SMOKE, 40, 0.6, 0.05);
+                    plugin.bosses().removeMinions(active);
+                    plugin.bosses().unregister(active);
+                    e.remove();
+                }
+                records.remove(id);
+                plugin.presentation().tell(p, "nemesis-surrendered", Placeholder.component("boss", displayName(r)));
+            }
+        }
+        if (ended.isEmpty()) {
+            return;
+        }
+        save();
+        event.getDrops().removeIf(item -> ended.contains(challengeId(item)));
+        org.bukkit.inventory.PlayerInventory inv = p.getInventory();
+        for (int slot = 0; slot < inv.getSize(); slot++) {
+            if (ended.contains(challengeId(inv.getItem(slot)))) {
+                inv.setItem(slot, null); // (with keepInventory on)
+            }
+        }
     }
 
     // =====================================================================

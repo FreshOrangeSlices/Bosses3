@@ -88,10 +88,20 @@ public final class RewardManager {
                 out.add(rune);
             }
         }
+        // Any rank can drop any relic: higher ranks just drop more of them.
         if (Rng.chance(chances.relic() * luck)) {
             ItemStack relic = plugin.items().createRandomRelic();
             if (relic != null) {
                 out.add(relic);
+            }
+            for (double extra : chances.extraRelics()) {
+                if (!Rng.chance(extra * luck)) {
+                    break;
+                }
+                ItemStack more = plugin.items().createRandomRelic();
+                if (more != null) {
+                    out.add(more);
+                }
             }
         }
         if (plugin.settings().catalystEnabled && Rng.chance(chances.relicCatalyst() * luck)) {

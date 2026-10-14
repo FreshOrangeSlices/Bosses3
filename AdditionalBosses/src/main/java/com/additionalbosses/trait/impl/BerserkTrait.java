@@ -22,7 +22,7 @@ public final class BerserkTrait extends BaseTrait {
     private static final String FLAG = "berserk";
     private double threshold = 50;
     private double damageBonus = 35;
-    private double speedBonus = 20;
+    private double speedBonus = 8;
 
     public BerserkTrait() {
         super("berserk", TraitCategory.OFFENSE, "Berserk", "Raging");
@@ -32,7 +32,7 @@ public final class BerserkTrait extends BaseTrait {
     public void load(ConfigurationSection s) {
         threshold = s.getDouble("health-threshold", 50);
         damageBonus = s.getDouble("damage-bonus", 35);
-        speedBonus = s.getDouble("speed-bonus", 20);
+        speedBonus = s.getDouble("speed-bonus", 8);
     }
 
     @Override

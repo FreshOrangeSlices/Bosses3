@@ -35,8 +35,12 @@ public record RankSettings(
     public record TraitRoll(int min, int max, double power) {
     }
 
-    /** Independent percent chances, each rolled separately when the boss dies. */
-    public record Rewards(double bossGear, double empowerment, double relic, double relicCatalyst) {
+    /**
+     * Independent percent chances, each rolled separately when the boss dies. {@code extraRelics}: chances for a
+     * 2nd, 3rd... relic on top of the first.
+     */
+    public record Rewards(double bossGear, double empowerment, double relic, java.util.List<Double> extraRelics,
+                          double relicCatalyst) {
     }
 
     public record Gear(Map<GearTier, Integer> materials, Map<GearQuality, Integer> quality, int enchantMin,

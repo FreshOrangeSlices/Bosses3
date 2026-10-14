@@ -65,12 +65,38 @@ public final class CombatListener implements Listener {
         if (victim instanceof Player player) {
             plugin.relics().onDamaged(player, event, ctx);
         }
+        double overflow = victim instanceof Player player && attackerBoss != null ? overflowArmor(player) : 1.0;
+        if (victimBoss != null && victimBoss.isNemesis() && !ctx.secondary()) {
+            plugin.nemesis().onHurt(victimBoss, event, ctx); // what it has adapted to hurts it less (or not at all)
+        }
+        if (attackerBoss != null && attackerBoss.isNemesis() && com.additionalbosses.boss.BossManager.isPet(victim)) {
+            plugin.nemesis().onHitPet(attackerBoss, ctx);
+        }
 
+        boolean area = com.additionalbosses.combat.AreaDamage.active() && victim instanceof Player;
         if (ctx.cancelled()) {
             event.setCancelled(true);
-        } else if (ctx.changed()) {
-            event.setDamage(ctx.apply(event.getDamage()));
+        } else if (ctx.changed() || area || overflow < 1.0) {
+            double damage = (ctx.changed() ? ctx.apply(event.getDamage()) : event.getDamage()) * overflow;
+            if (area) {
+                damage = Math.min(damage, plugin.settings().areaDamageCap); // area attacks: dangerous, never instant
+            }
+            event.setDamage(damage);
         }
+    }
+
+    /**
+     * Armor past the point where it stops helping (20) keeps paying off against bosses: 5% less damage from them per
+     * point over. Applied after everything else, so it also counts against a boss's minimum hit.
+     */
+    private double overflowArmor(Player player) {
+        var f = plugin.settings().features;
+        if (!f.overflowArmor) {
+            return 1.0;
+        }
+        org.bukkit.attribute.AttributeInstance armor = player.getAttribute(org.bukkit.attribute.Attribute.ARMOR);
+        double over = armor == null ? 0 : armor.getValue() - f.overflowArmorFrom;
+        return over > 0 ? Math.max(0, 1 - over * f.overflowArmorPerPoint / 100.0) : 1.0;
     }
 
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
@@ -101,6 +127,9 @@ public final class CombatListener implements Listener {
                 }
                 plugin.bosses().engage(victimBoss, player);
                 victimBoss.recordPlayerHit(player.getUniqueId(), finalDamage, ctx.projectile());
+            }
+            if (victimBoss.isNemesis()) {
+                plugin.nemesis().recordDamage(victimBoss, event, attacker, finalDamage);
             }
             for (BossTrait trait : victimBoss.traits()) {
                 trait.afterDamaged(victimBoss, event, finalDamage, ctx);

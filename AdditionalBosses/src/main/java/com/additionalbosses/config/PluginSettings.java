@@ -52,6 +52,13 @@ public final class PluginSettings {
     public final boolean environmentalParticles;
     public final int combatTimeoutTicks;
     public final boolean requirePlayerForRewards;
+    /** A boss leaves after killing this many players (0 = never). */
+    public final int despawnAfterKills;
+    /** Bosses glow while a player is this close (0 = never). */
+    public final double glowWithin;
+    public final boolean glowRankColors;
+    /** Area attacks never hit a player harder than this. */
+    public final double areaDamageCap;
 
     // ---- bossbar / presentation ----
     public final double bossbarViewDistance;
@@ -70,6 +77,10 @@ public final class PluginSettings {
     // ---- boss gear ----
     public final Map<GearKind, Integer> gearWeights = new EnumMap<>(GearKind.class);
     public final Map<EntityType, Map<GearKind, Integer>> gearPreferences = new HashMap<>();
+    /** Weapon / armor / tool odds by the dropping boss's rank. */
+    public final Map<BossRank, Map<GearKind.Category, Integer>> gearCategories = new EnumMap<>(BossRank.class);
+    /** How many times as often Protection rolls on boss armor as other enchantments. */
+    public final double protectionWeight;
     public final boolean allowCurseEnchantments;
     /** From this rank up, Boss Gear can roll enchantments that normally exclude each other (null = never). */
     public final @Nullable BossRank overlappingEnchantsFrom;
@@ -125,6 +136,10 @@ public final class PluginSettings {
         environmentalParticles = c.getBoolean("bosses.environmental-particles", true);
         combatTimeoutTicks = Math.max(20, (int) Math.round(c.getDouble("bosses.combat-timeout", 15) * 20));
         requirePlayerForRewards = c.getBoolean("bosses.require-player-for-rewards", true);
+        despawnAfterKills = Math.max(0, c.getInt("bosses.despawn-after-player-kills", 2));
+        glowWithin = Math.max(0, c.getDouble("bosses.glow-within", 30));
+        glowRankColors = c.getBoolean("bosses.glow-rank-colors", true);
+        areaDamageCap = Math.max(0, c.getDouble("traits.area-damage-cap", 8));
 
         bossbarViewDistance = c.getDouble("bossbar.view-distance", 48);
         showHealthNumbers = c.getBoolean("bossbar.show-health-numbers", true);
@@ -159,6 +174,20 @@ public final class PluginSettings {
                 if (weights.isEmpty()) {
                     weights.put(BossRank.GRAY, 1.0);
                 }
+                Map<BossRank, Double> netherWeights = null;
+                ConfigurationSection nws = s.getConfigurationSection("nether-weights");
+                if (nws != null) {
+                    netherWeights = new EnumMap<>(BossRank.class);
+                    for (String key : nws.getKeys(false)) {
+                        BossRank rank = BossRank.parse(key);
+                        if (rank != null) {
+                            netherWeights.put(rank, nws.getDouble(key));
+                        }
+                    }
+                    if (netherWeights.isEmpty()) {
+                        netherWeights = null;
+                    }
+                }
                 Set<SpawnReason> reasons = s.isList("spawn-reasons") ? parseReasons(s.getStringList("spawn-reasons"), log) : null;
                 Set<EntityType> mobs = parseMobs(s.getStringList("mobs"), log);
                 mobs.removeIf(PluginSettings::isMount); // rideable mobs (horses, camels...) don't work as bosses
@@ -166,7 +195,7 @@ public final class PluginSettings {
                     s.getString("display-name", com.additionalbosses.util.Text.pretty(id)),
                     s.getString("description", ""),
                     s.getBoolean("enabled", true),
-                    s.getDouble("spawn-chance-multiplier", 1.0), weights,
+                    s.getDouble("spawn-chance-multiplier", 1.0), weights, netherWeights,
                     mobs, reasons);
                 categories.add(category);
                 for (EntityType type : category.mobs()) {
@@ -237,6 +266,23 @@ public final class PluginSettings {
                 gearPreferences.put(type, extra);
             }
         }
+        int[][] catDefaults = {{60, 30, 10}, {60, 30, 10}, {34, 33, 33}, {30, 0, 70}, {30, 0, 70}, {34, 33, 33}};
+        for (BossRank rank : BossRank.values()) {
+            ConfigurationSection cw = c.getConfigurationSection("boss-gear.category-weights." + rank.name());
+            int[] def = catDefaults[Math.min(catDefaults.length - 1, rank.ordinal())];
+            Map<GearKind.Category, Integer> map = new EnumMap<>(GearKind.Category.class);
+            if (cw == null && c.getConfigurationSection("boss-gear.category-weights") == null) {
+                map = null; // an older config: item weights alone decide, as before
+            } else {
+                map.put(GearKind.Category.ARMOR, Math.max(0, cw == null ? def[0] : cw.getInt("ARMOR", def[0])));
+                map.put(GearKind.Category.TOOL, Math.max(0, cw == null ? def[1] : cw.getInt("TOOL", def[1])));
+                map.put(GearKind.Category.WEAPON, Math.max(0, cw == null ? def[2] : cw.getInt("WEAPON", def[2])));
+            }
+            if (map != null) {
+                gearCategories.put(rank, map);
+            }
+        }
+        protectionWeight = Math.max(1, c.getDouble("boss-gear.protection-weight", 3));
         allowCurseEnchantments = c.getBoolean("boss-gear.allow-curse-enchantments", false);
         String overlapFrom = c.getString("boss-gear.overlapping-enchantments-from", "GOLD");
         overlappingEnchantsFrom = overlapFrom == null || overlapFrom.equalsIgnoreCase("NONE") ? null : BossRank.parse(overlapFrom);
@@ -317,7 +363,7 @@ public final class PluginSettings {
 
         // ---------------- relics ----------------
         relicBaseSlots = Math.max(1, c.getInt("relics.base-slots", 1));
-        corruptionChance = c.getDouble("relics.corruption-chance", 10);
+        corruptionChance = c.getDouble("relics.corruption-chance", 25);
         revealCorruption = c.getBoolean("relics.reveal-corruption", false);
         confirmBinding = c.getBoolean("relics.confirm-binding", true);
         allowDuplicateRelics = c.getBoolean("relics.allow-duplicates-on-item", false);
@@ -413,7 +459,7 @@ public final class PluginSettings {
         double[] armor = {2, 4, 6, 8, 10, 14};
         double[] tough = {0, 1, 2, 4, 6, 8};
         double[] kb = {0.1, 0.2, 0.3, 0.45, 0.6, 0.8};
-        double[] speed = {1.0, 1.05, 1.08, 1.1, 1.12, 1.15};
+        double[] speed = {1.0, 1.0, 1.0, 1.0, 1.0, 1.0};
         double[] size = {0.05, 0.1, 0.15, 0.2, 0.3, 0.65};
         int[] tMin = {1, 1, 2, 2, 3, 4};
         int[] tMax = {1, 2, 2, 3, 4, 5};
@@ -422,7 +468,8 @@ public final class PluginSettings {
         int[] xpBonus = {10, 25, 50, 100, 300, 800};
         double[] gear = {20, 30, 45, 65, 100, 100};
         double[] emp = {10, 18, 28, 40, 60, 100};
-        double[] relic = {2, 4, 8, 15, 30, 60};
+        double[] relic = {70, 70, 75, 80, 90, 100};
+        double[][] extra = {{}, {10}, {35}, {40, 10}, {60, 20}, {100, 50}};
         double[] cat = {0, 0, 0, 1.5, 5, 15};
         boolean ascendant = rank == BossRank.ASCENDANT;
 
@@ -443,8 +490,18 @@ public final class PluginSettings {
 
         ConfigurationSection xp = s == null ? null : s.getConfigurationSection("xp");
         ConfigurationSection rw = s == null ? null : s.getConfigurationSection("rewards");
+        List<Double> extraRelics = new ArrayList<>();
+        if (rw != null && rw.isList("extra-relics")) {
+            for (double chance : rw.getDoubleList("extra-relics")) {
+                extraRelics.add(Math.max(0, chance));
+            }
+        } else if (rw == null || !rw.contains("relic")) {
+            for (double chance : extra[i]) {
+                extraRelics.add(chance); // (an older config that sets its own relic chance keeps a single relic)
+            }
+        }
         RankSettings.Rewards rewards = new RankSettings.Rewards(d(rw, "boss-gear", gear[i]),
-            d(rw, "empowerment", emp[i]), d(rw, "relic", relic[i]), d(rw, "relic-catalyst", cat[i]));
+            d(rw, "empowerment", emp[i]), d(rw, "relic", relic[i]), List.copyOf(extraRelics), d(rw, "relic-catalyst", cat[i]));
 
         ConfigurationSection gs = s == null ? null : s.getConfigurationSection("gear");
         Map<GearTier, Integer> materials = new LinkedHashMap<>();

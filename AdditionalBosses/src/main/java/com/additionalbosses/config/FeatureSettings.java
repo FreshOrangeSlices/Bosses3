@@ -24,7 +24,6 @@ public final class FeatureSettings {
     public final Set<BossRank> lastStandRanks;
     public final double lastStandHealthPercent;
     public final double lastStandPowerBonus;
-    public final double lastStandSpeedBonus;
     public final boolean lastStandDormantTrait;
 
     // ---- Difficulty + Threat Scaling ----
@@ -34,8 +33,13 @@ public final class FeatureSettings {
     public final double threatMaxHealth;
     public final double threatMaxDamage;
     public final double threatRewardBonus;
-    public final double threatReferenceScore;
+    /** Boss Gear pieces in use (armor + both hands) that give the full Threat Scaling bonus. */
+    public final double threatFullPieces;
     public final double threatRadius;
+    // ---- Overflow armor ----
+    public final boolean overflowArmor;
+    public final double overflowArmorFrom;
+    public final double overflowArmorPerPoint;
 
     // ---- Reward reliability ----
     public final @Nullable BossRank rewardFloorFrom;
@@ -72,9 +76,6 @@ public final class FeatureSettings {
     public final double maxLootMultiplier;
     public final double maxFortuneMultiplier;
 
-    // ---- Rank personality ----
-    public final boolean pursuit;
-
     // ---- Anti-trap ----
     public final boolean blockVehicles;
     public final boolean unstuckEnabled;
@@ -92,6 +93,8 @@ public final class FeatureSettings {
     public final boolean totemEnabled;
     public final Map<BossRank, Double> totemDropChance;
     public final Map<BossRank, Double> totemRankWeights;
+    /** % that a dropped Totem is one rank higher than the boss that dropped it. */
+    public final double totemHigherChance;
 
     // ---- Escalation ----
     public final boolean escalationEnabled;
@@ -104,6 +107,7 @@ public final class FeatureSettings {
     // ---- Boss Souls (trophies in older configs) ----
     public final boolean soulsEnabled;
     public final Map<BossRank, Double> soulChance;
+    public final Map<BossRank, int[]> soulCount;
 
     // ---- Nemesis ----
     public final boolean nemesisEnabled;
@@ -129,16 +133,19 @@ public final class FeatureSettings {
     public final double nemesisRevengeXpMultiplier;
     public final double nemesisProwlMinutes;
     public final int nemesisKillLevelsPerOuting;
+    public final double nemesisAggroSwitchPercent;
+    public final boolean nemesisAdaptation;
+    public final double nemesisResistedPercent;
+    public final int nemesisMaxImmunities;
+    public final double nemesisPetDamageTakenPercent;
+    public final double nemesisPetDamageBonus;
 
     public FeatureSettings(FileConfiguration c, Logger log) {
         lastStandRanks = ranks(c.getStringList("last-stand.ranks"), EnumSet.of(BossRank.PURPLE, BossRank.GOLD));
         lastStandRanks.add(BossRank.ASCENDANT);
         lastStandHealthPercent = c.getDouble("last-stand.health-percent", 25);
         lastStandPowerBonus = c.getDouble("last-stand.trait-power-bonus", 50);
-        lastStandSpeedBonus = c.getDouble("last-stand.speed-bonus", 15);
         lastStandDormantTrait = c.getBoolean("last-stand.awaken-dormant-trait", true);
-
-        pursuit = c.getBoolean("rank-personality.pursuit", true);
 
         difficultyHealth = Math.max(0.1, c.getDouble("difficulty.health-multiplier", 1.3));
         difficultyDamage = Math.max(0.1, c.getDouble("difficulty.damage-multiplier", 1.2));
@@ -146,8 +153,11 @@ public final class FeatureSettings {
         threatMaxHealth = Math.max(0, c.getDouble("difficulty.threat-scaling.max-health-bonus", 60));
         threatMaxDamage = Math.max(0, c.getDouble("difficulty.threat-scaling.max-damage-bonus", 30));
         threatRewardBonus = Math.max(0, c.getDouble("difficulty.threat-scaling.max-reward-bonus", 25));
-        threatReferenceScore = Math.max(1, c.getDouble("difficulty.threat-scaling.full-gear-score", 110));
+        threatFullPieces = Math.max(1, c.getDouble("difficulty.threat-scaling.full-gear-pieces", 6));
         threatRadius = Math.max(4, c.getDouble("difficulty.threat-scaling.radius", 32));
+        overflowArmor = c.getBoolean("difficulty.overflow-armor.enabled", true);
+        overflowArmorFrom = Math.max(0, c.getDouble("difficulty.overflow-armor.from", 20));
+        overflowArmorPerPoint = Math.max(0, c.getDouble("difficulty.overflow-armor.boss-damage-reduction-per-point", 5));
 
         String floor = c.getString("reward-floor.guaranteed-from", "RED");
         rewardFloorFrom = floor == null || floor.equalsIgnoreCase("NONE") ? null : BossRank.parse(floor);
@@ -226,7 +236,8 @@ public final class FeatureSettings {
         }
 
         totemEnabled = c.getBoolean("boss-totem.enabled", true);
-        totemDropChance = rankMap(c.getConfigurationSection("boss-totem.drop-chance"), new double[]{1, 1.5, 2.5, 4, 8, 15});
+        totemDropChance = rankMap(c.getConfigurationSection("boss-totem.drop-chance"), new double[]{15, 15, 17, 20, 25, 30});
+        totemHigherChance = Math.max(0, Math.min(100, c.getDouble("boss-totem.higher-rank-chance", 20)));
         totemRankWeights = rankMap(c.getConfigurationSection("boss-totem.rank-weights"), new double[]{0, 30, 35, 25, 10});
 
         escalationEnabled = c.getBoolean("escalation.enabled", true);
@@ -238,23 +249,32 @@ public final class FeatureSettings {
 
         String souls = c.contains("souls", true) || !c.contains("trophies", true) ? "souls" : "trophies"; // older configs: trophies
         soulsEnabled = c.getBoolean(souls + ".enabled", true);
-        soulChance = rankMap(c.getConfigurationSection(souls + ".chance"), new double[]{4, 7, 12, 25, 100, 100});
+        soulChance = rankMap(c.getConfigurationSection(souls + ".chance"), new double[]{30, 30, 35, 40, 60, 100});
+        soulCount = new EnumMap<>(BossRank.class);
+        int[][] counts = {{1, 1}, {1, 1}, {1, 2}, {2, 2}, {2, 3}, {3, 3}};
+        for (BossRank rank : BossRank.values()) {
+            List<Integer> raw = c.getIntegerList(souls + ".count." + rank.name());
+            int[] def = counts[Math.min(counts.length - 1, rank.ordinal())];
+            int lo = raw.isEmpty() ? def[0] : Math.max(1, Math.min(64, raw.get(0)));
+            int hi = raw.size() >= 2 ? Math.max(lo, Math.min(64, raw.get(1))) : raw.isEmpty() ? def[1] : lo;
+            soulCount.put(rank, new int[]{lo, hi});
+        }
 
         nemesisEnabled = c.getBoolean("nemesis.enabled", true);
-        nemesisKillChance = c.getDouble("nemesis.become-on-kill-chance", 100);
-        nemesisEscapeChance = c.getDouble("nemesis.become-on-escape-chance", 50);
+        nemesisKillChance = c.getDouble("nemesis.become-on-kill-chance", 30);
+        nemesisEscapeChance = c.getDouble("nemesis.become-on-escape-chance", 30);
         BossRank minRank = BossRank.parse(c.getString("nemesis.escape-min-rank", "RED"));
         nemesisEscapeMinRank = minRank == null ? BossRank.RED : minRank;
         nemesisEscapeDamagePercent = c.getDouble("nemesis.escape-min-damage-percent", 25);
         nemesisEscapeDistance = c.getDouble("nemesis.escape-distance", 80);
         nemesisMaxPerPlayer = Math.max(1, c.getInt("nemesis.max-per-player", 5));
-        nemesisMaxLevel = Math.max(1, c.getInt("nemesis.max-level", 50));
-        nemesisLevelsOnKill = Math.max(0, c.getInt("nemesis.levels-when-it-kills-you", 3));
+        nemesisMaxLevel = Math.max(1, c.getInt("nemesis.max-level", 15));
+        nemesisLevelsOnKill = Math.max(0, c.getInt("nemesis.levels-when-it-kills-you", 2));
         nemesisLevelsOnEscape = Math.max(0, c.getInt("nemesis.levels-when-you-flee", 1));
         nemesisLevelsPerRank = Math.max(1, c.getInt("nemesis.levels-per-rank-up", 4));
         nemesisLevelsPerTrait = Math.max(1, c.getInt("nemesis.levels-per-new-trait", 3));
         nemesisMaxTraits = Math.max(1, c.getInt("nemesis.max-traits", 7));
-        nemesisReturnDays = Math.max(0.05, c.getDouble("nemesis.returns-after-days", 3));
+        nemesisReturnDays = Math.max(0.05, c.getDouble("nemesis.returns-after-days", 10));
         nemesisHealthPerLevel = c.getDouble("nemesis.health-per-level", 8);
         nemesisDamagePerLevel = c.getDouble("nemesis.damage-per-level", 4);
         nemesisMaxDamageMultiplier = Math.max(1, c.getDouble("nemesis.max-damage-multiplier", 5));
@@ -264,6 +284,13 @@ public final class FeatureSettings {
         nemesisRevengeXpMultiplier = Math.max(1, c.getDouble("nemesis.revenge-xp-multiplier", 2));
         nemesisProwlMinutes = Math.max(0, c.getDouble("nemesis.prowl-minutes", 1));
         nemesisKillLevelsPerOuting = Math.max(0, c.getInt("nemesis.levels-from-kills-per-outing", 5));
+        nemesisAggroSwitchPercent = Math.max(0, c.getDouble("nemesis.aggro-switch-percent", 10));
+        nemesisAdaptation = c.getBoolean("nemesis.adaptation.enabled", true);
+        nemesisResistedPercent = Math.max(0, Math.min(100, c.getDouble("nemesis.adaptation.resisted-damage-percent", 65)));
+        nemesisMaxImmunities = Math.max(0, c.getInt("nemesis.adaptation.max-immunities", 2));
+        nemesisPetDamageTakenPercent = Math.max(0, Math.min(100,
+            c.getDouble("nemesis.adaptation.pet-damage-taken-percent", 50)));
+        nemesisPetDamageBonus = Math.max(0, c.getDouble("nemesis.adaptation.pet-damage-dealt-bonus", 50));
         if (log != null && compassTiers.size() > 5) {
             log.info("Hunter's Compass has " + compassTiers.size() + " tiers configured.");
         }

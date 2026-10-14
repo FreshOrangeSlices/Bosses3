@@ -98,14 +98,15 @@ public final class TraitManager {
             if (s == null) {
                 s = new MemoryConfiguration();
             }
-            if (s.getBoolean("enabled", true)) {
+            // Swift only made bosses run faster than players: off unless a config turns it on
+            if (s.getBoolean("enabled", !trait.id().equals("swift"))) {
                 enabled.add(trait.id());
             }
             weights.put(trait.id(), Math.max(0, s.getDouble("weight", 10)));
             trait.load(s);
         }
         for (String key : root.getKeys(false)) {
-            if (!key.equals("incompatible") && !registry.containsKey(key)) {
+            if (!key.equals("incompatible") && !key.equals("area-damage-cap") && !registry.containsKey(key)) {
                 log.warning("traits." + key + " does not match any trait (ignored)");
             }
         }

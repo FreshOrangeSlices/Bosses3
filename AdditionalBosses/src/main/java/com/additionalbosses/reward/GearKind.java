@@ -39,6 +39,13 @@ public enum GearKind {
         return this == PICKAXE || this == SHOVEL || this == HOE;
     }
 
+    /** The three groups Boss Gear is split into by rank. */
+    public enum Category { ARMOR, TOOL, WEAPON }
+
+    public Category category() {
+        return armor ? Category.ARMOR : tool() ? Category.TOOL : Category.WEAPON;
+    }
+
     private final @Nullable String suffix;
     private final boolean armor;
     private final boolean tiered;

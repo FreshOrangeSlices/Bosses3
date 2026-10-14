@@ -144,8 +144,8 @@ public final class BossManager {
         if (regularCount() >= s.maxActive || tooCloseToAnotherBoss(entity.getLocation())) {
             return;
         }
-        // Roll #2: which rank? (weighted by the mob's category)
-        BossRank rank = category.rollRank();
+        // Roll #2: which rank? (weighted by the mob's category; the Nemesis-breeding Nether rolls higher)
+        BossRank rank = category.rollRank(entity.getWorld().getEnvironment() == World.Environment.NETHER);
         createBoss(entity, rank, category.id(), null, true);
     }
 
@@ -185,6 +185,18 @@ public final class BossManager {
             return null;
         }
         return out[0];
+    }
+
+    /**
+     * Marks a boss as player-made (a Totem, Escalation, a command, a Nemesis called by its Challenge): such
+     * bosses never drop Souls or Totems, so they can't feed themselves. {@code how} is kept for the Nemesis rule.
+     */
+    public static void markCreated(Boss boss, String how) {
+        boss.entity().getPersistentDataContainer().set(Keys.BOSS_CREATED, PersistentDataType.STRING, how);
+    }
+
+    public static @Nullable String created(LivingEntity e) {
+        return e.getPersistentDataContainer().get(Keys.BOSS_CREATED, PersistentDataType.STRING);
     }
 
     /** Paper gives mobs placed by structures/world generation the DEFAULT spawn reason. */
@@ -308,10 +320,20 @@ public final class BossManager {
                 continue;
             }
             BossTrait t = plugin.traits().get(id.trim());
-            if (t != null) {
+            if (t != null && plugin.traits().isEnabled(t)) {
                 traits.add(t);
             }
         }
+        // Bosses no longer outrun players: speed saved on bosses from older versions goes (and turned-off traits).
+        RankSettings.Stats stats = settings().rank(rank).stats();
+        setModifier(entity, Attribute.MOVEMENT_SPEED, Keys.MOD_SPEED,
+            MobProfile.scaleMultiplier(stats.speed(), settings().profileFor(entity.getType()).speed()) - 1.0,
+            AttributeModifier.Operation.MULTIPLY_SCALAR_1);
+        setModifier(entity, Attribute.MOVEMENT_SPEED, Keys.MOD_LAST_STAND, 0, AttributeModifier.Operation.MULTIPLY_SCALAR_1);
+        if (traits.stream().noneMatch(t -> t.id().equals("swift"))) {
+            setModifier(entity, Attribute.MOVEMENT_SPEED, Keys.MOD_TRAIT_SWIFT, 0, AttributeModifier.Operation.MULTIPLY_SCALAR_1);
+        }
+        pdc.set(Keys.BOSS_TRAITS, PersistentDataType.STRING, String.join(",", traits.stream().map(BossTrait::id).toList()));
         String nemesisId = pdc.get(Keys.NEMESIS, PersistentDataType.STRING);
         if (nemesisId != null && !plugin.nemesis().canReattach(nemesisId, entity)) {
             // A stray copy (its record is gone or it is already out): remove it once the add event is over.
@@ -340,7 +362,8 @@ public final class BossManager {
     private static void demote(LivingEntity e) {
         PersistentDataContainer pdc = e.getPersistentDataContainer();
         for (org.bukkit.NamespacedKey key : new org.bukkit.NamespacedKey[]{Keys.BOSS, Keys.BOSS_RANK, Keys.BOSS_TRAITS,
-            Keys.BOSS_CATEGORY, Keys.BOSS_UNDYING, Keys.BOSS_LAST_STAND, Keys.BOSS_THREAT, Keys.BOSS_PHASE}) {
+            Keys.BOSS_CATEGORY, Keys.BOSS_UNDYING, Keys.BOSS_LAST_STAND, Keys.BOSS_THREAT, Keys.BOSS_PHASE, Keys.BOSS_CREATED,
+            Keys.BOSS_PLAYER_KILLS}) {
             pdc.remove(key);
         }
         for (Attribute attribute : new Attribute[]{Attribute.MAX_HEALTH, Attribute.ARMOR, Attribute.ARMOR_TOUGHNESS,
@@ -383,6 +406,15 @@ public final class BossManager {
             }
         }
         double ratio = from.healthRatio();
+        PersistentDataContainer old = from.entity().getPersistentDataContainer();
+        String created = old.get(Keys.BOSS_CREATED, PersistentDataType.STRING);
+        if (created != null) {
+            to.getPersistentDataContainer().set(Keys.BOSS_CREATED, PersistentDataType.STRING, created);
+        }
+        Integer kills = old.get(Keys.BOSS_PLAYER_KILLS, PersistentDataType.INTEGER);
+        if (kills != null) {
+            to.getPersistentDataContainer().set(Keys.BOSS_PLAYER_KILLS, PersistentDataType.INTEGER, kills);
+        }
         Boss boss = createBoss(to, from.rank(), from.categoryId(), keep, false);
         AttributeInstance max = to.getAttribute(Attribute.MAX_HEALTH);
         if (max != null) {
@@ -487,6 +519,7 @@ public final class BossManager {
         if (active.remove(boss.uuid()) == null) {
             return;
         }
+        glow(boss, false);
         plugin.bossBars().remove(boss);
         if (active.isEmpty() && ticker != null) {
             ticker.cancel();
@@ -531,7 +564,7 @@ public final class BossManager {
                 continue;
             }
             checkStuck(boss, now);
-            pursue(boss, now);
+            glow(boss, playerWithin(boss, settings().glowWithin));
             plugin.bossBars().refreshViewers(boss);
             for (BossTrait trait : boss.traits()) {
                 try {
@@ -543,6 +576,78 @@ public final class BossManager {
             if (now % 20 < 10) {
                 plugin.presentation().ambient(boss);
             }
+        }
+    }
+
+    // =====================================================================
+    // Glow: a boss lights up (in its rank's colour) while someone is close
+    // =====================================================================
+
+    private static boolean playerWithin(Boss boss, double radius) {
+        if (radius <= 0) {
+            return false;
+        }
+        LivingEntity e = boss.entity();
+        for (Player p : e.getWorld().getPlayers()) {
+            if (p.getGameMode() != GameMode.SPECTATOR && p.getLocation().distanceSquared(e.getLocation()) <= radius * radius) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private void glow(Boss boss, boolean on) {
+        LivingEntity e = boss.entity();
+        if (e.isGlowing() == on || (!e.isValid() && on)) {
+            return;
+        }
+        e.setGlowing(on);
+        org.bukkit.scoreboard.Scoreboard board = Bukkit.getScoreboardManager().getMainScoreboard();
+        String entry = e.getUniqueId().toString();
+        if (on && settings().glowRankColors) {
+            String name = "ab_glow_" + boss.rank().name().toLowerCase(java.util.Locale.ROOT);
+            org.bukkit.scoreboard.Team team = board.getTeam(name);
+            if (team == null) {
+                team = board.registerNewTeam(name);
+                team.color(net.kyori.adventure.text.format.NamedTextColor.nearestTo(boss.rank().color()));
+                team.setOption(org.bukkit.scoreboard.Team.Option.COLLISION_RULE, org.bukkit.scoreboard.Team.OptionStatus.ALWAYS);
+            }
+            if (!team.hasEntry(entry)) {
+                team.addEntry(entry);
+            }
+        } else if (!on) {
+            org.bukkit.scoreboard.Team team = board.getEntryTeam(entry);
+            if (team != null && team.getName().startsWith("ab_glow_")) {
+                team.removeEntry(entry);
+            }
+        }
+    }
+
+    // =====================================================================
+    // Two strikes: a boss that has killed enough players leaves
+    // =====================================================================
+
+    /** A boss (or its minion) killed a player. Returns true if the boss left because of it. */
+    public void onKilledPlayer(Boss boss, Player victim) {
+        LivingEntity e = boss.entity();
+        PersistentDataContainer pdc = e.getPersistentDataContainer();
+        int kills = pdc.getOrDefault(Keys.BOSS_PLAYER_KILLS, PersistentDataType.INTEGER, 0) + 1;
+        pdc.set(Keys.BOSS_PLAYER_KILLS, PersistentDataType.INTEGER, kills);
+        boss.addVictim(victim.getUniqueId());
+        if (plugin.nemesis().onKilledPlayer(boss, victim, kills)) {
+            return; // it is (or just became) a Nemesis: it handles its own leaving
+        }
+        int limit = settings().despawnAfterKills;
+        if (limit > 0 && kills >= limit) {
+            // after the death has been dealt with: it simply isn't there any more
+            Bukkit.getScheduler().runTask(plugin, () -> {
+                if (active.get(boss.uuid()) == boss && e.isValid() && !e.isDead()) {
+                    Fx.particle(Fx.center(e), Particle.LARGE_SMOKE, 30, 0.6, 0.05);
+                    removeMinions(boss);
+                    unregister(boss);
+                    e.remove();
+                }
+            });
         }
     }
 
@@ -574,8 +679,8 @@ public final class BossManager {
     }
 
     /**
-     * The first time a boss is engaged it sizes up the best-geared player nearby: the stronger their gear
-     * (armor, enchantments, runes, relics), the more health and damage it gains. Applied once per boss.
+     * The first time a boss is engaged it counts the Boss Gear the players nearby are actually using (worn, or in
+     * either hand): the more of it, the more health and damage it gains. Applied once per boss.
      */
     private void applyThreat(Boss boss) {
         FeatureSettings f = settings().features;
@@ -585,9 +690,9 @@ public final class BossManager {
         }
         double best = 0;
         for (Player p : boss.nearbyPlayers(f.threatRadius)) {
-            best = Math.max(best, gearScore(p));
+            best = Math.max(best, bossGearInUse(p));
         }
-        double threat = Math.max(0, Math.min(1, best / f.threatReferenceScore));
+        double threat = Math.max(0, Math.min(1, best / f.threatFullPieces));
         e.getPersistentDataContainer().set(Keys.BOSS_THREAT, PersistentDataType.DOUBLE, threat);
         if (threat <= 0.01) {
             return;
@@ -600,29 +705,18 @@ public final class BossManager {
         plugin.bossBars().updateHealth(boss, e.getHealth());
     }
 
-    /** Rough gear score: material tier, enchantment levels, runes and relics on armor and the main hand. */
-    public double gearScore(Player p) {
-        double score = 0;
+    /** How many pieces of Boss Gear (dropped by bosses) a player wears or holds. Their bag doesn't count. */
+    public int bossGearInUse(Player p) {
         org.bukkit.inventory.PlayerInventory inv = p.getInventory();
-        ItemStack[] items = {inv.getHelmet(), inv.getChestplate(), inv.getLeggings(), inv.getBoots(), inv.getItemInMainHand()};
-        for (ItemStack item : items) {
-            if (item == null || item.isEmpty()) {
-                continue;
+        int n = 0;
+        for (ItemStack item : new ItemStack[]{inv.getHelmet(), inv.getChestplate(), inv.getLeggings(), inv.getBoots(),
+            inv.getItemInMainHand(), inv.getItemInOffHand()}) {
+            if (item != null && !item.isEmpty()
+                && item.getPersistentDataContainer().has(Keys.ITEM_RANK, PersistentDataType.STRING)) {
+                n++;
             }
-            String n = item.getType().name();
-            score += n.startsWith("NETHERITE") ? 5 : n.startsWith("DIAMOND") ? 4
-                : n.startsWith("IRON") || n.startsWith("CHAINMAIL") || n.startsWith("COPPER") ? 3
-                : n.startsWith("GOLDEN") || n.startsWith("LEATHER") || n.startsWith("STONE") ? 1.5
-                : n.equals("MACE") || n.equals("TRIDENT") || n.equals("BOW") || n.equals("CROSSBOW") ? 4 : 0;
-            int levels = 0;
-            for (int lvl : item.getEnchantments().values()) {
-                levels += lvl;
-            }
-            score += Math.min(18, levels);
-            score += 3 * com.additionalbosses.item.ItemService.list(item, Keys.EMPOWERMENTS).size();
-            score += 4 * com.additionalbosses.item.ItemService.list(item, Keys.RELICS).size();
         }
-        return score;
+        return n;
     }
 
     // =====================================================================
@@ -698,7 +792,7 @@ public final class BossManager {
         e.addPotionEffect(new PotionEffect(PotionEffectType.RESISTANCE, 50, 3, false, false));
         double radius = f.ascendantShockwaveRadius;
         for (Player p : boss.nearbyPlayers(radius)) {
-            p.damage(f.ascendantShockwaveDamage * boss.power(), e);
+            com.additionalbosses.combat.AreaDamage.hit(p, f.ascendantShockwaveDamage * boss.power(), e);
             org.bukkit.util.Vector away = p.getLocation().toVector().subtract(e.getLocation().toVector()).setY(0);
             if (away.lengthSquared() < 0.01) {
                 away = new org.bukkit.util.Vector(0.1, 0, 0);
@@ -745,8 +839,14 @@ public final class BossManager {
             if (boss.isNemesis()) {
                 plugin.nemesis().onSlain(boss, killer, event, rewards);
             }
-            if (f.soulsEnabled && (boss.isNemesis() || Rng.chance(f.soulChance.getOrDefault(boss.rank(), 0.0)))) {
-                rewards.add(plugin.items().createSoul(boss.rank(), 1));
+            // Bosses players made (Totems, Escalation, commands) don't drop Souls or Totems, so they can't feed
+            // themselves. A Nemesis always drops Souls; one called by its Challenge just no Totem.
+            String created = created(e);
+            boolean soulsOk = boss.isNemesis() || created == null;
+            boolean totemOk = boss.isNemesis() ? !"challenge".equals(created) : created == null;
+            if (f.soulsEnabled && soulsOk && (boss.isNemesis() || Rng.chance(f.soulChance.getOrDefault(boss.rank(), 0.0)))) {
+                int[] count = f.soulCount.getOrDefault(boss.rank(), new int[]{1, 1});
+                rewards.add(plugin.items().createSoul(boss.rank(), Rng.between(count[0], count[1])));
             }
             if (f.waystonesEnabled) {
                 int stones = boss.rank() == BossRank.ASCENDANT ? f.waystoneAscendantDrops : 0;
@@ -757,8 +857,13 @@ public final class BossManager {
                     rewards.add(plugin.waystones().createItem(null));
                 }
             }
-            if (f.totemEnabled && Rng.chance(f.totemDropChance.getOrDefault(boss.rank(), 0.0))) {
-                rewards.add(plugin.items().createTotem(null)); // dropped totems call a random rank
+            if (f.totemEnabled && totemOk && Rng.chance(f.totemDropChance.getOrDefault(boss.rank(), 0.0))) {
+                // a Totem of its own rank (sometimes one higher), up to Legendary: Ascendants are only ever raised
+                BossRank called = boss.rank().atLeast(BossRank.GOLD) ? BossRank.GOLD : boss.rank();
+                if (called != BossRank.GOLD && Rng.chance(f.totemHigherChance)) {
+                    called = called.up(1);
+                }
+                rewards.add(plugin.items().createTotem(called));
             }
             dropRewards(boss, rewards);
             if (killer != null) {
@@ -830,29 +935,6 @@ public final class BossManager {
         plugin.presentation().messageNearby(boss, "unstuck", 32);
     }
 
-    /**
-     * Rank personality: Red and higher bosses don't let you simply walk away. When their target backs off they
-     * surge after it (Purple, Gold and Nemesis bosses harder), while Gray and Green bosses stay sluggish.
-     */
-    private void pursue(Boss boss, int now) {
-        if (!settings().features.pursuit || !boss.rank().atLeast(BossRank.RED) || !boss.ready("pursuit", now)) {
-            return;
-        }
-        LivingEntity e = boss.entity();
-        Player target = boss.target();
-        if (target == null || !BaseTrait.walks(e) || e instanceof RangedEntity) {
-            return;
-        }
-        double dist = target.getLocation().distance(e.getLocation());
-        if (dist < 8 || dist > 32) {
-            return;
-        }
-        boolean strong = boss.isNemesis() || boss.rank().atLeast(BossRank.PURPLE);
-        e.addPotionEffect(new PotionEffect(PotionEffectType.SPEED, strong ? 50 : 30, strong ? 1 : 0, false, false));
-        boss.cooldown("pursuit", now, strong ? 140 : 200);
-        Fx.particle(e.getLocation().add(0, 0.1, 0), Particle.CLOUD, 6, 0.3, 0.02);
-    }
-
     /** Purple/Gold bosses (and every Nemesis) make a Last Stand once at low health. */
     public void checkLastStand(Boss boss, double healthAfter) {
         FeatureSettings f = settings().features;
@@ -869,8 +951,6 @@ public final class BossManager {
         boss.setLastStand(true);
         e.getPersistentDataContainer().set(Keys.BOSS_LAST_STAND, PersistentDataType.BYTE, (byte) 1);
         boss.scalePower(1.0 + f.lastStandPowerBonus / 100.0);
-        setModifier(e, Attribute.MOVEMENT_SPEED, Keys.MOD_LAST_STAND, f.lastStandSpeedBonus / 100.0,
-            AttributeModifier.Operation.MULTIPLY_SCALAR_1);
         if (f.lastStandDormantTrait) {
             BossTrait extra = plugin.traits().rollExtra(e, boss.traits());
             if (extra != null) {
@@ -943,6 +1023,7 @@ public final class BossManager {
 
     public void shutdown() {
         for (Boss boss : List.copyOf(active.values())) {
+            glow(boss, false); // not saved glowing, and no stale scoreboard entries
             plugin.bossBars().remove(boss);
         }
         active.clear();

@@ -58,6 +58,12 @@ public final class Messages {
         DEFAULTS.put("nemesis-return-title", "<dark_red>☠ NEMESIS ☠</dark_red>");
         DEFAULTS.put("nemesis-return-subtitle", "<boss> <gray>has returned for you</gray>");
         DEFAULTS.put("nemesis-slain", "<player> <gray>has slain their Nemesis</gray> <boss><gray>!</gray>");
+        DEFAULTS.put("nemesis-challenge-received", "<dark_red>☠</dark_red> <gray>You wake clutching a note from</gray> <boss><gray>: its Challenge. Use it to call it back, or read its Terms of Surrender.</gray>");
+        DEFAULTS.put("nemesis-challenge-gone", "<gray>The note crumbles. That feud is already over.</gray>");
+        DEFAULTS.put("nemesis-challenge-not-yours", "<red>This Challenge was written for someone else.</red>");
+        DEFAULTS.put("nemesis-challenge-out", "<boss> <red>is already out hunting you.</red>");
+        DEFAULTS.put("nemesis-challenge-blocked", "<red>Nothing answers the Challenge here.</red>");
+        DEFAULTS.put("nemesis-surrendered", "<boss> <gray>accepts your surrender. The feud is over.</gray>");
         DEFAULTS.put("revenge", "<gold><bold>REVENGE!</bold></gold> <yellow>Bonus rewards for avenging your death.</yellow>");
         DEFAULTS.put("escalation-title", "<dark_red><bold>⚠ ESCALATION ⚠</bold></dark_red>");
         DEFAULTS.put("escalation-subtitle", "<red>Your hunting has drawn something worse...</red>");
