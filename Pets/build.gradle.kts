@@ -3,7 +3,11 @@ plugins {
 }
 
 group = "com.bloompets"
-version = "1.0.0"
+// Builds from GitHub Actions carry their run number and commit ("1.0.0-b57 (3fc9923)"), shown by
+// /version <plugin> and on startup, so it's easy to see which build a server is running.
+val ciRun: String? = System.getenv("GITHUB_RUN_NUMBER")
+val ciSha: String? = System.getenv("GITHUB_SHA")?.take(7)
+version = if (ciRun != null) "1.0.0-b$ciRun ($ciSha)" else "1.0.0-dev"
 description = "Bond with animals by feeding them, then summon, ride and level up your pets."
 
 repositories {
@@ -37,5 +41,5 @@ tasks.processResources {
 
 tasks.jar {
     archiveBaseName.set("BloomPets")
-    archiveVersion.set(project.version.toString())
+    archiveVersion.set("") // always the same file name, so a new download replaces the old jar
 }
