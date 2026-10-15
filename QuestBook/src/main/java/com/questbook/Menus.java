@@ -115,17 +115,23 @@ public final class Menus implements Listener {
             put(screen, b.hubSlot(), icon(b.icon(), Msg.mini(b.title()).colorIfAbsent(Msg.GOLD), lore, pr[2] > 0),
                 () -> openBoard(p, b));
         }
+        // the guide books, side by side along the bottom
+        List<Guide> books = new ArrayList<>();
         for (Guide g : cfg.guides()) {
-            if (g.slot() < 0 || g.slot() >= 45 || !service().available(g.requires())) {
-                continue;
+            if (service().available(g.requires())) {
+                books.add(g);
             }
+        }
+        List<Integer> bottom = row(36, books.size(), true);
+        for (int i = 0; i < books.size() && i < bottom.size(); i++) {
+            Guide g = books.get(i);
             List<Component> lore = new ArrayList<>();
             for (String l : g.lore()) {
                 lore.add(Msg.mini(l).colorIfAbsent(NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false));
             }
             lore.add(Component.empty());
             lore.add(line("Click to read", NamedTextColor.DARK_GRAY));
-            put(screen, g.slot(), icon(Material.WRITTEN_BOOK, Msg.mini(g.name()).colorIfAbsent(NamedTextColor.AQUA), lore,
+            put(screen, bottom.get(i), icon(Material.WRITTEN_BOOK, Msg.mini(g.name()).colorIfAbsent(NamedTextColor.AQUA), lore,
                 false), () -> Bukkit.getScheduler().runTask(plugin, () -> {
                     p.closeInventory();
                     p.performCommand(g.command()); // opens the book on screen; nothing goes in the bag
@@ -152,64 +158,107 @@ public final class Menus implements Listener {
         fill(screen.inventory);
         int[] pr = service().progress(p, b);
         put(screen, HEADER_SLOT, icon(b.icon(), Msg.mini(b.title()).colorIfAbsent(Msg.GOLD), List.of(
-            line("Done: " + pr[0] + "/" + pr[1], NamedTextColor.YELLOW),
-            line("Do a quest, then click its", NamedTextColor.GRAY),
-            line("emerald to claim the reward.", NamedTextColor.GRAY)), false), null);
+            line("Done: " + pr[0] + "/" + pr[1], NamedTextColor.YELLOW)), false), null);
+        List<Quest> shown = new ArrayList<>();
+        List<Status> states = new ArrayList<>();
         for (Quest q : b.quests()) {
             Status st = service().status(p, q);
-            if (st == Status.HIDDEN || q.slot() < 0 || q.slot() >= 45) {
-                continue;
+            if (st != Status.HIDDEN) {
+                shown.add(q);
+                states.add(st);
             }
+        }
+        List<Integer> slots = grid(shown.size());
+        for (int i = 0; i < shown.size() && i < slots.size(); i++) {
+            Quest q = shown.get(i);
+            Status st = states.get(i);
             Runnable claim = st == Status.READY ? () -> {
                 if (service().claim(p, q)) {
                     openBoard(p, b);
                 }
             } : null;
-            put(screen, q.slot(), questIcon(q, st), claim);
-            put(screen, q.slot() + 9, stateIcon(q, st), claim);
+            put(screen, slots.get(i), questIcon(q, st), claim);
         }
         put(screen, BACK_SLOT, icon(Material.ARROW, Component.text("Back", NamedTextColor.GRAY), List.of(), false),
             () -> openHub(p));
         show(p, screen);
     }
 
+    /**
+     * One item per quest: what to do and the reward; "click to claim" once done; and once claimed it shines, with
+     * its Insight.
+     */
     private ItemStack questIcon(Quest q, Status st) {
-        TextColor color = st == Status.CLAIMED ? NamedTextColor.GREEN : st == Status.READY ? Msg.GOLD : NamedTextColor.WHITE;
         List<Component> lore = new ArrayList<>();
         lore.add(Msg.mini(q.objective()).colorIfAbsent(NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false));
         if (st == Status.CLAIMED) {
             if (!q.insight().isBlank()) {
                 lore.add(Component.empty());
-                lore.add(line("Insight:", NamedTextColor.AQUA));
                 for (String part : wrap(q.insight(), 32)) {
-                    lore.add(line(part, NamedTextColor.DARK_AQUA));
+                    lore.add(line(part, NamedTextColor.AQUA));
                 }
             }
-        } else if (!q.rewards().isEmpty()) {
+            return icon(q.icon(), Component.text("✔ ", NamedTextColor.GREEN)
+                .append(Msg.mini(q.name()).colorIfAbsent(NamedTextColor.GREEN)), lore, true);
+        }
+        if (!q.rewards().isEmpty()) {
             lore.add(Component.empty());
             rewardLines(lore, q.rewards());
         }
         if (st == Status.READY) {
             lore.add(Component.empty());
-            lore.add(line("Click to claim!", NamedTextColor.GREEN));
+            lore.add(line("Done! Click to claim.", NamedTextColor.GREEN));
+            return icon(q.icon(), Msg.mini(q.name()).colorIfAbsent(Msg.GOLD), lore, false);
         }
-        return icon(q.icon(), Msg.mini(q.name()).colorIfAbsent(color), lore, st == Status.READY);
+        return icon(q.icon(), Msg.mini(q.name()).colorIfAbsent(NamedTextColor.WHITE), lore, false);
     }
 
-    private ItemStack stateIcon(Quest q, Status st) {
-        return switch (st) {
-            case READY -> icon(Material.EMERALD, Component.text("Ready to claim!", NamedTextColor.GREEN),
-                List.of(line("Click to get your reward.", NamedTextColor.GRAY)), true);
-            case CLAIMED -> icon(Material.LIME_DYE, Component.text("Done", NamedTextColor.GREEN),
-                List.of(line(plainName(q), NamedTextColor.GRAY)), false);
-            default -> icon(Material.GRAY_DYE, Component.text("Not done yet", NamedTextColor.GRAY),
-                List.of(line(plainName(q), NamedTextColor.DARK_GRAY)), false);
-        };
+    /** Slots for {@code n} quests: tidy centred rows of up to 7 between the header and the Back button. */
+    private static List<Integer> grid(int n) {
+        List<Integer> out = new ArrayList<>();
+        int rows = Math.max(1, (n + 6) / 7);
+        int[] rowSlots = rows == 1 ? new int[]{2} : rows == 2 ? new int[]{1, 3} : rows == 3 ? new int[]{1, 2, 3}
+            : new int[]{1, 2, 3, 4};
+        int left = n;
+        for (int r = 0; r < rowSlots.length && left > 0; r++) {
+            int count = (int) Math.ceil(left / (double) (rowSlots.length - r));
+            out.addAll(row(rowSlots[r] * 9, Math.min(7, count), false));
+            left -= Math.min(7, count);
+        }
+        return out;
     }
 
-    private static String plainName(Quest q) {
-        return net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer.plainText()
-            .serialize(Msg.mini(q.name()));
+    /**
+     * {@code count} slots centred in the row starting at {@code start}: odd counts side by side, even counts with
+     * the middle slot left free so the row stays symmetrical. {@code spaced}: one slot apart.
+     */
+    private static List<Integer> row(int start, int count, boolean spaced) {
+        List<Integer> out = new ArrayList<>();
+        if (count <= 0) {
+            return out;
+        }
+        if (spaced && count <= 5) {
+            int first = 4 - (count - 1);
+            for (int i = 0; i < count; i++) {
+                out.add(start + first + i * 2);
+            }
+            return out;
+        }
+        if (count % 2 == 1) {
+            int first = 4 - count / 2;
+            for (int i = 0; i < count; i++) {
+                out.add(start + first + i);
+            }
+        } else {
+            int half = count / 2;
+            for (int i = 0; i < half; i++) {
+                out.add(start + 4 - half + i);
+            }
+            for (int i = 0; i < half; i++) {
+                out.add(start + 5 + i);
+            }
+        }
+        return out;
     }
 
     private void rewardLines(List<Component> lore, List<Reward> rewards) {

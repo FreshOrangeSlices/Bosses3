@@ -19,8 +19,9 @@
 #    mcmmo:<SKILL>>=<level>     an mcMMO skill level (RetroMode scale)
 #    permission:<node>          the player has a permission
 #
-#  slot: where the quest sits on its board (0-44; its state shows just
-#  below it). Rewards: {item: IRON_INGOT, amount: 8}, optional trim:
+#  Quests are laid out in tidy rows in the order listed here. Once
+#  claimed, a quest shines and shows its insight.
+#  Rewards: {item: IRON_INGOT, amount: 8}, optional trim:
 #  {material: redstone, pattern: sentry}, potion: healing,
 #  enchantments: {sharpness: 1}; or {command: "...%player%...", slots: 1,
 #  label: "what it says in the book"}, run by the console.
@@ -42,7 +43,6 @@ boards:
       first-boss:
         name: "Something's Different"
         icon: ZOMBIE_HEAD
-        slot: 1
         objective: "Defeat your first Boss."
         triggers: [flag:boss_kill]
         rewards:
@@ -52,7 +52,6 @@ boards:
       boss-gear:
         name: "Marked by Battle"
         icon: CHAINMAIL_CHESTPLATE
-        slot: 3
         objective: "Get your first piece of Boss-Touched gear."
         triggers: [flag:boss_gear, "item:additionalbosses:item_kind=GEAR"]
         rewards:
@@ -61,7 +60,6 @@ boards:
       relic-hunter:
         name: "Relic Hunter"
         icon: HEART_OF_THE_SEA
-        slot: 5
         objective: "Find your first Relic."
         triggers: [flag:relic_found]   # (the Welcome Gift's relic doesn't count: it was given, not found)
         rewards:
@@ -70,7 +68,6 @@ boards:
       use-relic:
         name: "Use a Relic"
         icon: ANVIL
-        slot: 7
         objective: "Bind a Relic to a piece of gear."
         triggers: [flag:relic_bound, "item:additionalbosses:relics"]
         rewards:
@@ -79,7 +76,6 @@ boards:
       soul:
         name: "Soul of the Boss"
         icon: ECHO_SHARD
-        slot: 18
         objective: "Get your first Boss Soul."
         triggers: [flag:soul_found, "item:additionalbosses:item_kind=SOUL", flag:soul_promote]
         rewards:
@@ -88,7 +84,6 @@ boards:
       raise-the-stakes:
         name: "Raise the Stakes"
         icon: EXPERIENCE_BOTTLE
-        slot: 20
         objective: "Use a Soul to promote a boss."
         triggers: [flag:soul_promote]
         rewards:
@@ -97,7 +92,6 @@ boards:
       totem:
         name: "Challenge Accepted"
         icon: TOTEM_OF_UNDYING
-        slot: 24
         objective: "Use a Boss Totem."
         triggers: [flag:totem_used]
         rewards:
@@ -107,7 +101,6 @@ boards:
       rival:
         name: "A Rival Appears"
         icon: SKELETON_SKULL
-        slot: 26
         objective: "Have a boss become your Nemesis."
         triggers: [flag:nemesis_created]
         rewards:
@@ -117,7 +110,6 @@ boards:
       learned:
         name: "It Learned"
         icon: SPYGLASS
-        slot: 37
         objective: "See your Nemesis adapt to how you fight."
         triggers: [flag:nemesis_adapted]
         rewards:
@@ -127,7 +119,6 @@ boards:
       surrender-terms:
         name: "Terms of Surrender"
         icon: PAPER
-        slot: 39
         objective: "Wake up with your Nemesis's Challenge after it kills you."
         triggers: [flag:challenge_received, "item:additionalbosses:item_kind=CHALLENGE"]
         rewards:
@@ -137,7 +128,6 @@ boards:
       revenge:
         name: "Revenge"
         icon: NETHERITE_SWORD
-        slot: 41
         objective: "Kill your Nemesis."
         triggers: [flag:nemesis_slain]
         rewards:
@@ -146,7 +136,6 @@ boards:
       ascension:
         name: "Ascension"
         icon: BEACON
-        slot: 43
         objective: "Raise a boss to Ascendant."
         triggers: [flag:ascendant_created]
         rewards:
@@ -167,7 +156,6 @@ boards:
       new-friend:
         name: "A New Friend"
         icon: NAME_TAG
-        slot: 1
         objective: "Get your first pet."
         triggers: [flag:pet_adopted]
         rewards:
@@ -177,7 +165,6 @@ boards:
       take-care:
         name: "Take Care"
         icon: SWEET_BERRIES
-        slot: 3
         objective: "Feed your pet."
         triggers: [flag:pet_fed]
         rewards:
@@ -187,7 +174,6 @@ boards:
       guard-duty:
         name: "Guard Duty"
         icon: BELL
-        slot: 5
         objective: "Leave a pet at a post."
         triggers: [flag:pet_stationed]
         rewards:
@@ -197,7 +183,6 @@ boards:
       growing-bond:
         name: "Growing Bond"
         icon: EXPERIENCE_BOTTLE
-        slot: 7
         objective: "Level up a pet."
         triggers: [flag:pet_level_up]
         rewards:
@@ -207,7 +192,6 @@ boards:
       play-time:
         name: "Play Time"
         icon: STICK
-        slot: 18
         objective: "Pet your pet, or play fetch."
         triggers: [flag:pet_play]
         rewards:
@@ -217,7 +201,6 @@ boards:
       needs-a-break:
         name: "Needs a Break"
         icon: RED_BED
-        slot: 20
         objective: "Let a tired pet rest in its bloom until it's fresh again."
         requires: ["config:BloomPets:happiness.enabled"]
         triggers: [flag:pet_rested]
@@ -228,7 +211,6 @@ boards:
       taming-training:
         name: "Taming Training"
         icon: BONE
-        slot: 24
         objective: "Reach Taming level 100 with a combat pet."
         requires: [mcmmo]
         triggers: ["mcmmo:TAMING>=100 & flag:pet_combat_owned"]
@@ -239,7 +221,6 @@ boards:
       pet-fighter:
         name: "Pet Fighter"
         icon: IRON_SWORD
-        slot: 26
         objective: "Have a combat pet land a hit in a fight."
         triggers: [flag:pet_combat_xp]
         rewards:
@@ -249,7 +230,6 @@ boards:
       fully-grown:
         name: "Fully Grown"
         icon: CAKE
-        slot: 22
         objective: "Raise a pet to level 10."
         triggers: [flag:pet_max_level]
         rewards:
