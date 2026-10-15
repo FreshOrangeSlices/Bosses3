@@ -31,6 +31,7 @@ public final class QuestBook extends JavaPlugin {
     public void onEnable() {
         instance = this;
         saveDefaultConfig();
+        ConfigUpdate.run(this);
         if (!new File(getDataFolder(), "quests.yml").isFile()) {
             saveResource("quests.yml", false);
         }

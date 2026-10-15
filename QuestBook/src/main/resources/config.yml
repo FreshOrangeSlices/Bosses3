@@ -1,3 +1,4 @@
+config-version: 2   # used by the plugin to update this file; don't change
 # =====================================================================
 #  QuestBook
 #  One Quest Book that shows players everything the server adds: small
@@ -22,19 +23,22 @@ welcome:
     - {command: "bosses give %player% relic random random starter", slots: 1, label: "<light_purple>A mysterious Relic",
        requires: [plugin:AdditionalBosses]}
 
-# The guide books, right on the first page. Clicking one shows the book on
-# screen (a command run as the player); nothing is put in their bag.
-# requires: plugin:<Name> hides it when that plugin isn't installed.
+# The guide books, along the bottom of the first page. Clicking one shows
+# the book on screen (a command run as the player); nothing is put in their
+# bag. requires: plugin:<Name> hides it when that plugin isn't installed.
 guide-books:
-  bosses:
-    name: "<dark_red>Boss Hunter's Compendium"
-    lore: ["Everything about bosses, in detail:", "ranks, traits, loot, the Nemesis..."]
-    command: "bosses guide read"
-    slot: 30
+  bosses-1:
+    name: "<dark_red>Boss Book I"
+    lore: ["Bosses: ranks, traits", "and how they fight."]
+    command: "bosses guide read 1"
+    requires: [plugin:AdditionalBosses]
+  bosses-2:
+    name: "<dark_red>Boss Book II"
+    lore: ["Loot, relics, the hunt", "and the Nemesis."]
+    command: "bosses guide read 2"
     requires: [plugin:AdditionalBosses]
   pets:
     name: "<light_purple>Pet Guide"
     lore: ["Which animals can be pets,", "what they like, and what they do."]
     command: "pets guide"
-    slot: 32
     requires: [plugin:BloomPets]

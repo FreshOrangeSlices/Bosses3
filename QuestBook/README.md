@@ -11,12 +11,11 @@ needs a resource pack, and it's simple enough to use from Bedrock (Geyser).
 
 - Everyone gets a Quest Book the first time they join (players who were already around get one on their next login).
   Right-click it, or type `/quests`. It stays with you when you die. Lost it? `/quests book`.
-- **The first page**: a Welcome Gift to claim, the boards (Bosses, Pets, Work Skills, Combat Skills, Misc Skills) and
-  the guide books (Boss Hunter's Compendium, Pet Guide), which open on screen without going in your bag.
-- **Quest boards**: every quest is visible from the start. Under each one, its state:
-  - gray dye: not done yet (the quest shows what to do and its reward);
-  - emerald: done, click it to claim the reward (the claim waits until you have room in your bag);
-  - lime dye: claimed, and the quest now shows a short *Insight* about what you just learned.
+- **The first page**: a Welcome Gift to claim, the boards (Bosses, Pets, Work Skills, Combat Skills, Misc Skills) and,
+  along the bottom, the guide books (Boss Book I and II, Pet Guide), which open on screen without going in your bag.
+- **Quest boards**: every quest is visible from the start, one item each, showing what to do and its reward.
+  Once it's done, the item says "Done! Click to claim": click it for the reward (it waits until you have room in
+  your bag). A claimed quest shines, and shows a short *Insight* about what you just learned.
 - **Skill boards** (mcMMO): three milestones per skill (levels 50, 100 and 300; Misc skills 25, 50 and 100). No
   rewards: each milestone says what the skill does around that level. They fill in on their own, including levels
   you already had.
@@ -36,8 +35,9 @@ Permissions: `questbook.use` (everyone), `questbook.admin` (op).
 
 ## Config
 
-- `config.yml`: the book (give on first join, keep on death), the Welcome Gift, and the guide books on the first page
-  (each one is a command run as the player that shows a book).
+- `config.yml`: the book (give on first join, keep on death), the Welcome Gift, and the guide books along the bottom
+  of the first page (each one is a command run as the player that shows a book). Older config files are updated
+  automatically (a backup is kept).
 - `quests.yml`: the boards and quests. Everything is there: names, icons, where each sits, objectives, rewards,
   Insights and what completes it. Comments at the top explain the format.
 

@@ -125,10 +125,8 @@ public final class BossesCommand implements BasicCommand {
         if (args.length >= 2 && args[1].equalsIgnoreCase("read")) {
             // shows the guide on screen without putting a book in the bag (the Quest Book uses this)
             if (sender instanceof Player p) {
-                java.util.List<org.bukkit.inventory.ItemStack> volumes = plugin.guide().create(p);
-                if (!volumes.isEmpty()) {
-                    p.openBook(volumes.get(0));
-                }
+                int volume = args.length >= 3 && args[2].equals("2") ? 2 : 1; // /bosses guide read [1|2]
+                p.openBook(plugin.guide().volume(p, volume));
             } else {
                 error(sender, "Only players can read the guide.");
             }
