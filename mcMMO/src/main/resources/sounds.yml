@@ -3,7 +3,8 @@
 Sounds:
     # 1.0 = Max volume
     # 0.0 = No Volume
-    MasterVolume: 1.0
+    # Server-specific: every mcMMO sound (level-ups, skill unlocks, abilities...) at 40% of its volume below
+    MasterVolume: 0.4
     # If you want to use custom sounds, provide an ID for CustomSoundId
     # Sound IDs are strings, such as minecraft:entity.player.levelup
     ITEM_CONSUMED:
@@ -68,7 +69,7 @@ Sounds:
         CustomSoundId: ''
     BLEED:
         Enable: true
-        Volume: 2.0
+        Volume: 1.0
         Pitch: 2.0
         CustomSoundId: ''
     CRIPPLE:

@@ -529,6 +529,21 @@ public class ExperienceConfig extends BukkitConfig {
                 1D));
     }
 
+    /**
+     * Server-specific: level steps. Every {@link #getLevelStepEvery()} levels, a skill's levels need this many
+     * percent more XP (on top of the normal curve): 50 means +50% from level 50, +100% from level 100 and so on.
+     * 0 (the default) for no steps.
+     */
+    public double getLevelStepPercent(PrimarySkillType skill) {
+        return Math.max(0, config.getDouble("Experience_Formula.Level_Steps.Step_Percent."
+                + StringUtils.getCapitalized(skill.toString()), 0D));
+    }
+
+    /** Server-specific: how many levels each level step spans (see {@link #getLevelStepPercent}). */
+    public int getLevelStepEvery() {
+        return Math.max(1, config.getInt("Experience_Formula.Level_Steps.Every_Levels", 50));
+    }
+
     /* Custom XP perk */
     public double getCustomXpPerkBoost() {
         if (customXpPerkBoost == null) {
