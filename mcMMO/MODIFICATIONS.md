@@ -26,3 +26,5 @@ marked with a "Server-specific" comment.
   combat skills and Acrobatics, none for the others), so those skills get harder to level as they grow instead of
   earning less XP. Set in `experience.yml` under `Experience_Formula.Level_Steps`; changed:
   `datatypes/player/PlayerProfile.java`, `config/experience/ExperienceConfig.java`.
+- **Quieter sounds**: every mcMMO sound plays at 40% volume (`sounds.yml`, `Sounds.MasterVolume: 0.4`), and Bleed
+  at half its old volume.
