@@ -22,6 +22,7 @@ marked with a "Server-specific" comment.
   `locale_en_US.properties` (`Skills.ChargeBar.*`). New file: `runnables/skills/AbilityChargeBarTask.java`;
   changed: `datatypes/player/McMMOPlayer.java`, `util/player/NotificationManager.java`,
   `runnables/player/PlayerProfileLoadingTask.java`, `config/GeneralConfig.java`, `util/AdditionalBossesHook.java`.
-- **Slower combat levelling**: combat skills (Swords, Axes, Archery, Unarmed, Taming, Crossbows, Tridents, Maces,
-  Spears) earn 40% of the usual XP and Acrobatics 30%, so they keep pace with gathering. Set in `experience.yml` under
-  `Experience_Formula.Skill_Multiplier`.
+- **Level steps**: every 50 levels, a skill's levels need more XP than the normal curve (+50% per step for the
+  combat skills and Acrobatics, none for the others), so those skills get harder to level as they grow instead of
+  earning less XP. Set in `experience.yml` under `Experience_Formula.Level_Steps`; changed:
+  `datatypes/player/PlayerProfile.java`, `config/experience/ExperienceConfig.java`.

@@ -175,26 +175,49 @@ Experience_Formula:
         Multiplier: 0.0
 
     # Experience gained will get multiplied by these values. 1.0 by default, 0.5 means half XP gained. This happens right before multiplying the XP by the global multiplier.
-    # Server-specific: combat skills (and Acrobatics) levelled much faster than gathering, so they are scaled down.
-    # Raise them towards 1.0 to speed them up again, lower them to slow them down more.
     Skill_Multiplier:
-        Spears: 0.4
-        Maces: 0.4
-        Crossbows: 0.4
-        Tridents: 0.4
-        Swords: 0.4
-        Taming: 0.4
-        Acrobatics: 0.3
+        Spears: 1.0
+        Maces: 1.0
+        Crossbows: 1.0
+        Tridents: 1.0
+        Swords: 1.0
+        Taming: 1.0
+        Acrobatics: 1.0
         Excavation: 1.0
         Herbalism: 1.0
-        Unarmed: 0.4
+        Unarmed: 1.0
         Woodcutting: 1.0
         Mining: 1.0
-        Archery: 0.4
-        Axes: 0.4
+        Archery: 1.0
+        Axes: 1.0
         Repair: 1.0
         Fishing: 1.0
         Alchemy: 1.0
+
+    # Server-specific: level steps. Every Every_Levels levels, a skill's levels need Step_Percent percent more XP
+    # than the curve above says, so the skill gets harder to level as it grows (XP earned stays the same).
+    # With Every_Levels 50 and Step_Percent 50: levels 0-49 as normal, 50-99 need 1.5x, 100-149 need 2x,
+    # 500-549 need 6x, and so on. 0 = no steps for that skill. (Levels are on RetroMode's 0-1000 scale.)
+    Level_Steps:
+        Every_Levels: 50
+        Step_Percent:
+            Swords: 50
+            Axes: 50
+            Archery: 50
+            Unarmed: 50
+            Taming: 50
+            Crossbows: 50
+            Tridents: 50
+            Maces: 50
+            Spears: 50
+            Acrobatics: 50
+            Mining: 0
+            Herbalism: 0
+            Woodcutting: 0
+            Excavation: 0
+            Fishing: 0
+            Repair: 0
+            Alchemy: 0
 
     # XP earned by players with the permission mcmmo.perks.xp.customboost.<skillname> will get multiplied
     # with 1.25 by default, resulting in a 25% XP boost

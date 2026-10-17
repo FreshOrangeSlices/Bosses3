@@ -482,7 +482,24 @@ public class PlayerProfile {
                 ? getPowerLevelForCumulativeCurve() : skills.get(primarySkillType);
         FormulaType formulaType = ExperienceConfig.getInstance().getFormulaType();
 
-        return mcMMO.getFormulaManager().getXPtoNextLevel(level, formulaType);
+        int xp = mcMMO.getFormulaManager().getXPtoNextLevel(level, formulaType);
+        return withLevelSteps(primarySkillType, skills.get(primarySkillType), xp);
+    }
+
+    /**
+     * Server-specific: level steps. Every few levels (Experience_Formula.Level_Steps in experience.yml) the skill's
+     * levels need a little more XP than the normal curve says, so a skill keeps getting harder to level instead of
+     * earning less XP.
+     */
+    static int withLevelSteps(PrimarySkillType skill, int skillLevel, int xp) {
+        ExperienceConfig config = ExperienceConfig.getInstance();
+        double percent = config.getLevelStepPercent(skill);
+        if (percent <= 0) {
+            return xp;
+        }
+        int steps = Math.max(0, skillLevel) / config.getLevelStepEvery();
+        double scaled = xp * (1 + steps * percent / 100.0);
+        return (int) Math.max(1, Math.min(Integer.MAX_VALUE, Math.round(scaled)));
     }
 
     /**
