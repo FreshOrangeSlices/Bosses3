@@ -175,21 +175,23 @@ Experience_Formula:
         Multiplier: 0.0
 
     # Experience gained will get multiplied by these values. 1.0 by default, 0.5 means half XP gained. This happens right before multiplying the XP by the global multiplier.
+    # Server-specific: combat skills (and Acrobatics) levelled much faster than gathering, so they are scaled down.
+    # Raise them towards 1.0 to speed them up again, lower them to slow them down more.
     Skill_Multiplier:
-        Spears: 1.0
-        Maces: 1.0
-        Crossbows: 1.0
-        Tridents: 1.0
-        Swords: 1.0
-        Taming: 1.0
-        Acrobatics: 1.0
+        Spears: 0.4
+        Maces: 0.4
+        Crossbows: 0.4
+        Tridents: 0.4
+        Swords: 0.4
+        Taming: 0.4
+        Acrobatics: 0.3
         Excavation: 1.0
         Herbalism: 1.0
-        Unarmed: 1.0
+        Unarmed: 0.4
         Woodcutting: 1.0
         Mining: 1.0
-        Archery: 1.0
-        Axes: 1.0
+        Archery: 0.4
+        Axes: 0.4
         Repair: 1.0
         Fishing: 1.0
         Alchemy: 1.0
